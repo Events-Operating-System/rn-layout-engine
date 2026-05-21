@@ -34,11 +34,11 @@ Architecture should focus on:
 Current stack:
 
 Frontend:
-- Next.js
-- React
-- TypeScript
-- Tailwind
-- Konva.js
+- Vite 6 (migrated from Next.js in SESSION-0009 — do not reintroduce Next.js)
+- React 19
+- TypeScript 5
+- Tailwind v4 (via @tailwindcss/vite — no PostCSS config)
+- Konva.js / react-konva (2D canvas — NOT Three.js)
 
 Backend:
 - Node.js
