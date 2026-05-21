@@ -1,9 +1,8 @@
 import LayoutEditor from '@/components/LayoutEditor'
 
-export default function Page() {
+export default function App() {
   return (
     <div className="h-screen flex flex-col bg-slate-950 text-slate-200 overflow-hidden">
-      {/* Header */}
       <header className="h-10 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-4 gap-3">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-indigo-500" />
@@ -21,10 +20,8 @@ export default function Page() {
         </div>
       </header>
 
-      {/* Editor: left sidebar + canvas + right sidebar */}
       <LayoutEditor />
 
-      {/* Legend footer */}
       <footer className="h-10 flex-none bg-slate-900 border-t border-slate-700/60 flex items-center px-4 gap-6 overflow-hidden">
         <LegendInline />
         <div className="flex items-center gap-5 text-[9px] text-slate-600 ml-auto flex-none">

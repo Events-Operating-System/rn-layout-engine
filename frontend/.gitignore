@@ -13,9 +13,12 @@
 # testing
 /coverage
 
-# next.js
+# next.js (removed — migrated to Vite)
 /.next/
 /out/
+
+# vite
+/dist
 
 # production
 /build
