@@ -1,15 +1,28 @@
 'use client'
 
-import { useRef, useCallback, useEffect, useState } from 'react'
-import { Stage, Layer, Rect, Text, Group, Shape, Transformer } from 'react-konva'
+import { useRef, useCallback, useEffect, useState, forwardRef, useImperativeHandle } from 'react'
+import { Stage, Layer, Line, Arrow, Rect, Circle, Text, Group, Shape, Transformer } from 'react-konva'
 import type Konva from 'konva'
-import type { LayoutElement, CanvasViewport } from '@/types/layout'
+import type { LayoutElement, CanvasViewport, DrawingPrimitive, DrawingTool, LayoutMeta } from '@/types/layout'
+import { FOOTER_HEIGHT_PX } from '@/components/FooterLegend'
 
 export const PIXELS_PER_METER = 20
 const GRID_METERS = 120
 const GRID_TOTAL_PX = GRID_METERS * PIXELS_PER_METER
 const MIN_SCALE = 0.15
 const MAX_SCALE = 6
+const EXPORT_RATIO = 2
+
+const DRAW_COLOR = '#fbbf24'   // amber-400 — visible on dark canvas
+const DRAW_STROKE = 2
+
+// ── Public handle exposed via forwardRef ──────────────────────────────────────
+
+export interface LayoutCanvasHandle {
+  exportPNG: () => void
+}
+
+// ── Props ─────────────────────────────────────────────────────────────────────
 
 interface LayoutCanvasProps {
   elements: LayoutElement[]
@@ -18,209 +31,547 @@ interface LayoutCanvasProps {
   onSelect: (id: string | null) => void
   onUpdateElement: (id: string, updates: Partial<LayoutElement>) => void
   onUpdateViewport: (updates: Partial<CanvasViewport>) => void
+  onDeleteElement: (id: string) => void
+  activeTool: DrawingTool
+  drawings: DrawingPrimitive[]
+  onAddDrawing: (primitive: Omit<DrawingPrimitive, 'id'>) => void
+  layoutMeta: LayoutMeta
+  selectedDrawingId: string | null
+  onSelectDrawing: (id: string | null) => void
+  onDeleteDrawing: (id: string) => void
+  onUpdateDrawing: (id: string, updates: Partial<DrawingPrimitive>) => void
 }
 
-export default function LayoutCanvas({
-  elements,
-  selectedId,
-  viewport,
-  onSelect,
-  onUpdateElement,
-  onUpdateViewport,
-}: LayoutCanvasProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const stageRef = useRef<Konva.Stage>(null)
-  const transformerRef = useRef<Konva.Transformer>(null)
-  const [containerSize, setContainerSize] = useState({ width: 800, height: 600 })
-  const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
+// ── Component ─────────────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    if (!containerRef.current) return
-    const obs = new ResizeObserver(entries => {
-      const { width, height } = entries[0].contentRect
-      setContainerSize({ width, height })
-    })
-    obs.observe(containerRef.current)
-    return () => obs.disconnect()
-  }, [])
+const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
+  function LayoutCanvas(
+    {
+      elements, selectedId, viewport,
+      onSelect, onUpdateElement, onUpdateViewport, onDeleteElement,
+      activeTool, drawings, onAddDrawing, layoutMeta,
+      selectedDrawingId, onSelectDrawing, onDeleteDrawing,
+    }: LayoutCanvasProps,
+    ref,
+  ) {
+    const containerRef = useRef<HTMLDivElement>(null)
+    const stageRef = useRef<Konva.Stage>(null)
+    const transformerRef = useRef<Konva.Transformer>(null)
+    const [containerSize, setContainerSize] = useState({ width: 800, height: 600 })
+    const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
 
-  // Wire transformer to the selected shape
-  useEffect(() => {
-    if (!transformerRef.current || !stageRef.current) return
-    if (selectedId) {
-      const node = stageRef.current.findOne(`#${selectedId}`)
-      if (node) {
-        transformerRef.current.nodes([node])
-        transformerRef.current.getLayer()?.batchDraw()
-        return
+    // ── Pan refs ──────────────────────────────────────────────────────────────
+    const isPanning = useRef(false)
+    const panOrigin = useRef({ clientX: 0, clientY: 0, vpX: 0, vpY: 0 })
+    const isDraggingElement = useRef(false)
+
+    // ── Drawing refs + state ──────────────────────────────────────────────────
+    const drawingStartRef = useRef<{ x: number; y: number } | null>(null)
+    const drawingToolRef = useRef<'line' | 'arrow'>('line')
+    const previewDataRef = useRef<{ tool: string; points: number[] } | null>(null)
+    const [previewDrawing, setPreviewDrawing] = useState<{ tool: string; points: number[] } | null>(null)
+
+    // ── Container resize ──────────────────────────────────────────────────────
+
+    useEffect(() => {
+      if (!containerRef.current) return
+      const obs = new ResizeObserver(entries => {
+        const { width, height } = entries[0].contentRect
+        setContainerSize({ width, height })
+      })
+      obs.observe(containerRef.current)
+      return () => obs.disconnect()
+    }, [])
+
+    // ── Transformer wiring ────────────────────────────────────────────────────
+
+    useEffect(() => {
+      if (!transformerRef.current || !stageRef.current) return
+      if (selectedId) {
+        const node = stageRef.current.findOne(`#${selectedId}`)
+        if (node) {
+          transformerRef.current.nodes([node])
+          transformerRef.current.getLayer()?.batchDraw()
+          return
+        }
       }
-    }
-    transformerRef.current.nodes([])
-    transformerRef.current.getLayer()?.batchDraw()
-  }, [selectedId, elements])
+      transformerRef.current.nodes([])
+      transformerRef.current.getLayer()?.batchDraw()
+    }, [selectedId, elements])
 
-  const handleWheel = useCallback(
-    (e: Konva.KonvaEventObject<WheelEvent>) => {
-      e.evt.preventDefault()
+    // ── Keyboard: Delete / Backspace ──────────────────────────────────────────
+
+    useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key !== 'Delete' && e.key !== 'Backspace') return
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+        e.preventDefault()
+        if (selectedId) {
+          onDeleteElement(selectedId)
+        } else if (selectedDrawingId) {
+          onDeleteDrawing(selectedDrawingId)
+        }
+      }
+      window.addEventListener('keydown', handleKeyDown)
+      return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [selectedId, selectedDrawingId, onDeleteElement, onDeleteDrawing])
+
+    // ── Global mouseup — commits pan OR drawing ───────────────────────────────
+
+    useEffect(() => {
+      const onMouseUp = () => {
+        if (isPanning.current) {
+          isPanning.current = false
+          const stage = stageRef.current
+          if (stage) onUpdateViewport({ x: stage.x(), y: stage.y() })
+        }
+
+        const preview = previewDataRef.current
+        if (drawingStartRef.current && preview && preview.points.length >= 4) {
+          const [x1, y1, x2, y2] = preview.points
+          if (Math.hypot(x2 - x1, y2 - y1) > 5) {
+            onAddDrawing({
+              tool: preview.tool as 'line' | 'arrow',
+              points: preview.points,
+              color: DRAW_COLOR,
+              strokeWidth: DRAW_STROKE,
+            })
+          }
+        }
+        drawingStartRef.current = null
+        previewDataRef.current = null
+        setPreviewDrawing(null)
+      }
+      window.addEventListener('mouseup', onMouseUp)
+      return () => window.removeEventListener('mouseup', onMouseUp)
+    }, [onUpdateViewport, onAddDrawing])
+
+    // ── Export PNG ────────────────────────────────────────────────────────────
+
+    const exportPNG = useCallback(() => {
       const stage = stageRef.current
       if (!stage) return
 
-      const oldScale = stage.scaleX()
-      const pointer = stage.getPointerPosition()
-      if (!pointer) return
+      const stageDataURL = stage.toDataURL({ pixelRatio: EXPORT_RATIO })
+      const img = new Image()
+      img.onload = () => {
+        const ew = containerSize.width * EXPORT_RATIO
+        const eh = (containerSize.height + FOOTER_HEIGHT_PX) * EXPORT_RATIO
 
-      const direction = e.evt.deltaY > 0 ? -1 : 1
-      const factor = 1.08
-      const newScale = Math.min(
-        MAX_SCALE,
-        Math.max(MIN_SCALE, direction > 0 ? oldScale * factor : oldScale / factor)
-      )
+        const canvas = document.createElement('canvas')
+        canvas.width = ew
+        canvas.height = eh
 
-      const mouseAt = {
-        x: (pointer.x - stage.x()) / oldScale,
-        y: (pointer.y - stage.y()) / oldScale,
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+
+        // Dark background (transparent areas of stage become dark)
+        ctx.fillStyle = '#020617'
+        ctx.fillRect(0, 0, ew, eh)
+
+        // Stage content (already EXPORT_RATIO-scaled)
+        ctx.drawImage(img, 0, 0)
+
+        // Footer — scale context so renderFooterToCanvas works in CSS pixels
+        ctx.save()
+        ctx.scale(EXPORT_RATIO, EXPORT_RATIO)
+        renderFooterToCanvas(ctx, containerSize.width, containerSize.height, FOOTER_HEIGHT_PX, layoutMeta)
+        ctx.restore()
+
+        const link = document.createElement('a')
+        link.href = canvas.toDataURL('image/png')
+        link.download = `rn-layout-${new Date().toISOString().slice(0, 10)}.png`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+      }
+      img.src = stageDataURL
+    }, [containerSize, layoutMeta])
+
+    useImperativeHandle(ref, () => ({ exportPNG }), [exportPNG])
+
+    // ── Zoom (wheel) ──────────────────────────────────────────────────────────
+
+    const handleWheel = useCallback(
+      (e: Konva.KonvaEventObject<WheelEvent>) => {
+        e.evt.preventDefault()
+        const stage = stageRef.current
+        if (!stage) return
+        const oldScale = stage.scaleX()
+        const pointer = stage.getPointerPosition()
+        if (!pointer) return
+        const direction = e.evt.deltaY > 0 ? -1 : 1
+        const factor = 1.08
+        const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE,
+          direction > 0 ? oldScale * factor : oldScale / factor,
+        ))
+        const mouseAt = {
+          x: (pointer.x - stage.x()) / oldScale,
+          y: (pointer.y - stage.y()) / oldScale,
+        }
+        onUpdateViewport({
+          scale: newScale,
+          x: pointer.x - mouseAt.x * newScale,
+          y: pointer.y - mouseAt.y * newScale,
+        })
+      },
+      [onUpdateViewport],
+    )
+
+    // ── Mouse down — pan OR drawing start ────────────────────────────────────
+
+    const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+      const stage = stageRef.current
+      if (!stage) return
+
+      if (activeTool === 'text') {
+        const pos = stage.getRelativePointerPosition()
+        if (!pos) return
+        // eslint-disable-next-line no-alert
+        const text = window.prompt('Anotación de texto:', '')
+        if (text === null) return
+        onAddDrawing({
+          tool: 'text',
+          points: [pos.x, pos.y],
+          text: text || 'Texto',
+          color: DRAW_COLOR,
+          strokeWidth: 0,
+        })
+        return
       }
 
-      onUpdateViewport({
-        scale: newScale,
-        x: pointer.x - mouseAt.x * newScale,
-        y: pointer.y - mouseAt.y * newScale,
-      })
-    },
-    [onUpdateViewport]
-  )
+      if (activeTool === 'line' || activeTool === 'arrow') {
+        const pos = stage.getRelativePointerPosition()
+        if (!pos) return
+        drawingStartRef.current = { x: pos.x, y: pos.y }
+        drawingToolRef.current = activeTool
+        return
+      }
 
-  const handleStageClick = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
-      if (e.target === e.target.getStage()) onSelect(null)
-    },
-    [onSelect]
-  )
+      // Pointer mode: pan only on stage background
+      if (e.target !== e.target.getStage()) return
+      if (isDraggingElement.current) return
+      isPanning.current = true
+      panOrigin.current = {
+        clientX: e.evt.clientX,
+        clientY: e.evt.clientY,
+        vpX: stage.x(),
+        vpY: stage.y(),
+      }
+    }, [activeTool, onAddDrawing])
 
-  const handleMouseMove = useCallback(() => {
-    const stage = stageRef.current
-    if (!stage) return
-    const pos = stage.getRelativePointerPosition()
-    if (!pos) return
-    setCursorPos({
-      x: Math.round((pos.x / PIXELS_PER_METER) * 10) / 10,
-      y: Math.round((pos.y / PIXELS_PER_METER) * 10) / 10,
-    })
-  }, [])
+    // ── Mouse move ────────────────────────────────────────────────────────────
 
-  return (
-    <div ref={containerRef} className="relative w-full h-full bg-slate-950 overflow-hidden">
-      <Stage
-        ref={stageRef}
-        width={containerSize.width}
-        height={containerSize.height}
-        x={viewport.x}
-        y={viewport.y}
-        scaleX={viewport.scale}
-        scaleY={viewport.scale}
-        draggable
-        onWheel={handleWheel}
-        onClick={handleStageClick}
-        onMouseMove={handleMouseMove}
-        onDragEnd={e => onUpdateViewport({ x: e.target.x(), y: e.target.y() })}
+    const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
+      const stage = stageRef.current
+      if (!stage) return
+
+      if (drawingStartRef.current !== null) {
+        const pos = stage.getRelativePointerPosition()
+        if (pos) {
+          const newPreview = {
+            tool: drawingToolRef.current,
+            points: [drawingStartRef.current.x, drawingStartRef.current.y, pos.x, pos.y],
+          }
+          previewDataRef.current = newPreview
+          setPreviewDrawing(newPreview)
+        }
+        return
+      }
+
+      if (isPanning.current) {
+        stage.x(panOrigin.current.vpX + (e.evt.clientX - panOrigin.current.clientX))
+        stage.y(panOrigin.current.vpY + (e.evt.clientY - panOrigin.current.clientY))
+        stage.batchDraw()
+        return
+      }
+
+      const pos = stage.getRelativePointerPosition()
+      if (pos) {
+        setCursorPos({
+          x: Math.round((pos.x / PIXELS_PER_METER) * 10) / 10,
+          y: Math.round((pos.y / PIXELS_PER_METER) * 10) / 10,
+        })
+      }
+    }, [])
+
+    // ── Stage click — deselect on background ──────────────────────────────────
+
+    const handleStageClick = useCallback(
+      (e: Konva.KonvaEventObject<MouseEvent>) => {
+        if (e.target === e.target.getStage()) {
+          onSelect(null)
+          onSelectDrawing(null)
+        }
+      },
+      [onSelect, onSelectDrawing],
+    )
+
+    const cursor = activeTool !== 'pointer' ? 'crosshair' : 'default'
+    const elementInteractive = activeTool === 'pointer'
+    const drawingsInteractive = activeTool === 'pointer'
+
+    // ── Render ────────────────────────────────────────────────────────────────
+
+    return (
+      <div
+        ref={containerRef}
+        className="relative w-full h-full bg-slate-950 overflow-hidden"
+        style={{ cursor }}
       >
-        {/* Grid */}
-        <Layer listening={false}>
-          <Shape
-            sceneFunc={(ctx) => {
-              const nc = (ctx as unknown as { _context: CanvasRenderingContext2D })._context
-              nc.save()
-
-              nc.strokeStyle = '#1e293b'
-              nc.lineWidth = 0.5
-              nc.beginPath()
-              for (let i = 0; i <= GRID_METERS; i++) {
-                const p = i * PIXELS_PER_METER
-                nc.moveTo(p, 0); nc.lineTo(p, GRID_TOTAL_PX)
-                nc.moveTo(0, p); nc.lineTo(GRID_TOTAL_PX, p)
-              }
-              nc.stroke()
-
-              nc.strokeStyle = '#1e3a5f'
-              nc.lineWidth = 1
-              nc.beginPath()
-              for (let i = 0; i <= GRID_METERS; i += 5) {
-                const p = i * PIXELS_PER_METER
-                nc.moveTo(p, 0); nc.lineTo(p, GRID_TOTAL_PX)
-                nc.moveTo(0, p); nc.lineTo(GRID_TOTAL_PX, p)
-              }
-              nc.stroke()
-
-              // Origin marker
-              nc.strokeStyle = '#334155'
-              nc.lineWidth = 1
-              nc.strokeRect(0, 0, GRID_TOTAL_PX, GRID_TOTAL_PX)
-
-              nc.restore()
-            }}
-          />
-        </Layer>
-
-        {/* Assets */}
-        <Layer>
-          {elements.map(el => (
-            <AssetShape
-              key={el.id}
-              element={el}
-              isSelected={el.id === selectedId}
-              onSelect={() => onSelect(el.id)}
-              onDragEnd={(x, y) =>
-                onUpdateElement(el.id, {
-                  x: Math.round((x / PIXELS_PER_METER) * 10) / 10,
-                  y: Math.round((y / PIXELS_PER_METER) * 10) / 10,
-                })
-              }
-              onTransformEnd={(x, y, w, h, rotation) =>
-                onUpdateElement(el.id, { x, y, width: w, height: h, rotation })
-              }
+        <Stage
+          ref={stageRef}
+          width={containerSize.width}
+          height={containerSize.height}
+          x={viewport.x}
+          y={viewport.y}
+          scaleX={viewport.scale}
+          scaleY={viewport.scale}
+          onWheel={handleWheel}
+          onMouseDown={handleStageMouseDown}
+          onMouseMove={handleMouseMove}
+          onClick={handleStageClick}
+        >
+          {/* Grid — very subtle, non-interactive */}
+          <Layer listening={false}>
+            <Rect
+              x={0} y={0}
+              width={GRID_TOTAL_PX} height={GRID_TOTAL_PX}
+              fill="#020617"
             />
-          ))}
-          <Transformer
-            ref={transformerRef}
-            rotateEnabled
-            keepRatio={false}
-            borderStroke="#f8fafc"
-            borderStrokeWidth={1}
-            anchorStroke="#f8fafc"
-            anchorFill="#1e293b"
-            anchorSize={8}
-            anchorCornerRadius={2}
-            boundBoxFunc={(_old, newBox) => newBox}
-          />
-        </Layer>
-      </Stage>
+            <GridLines />
+          </Layer>
 
-      {/* Cursor coordinates HUD */}
-      {cursorPos && (
-        <div className="absolute bottom-3 left-3 font-mono text-[10px] text-slate-400 bg-slate-900/80 px-2 py-1 rounded border border-slate-700/50 pointer-events-none">
-          {cursorPos.x}m, {cursorPos.y}m
+          {/* Assets + drawings + Transformer */}
+          <Layer>
+            {elements.map(el => (
+              <AssetShape
+                key={el.id}
+                element={el}
+                isSelected={el.id === selectedId}
+                interactive={elementInteractive}
+                onSelect={() => onSelect(el.id)}
+                onDragStart={() => { isDraggingElement.current = true }}
+                onDragEnd={(x, y) => {
+                  isDraggingElement.current = false
+                  onUpdateElement(el.id, {
+                    x: Math.round((x / PIXELS_PER_METER) * 10) / 10,
+                    y: Math.round((y / PIXELS_PER_METER) * 10) / 10,
+                  })
+                }}
+                onTransformEnd={(x, y, w, h, rotation) =>
+                  onUpdateElement(el.id, { x, y, width: w, height: h, rotation })
+                }
+              />
+            ))}
+
+            {drawings.map(drw => (
+              <DrawingShape
+                key={drw.id}
+                drawing={drw}
+                isSelected={drw.id === selectedDrawingId}
+                interactive={drawingsInteractive}
+                onSelect={() => onSelectDrawing(drw.id)}
+              />
+            ))}
+
+            {previewDrawing && (
+              <DrawingPreview tool={previewDrawing.tool} points={previewDrawing.points} />
+            )}
+
+            <Transformer
+              ref={transformerRef}
+              rotateEnabled
+              keepRatio={false}
+              borderStroke="#f8fafc"
+              borderStrokeWidth={1}
+              anchorStroke="#f8fafc"
+              anchorFill="#1e293b"
+              anchorSize={8}
+              anchorCornerRadius={2}
+              boundBoxFunc={(_old, newBox) => newBox}
+            />
+          </Layer>
+        </Stage>
+
+        {/* Cursor HUD */}
+        {cursorPos && (
+          <div className="absolute bottom-3 left-3 font-mono text-[10px] text-slate-400 bg-slate-900/80 px-2 py-1 rounded border border-slate-700/50 pointer-events-none">
+            {cursorPos.x}m, {cursorPos.y}m
+          </div>
+        )}
+
+        {/* Zoom HUD */}
+        <div className="absolute top-3 right-3 font-mono text-[10px] text-slate-400 bg-slate-900/80 px-2 py-1 rounded border border-slate-700/50 pointer-events-none">
+          {Math.round(viewport.scale * 100)}%
         </div>
-      )}
-
-      {/* Zoom level HUD */}
-      <div className="absolute top-3 right-3 font-mono text-[10px] text-slate-400 bg-slate-900/80 px-2 py-1 rounded border border-slate-700/50 pointer-events-none">
-        {Math.round(viewport.scale * 100)}%
       </div>
-    </div>
+    )
+  }
+)
+
+export default LayoutCanvas
+
+// ── Grid lines ────────────────────────────────────────────────────────────────
+
+function GridLines() {
+  return (
+    <Shape
+      width={GRID_TOTAL_PX}
+      height={GRID_TOTAL_PX}
+      sceneFunc={(ctx: Konva.Context) => {
+        const nc = (ctx as unknown as { _context: CanvasRenderingContext2D })._context
+        nc.save()
+
+        // 5m grid — very faint
+        nc.strokeStyle = 'rgba(148, 163, 184, 0.07)'
+        nc.lineWidth = 0.5
+        nc.beginPath()
+        for (let i = 0; i <= GRID_METERS; i += 5) {
+          const p = i * PIXELS_PER_METER
+          nc.moveTo(p, 0); nc.lineTo(p, GRID_TOTAL_PX)
+          nc.moveTo(0, p); nc.lineTo(GRID_TOTAL_PX, p)
+        }
+        nc.stroke()
+
+        // 10m grid — slightly more visible
+        nc.strokeStyle = 'rgba(148, 163, 184, 0.14)'
+        nc.lineWidth = 0.7
+        nc.beginPath()
+        for (let i = 0; i <= GRID_METERS; i += 10) {
+          const p = i * PIXELS_PER_METER
+          nc.moveTo(p, 0); nc.lineTo(p, GRID_TOTAL_PX)
+          nc.moveTo(0, p); nc.lineTo(GRID_TOTAL_PX, p)
+        }
+        nc.stroke()
+
+        // Boundary
+        nc.strokeStyle = 'rgba(148, 163, 184, 0.25)'
+        nc.lineWidth = 1
+        nc.strokeRect(0, 0, GRID_TOTAL_PX, GRID_TOTAL_PX)
+
+        nc.restore()
+      }}
+    />
   )
 }
 
-// ─── Individual placed asset ──────────────────────────────────────────────────
+// ── Drawing primitive renderer ────────────────────────────────────────────────
+
+interface DrawingShapeProps {
+  drawing: DrawingPrimitive
+  isSelected: boolean
+  interactive: boolean
+  onSelect: () => void
+}
+
+function DrawingShape({ drawing, isSelected, interactive, onSelect }: DrawingShapeProps) {
+  const opacity = drawing.opacity ?? 1
+  const clickProps = {
+    listening: interactive,
+    onClick: interactive ? onSelect : undefined,
+    onTap: interactive ? onSelect : undefined,
+    hitStrokeWidth: 12,
+    shadowEnabled: isSelected,
+    shadowColor: '#60a5fa',
+    shadowBlur: 10,
+    shadowOpacity: 0.85,
+  }
+
+  if (drawing.tool === 'line') {
+    return (
+      <Line
+        points={drawing.points}
+        stroke={drawing.color}
+        strokeWidth={drawing.strokeWidth}
+        lineCap="round"
+        lineJoin="round"
+        opacity={opacity}
+        {...clickProps}
+      />
+    )
+  }
+  if (drawing.tool === 'arrow') {
+    return (
+      <Arrow
+        points={drawing.points}
+        stroke={drawing.color}
+        fill={drawing.color}
+        strokeWidth={drawing.strokeWidth}
+        pointerWidth={8}
+        pointerLength={10}
+        lineCap="round"
+        opacity={opacity}
+        {...clickProps}
+      />
+    )
+  }
+  if (drawing.tool === 'text' && drawing.text) {
+    return (
+      <Text
+        x={drawing.points[0]}
+        y={drawing.points[1]}
+        text={drawing.text}
+        fill={drawing.color}
+        fontSize={14}
+        fontFamily="ui-monospace, monospace"
+        opacity={opacity}
+        {...clickProps}
+      />
+    )
+  }
+  return null
+}
+
+// ── In-progress drawing preview ───────────────────────────────────────────────
+
+function DrawingPreview({ tool, points }: { tool: string; points: number[] }) {
+  if (tool === 'arrow') {
+    return (
+      <Arrow
+        points={points}
+        stroke={DRAW_COLOR}
+        fill={DRAW_COLOR}
+        strokeWidth={DRAW_STROKE}
+        dash={[6, 4]}
+        pointerWidth={8}
+        pointerLength={10}
+        lineCap="round"
+        listening={false}
+        opacity={0.7}
+      />
+    )
+  }
+  return (
+    <Line
+      points={points}
+      stroke={DRAW_COLOR}
+      strokeWidth={DRAW_STROKE}
+      dash={[6, 4]}
+      lineCap="round"
+      listening={false}
+      opacity={0.7}
+    />
+  )
+}
+
+// ── Individual placed asset ───────────────────────────────────────────────────
 
 interface AssetShapeProps {
   element: LayoutElement
   isSelected: boolean
+  interactive: boolean
   onSelect: () => void
+  onDragStart: () => void
   onDragEnd: (x: number, y: number) => void
   onTransformEnd: (x: number, y: number, w: number, h: number, rotation: number) => void
 }
 
-function AssetShape({ element, isSelected, onSelect, onDragEnd, onTransformEnd }: AssetShapeProps) {
+function AssetShape({
+  element, isSelected, interactive,
+  onSelect, onDragStart, onDragEnd, onTransformEnd,
+}: AssetShapeProps) {
   const groupRef = useRef<Konva.Group>(null)
 
   const px = element.x * PIXELS_PER_METER
@@ -228,8 +579,12 @@ function AssetShape({ element, isSelected, onSelect, onDragEnd, onTransformEnd }
   const pw = element.width * PIXELS_PER_METER
   const ph = element.height * PIXELS_PER_METER
 
+  const isCircle = element.shape === 'circle'
+  const radius = Math.min(pw, ph) / 2
   const fontSize = Math.min(13, Math.max(8, Math.min(pw, ph) / 4))
   const showLabel = pw > 30 && ph > 16
+
+  const baseOpacity = element.opacity ?? 0.65
 
   const handleTransformEnd = useCallback(() => {
     const node = groupRef.current
@@ -243,11 +598,17 @@ function AssetShape({ element, isSelected, onSelect, onDragEnd, onTransformEnd }
     onTransformEnd(
       Math.round((node.x() / PIXELS_PER_METER) * 10) / 10,
       Math.round((node.y() / PIXELS_PER_METER) * 10) / 10,
-      newW,
-      newH,
+      newW, newH,
       Math.round(node.rotation()),
     )
   }, [element.width, element.height, onTransformEnd])
+
+  const shapeStyle = {
+    fill: element.color,
+    opacity: isSelected ? Math.min(1, baseOpacity + 0.2) : baseOpacity,
+    stroke: isSelected ? '#f8fafc' : element.color,
+    strokeWidth: isSelected ? 1.5 : 0.5,
+  }
 
   return (
     <Group
@@ -256,30 +617,25 @@ function AssetShape({ element, isSelected, onSelect, onDragEnd, onTransformEnd }
       x={px}
       y={py}
       rotation={element.rotation}
-      draggable={!element.locked}
-      onClick={onSelect}
-      onTap={onSelect}
-      onDragEnd={e => onDragEnd(e.target.x(), e.target.y())}
+      draggable={interactive && !element.locked}
+      onClick={interactive ? onSelect : undefined}
+      onTap={interactive ? onSelect : undefined}
+      onDragStart={interactive ? onDragStart : undefined}
+      onDragEnd={interactive ? (e => onDragEnd(e.target.x(), e.target.y())) : undefined}
       onTransformEnd={handleTransformEnd}
     >
-      {/* Main body */}
-      <Rect
-        width={pw}
-        height={ph}
-        fill={element.color}
-        opacity={isSelected ? 0.9 : 0.65}
-        stroke={isSelected ? '#f8fafc' : element.color}
-        strokeWidth={isSelected ? 1.5 : 0.5}
-        cornerRadius={2}
-      />
+      {isCircle ? (
+        <Circle x={pw / 2} y={ph / 2} radius={radius} {...shapeStyle} />
+      ) : (
+        <Rect width={pw} height={ph} cornerRadius={2} {...shapeStyle} />
+      )}
 
-      {/* Name label */}
       {showLabel && (
         <Text
           text={element.name}
           width={pw}
           height={ph * 0.6}
-          y={0}
+          y={isCircle ? ph * 0.2 : 0}
           align="center"
           verticalAlign="middle"
           fill="#f8fafc"
@@ -292,13 +648,12 @@ function AssetShape({ element, isSelected, onSelect, onDragEnd, onTransformEnd }
         />
       )}
 
-      {/* Dimension sub-label */}
       {showLabel && (
         <Text
           text={`${element.width}m × ${element.height}m`}
           width={pw}
           height={ph * 0.4}
-          y={ph * 0.6}
+          y={isCircle ? ph * 0.5 : ph * 0.6}
           align="center"
           verticalAlign="middle"
           fill="rgba(248,250,252,0.55)"
@@ -309,4 +664,101 @@ function AssetShape({ element, isSelected, onSelect, onDragEnd, onTransformEnd }
       )}
     </Group>
   )
+}
+
+// ── Footer renderer (PNG export only) ────────────────────────────────────────
+
+function renderFooterToCanvas(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  yOffset: number,
+  footerHeight: number,
+  meta: LayoutMeta,
+) {
+  const leftW = 176
+
+  ctx.fillStyle = '#0f172a'
+  ctx.fillRect(0, yOffset, width, footerHeight)
+
+  // Top border
+  ctx.strokeStyle = '#475569'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(0, yOffset)
+  ctx.lineTo(width, yOffset)
+  ctx.stroke()
+
+  // Company name
+  ctx.fillStyle = '#f1f5f9'
+  ctx.font = 'bold 13px ui-monospace, monospace'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(meta.company || 'Reality Near', leftW / 2, yOffset + footerHeight * 0.38)
+
+  ctx.fillStyle = '#475569'
+  ctx.font = '7px ui-monospace, monospace'
+  ctx.letterSpacing = '0.1em'
+  ctx.fillText('LAYOUT ENGINE', leftW / 2, yOffset + footerHeight * 0.65)
+  ctx.letterSpacing = '0'
+
+  // Left block divider
+  ctx.strokeStyle = '#475569'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(leftW, yOffset)
+  ctx.lineTo(leftW, yOffset + footerHeight)
+  ctx.stroke()
+
+  // Right 5-column metadata grid
+  const rightW = width - leftW
+  const colW = rightW / 5
+  const rowH = footerHeight / 2
+
+  const cols = [
+    [{ label: 'CLIENTE', value: meta.cliente }, { label: 'LUGAR EVENTO', value: meta.lugarEvento }],
+    [{ label: 'FECHA EVENTO', value: meta.fechaEvento }, { label: 'PAX / INVITADOS', value: meta.pax }],
+    [{ label: 'VERSION DEL PLANO', value: meta.version }, { label: 'FECHA DEL PLANO', value: meta.fechaPlano }],
+    [{ label: 'CONTACTO', value: meta.contacto }, { label: 'TELEFONO', value: meta.telefono }],
+    [{ label: 'CORREO', value: meta.correo }, { label: '', value: '' }],
+  ]
+
+  ctx.textAlign = 'left'
+
+  cols.forEach((col, ci) => {
+    const cx = leftW + ci * colW
+
+    if (ci > 0) {
+      ctx.strokeStyle = '#334155'
+      ctx.lineWidth = 1
+      ctx.beginPath()
+      ctx.moveTo(cx, yOffset)
+      ctx.lineTo(cx, yOffset + footerHeight)
+      ctx.stroke()
+    }
+
+    col.forEach((field, ri) => {
+      const ry = yOffset + ri * rowH
+
+      if (ri > 0) {
+        ctx.strokeStyle = '#1e293b'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(cx, ry)
+        ctx.lineTo(cx + colW, ry)
+        ctx.stroke()
+      }
+
+      if (!field.label) return
+
+      ctx.fillStyle = '#475569'
+      ctx.font = '7px ui-monospace, monospace'
+      ctx.textBaseline = 'top'
+      ctx.fillText(field.label, cx + 6, ry + 5)
+
+      ctx.fillStyle = '#e2e8f0'
+      ctx.font = '10px ui-monospace, monospace'
+      ctx.textBaseline = 'bottom'
+      ctx.fillText(field.value || '—', cx + 6, ry + rowH - 5)
+    })
+  })
 }

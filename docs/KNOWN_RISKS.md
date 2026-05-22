@@ -4,7 +4,7 @@
 ---
 
 # LAST UPDATED
-2026-05-20 — SESSION-0009 (Next.js → Vite Migration)
+2026-05-21 — SESSION-0012 (Operational Polish Sprint)
 
 ---
 
@@ -55,3 +55,44 @@ Confirm and configure deployment target before merging to `main`. Options:
 | Any CDN | Upload `dist/` manually or via CI | Manual |
 
 Rollback: not applicable — no current production deployment exists to roll back.
+
+---
+
+## RISK-0015
+**Severity:** LOW
+**Status:** OPEN
+
+### Description
+No layout persistence exists. All canvas state (placed assets, drawings, metadata) is lost on page reload. Office testing sessions produce work that cannot be saved or resumed.
+
+### Trigger Condition
+A team member refreshes the browser, closes the tab, or the browser crashes during a layout session.
+
+### Impact
+All in-progress layout data is lost. No file save, no localStorage, no backend persistence.
+
+### Mitigation
+Currently accepted as an in-sprint limitation — the tool is in validation mode only. Before operational use for real events, one of the following must be implemented:
+- Browser `localStorage` save/load (no backend required — fast to build)
+- JSON file export/import (download layout as `.json`, re-import later)
+- Backend persistence (out of scope for current MVP)
+
+Add to SESSION-0013 scope if office testing reveals this blocks real operational use.
+
+---
+
+## RISK-0016
+**Severity:** LOW
+**Status:** OPEN
+
+### Description
+Export captures only the visible viewport (WYSIWYG). Assets or annotations placed outside the current viewport view are not included in the exported PNG.
+
+### Trigger Condition
+Operator places elements, then pans/zooms so some elements are off-screen, then exports.
+
+### Impact
+Exported plan is incomplete — missing elements that were placed but not in view.
+
+### Mitigation
+Operators must ensure all elements are visible before exporting. Zoom out to confirm full layout is in frame. A "fit all" zoom button would mitigate this. Add to SESSION-0013 if this becomes a friction point during office testing.

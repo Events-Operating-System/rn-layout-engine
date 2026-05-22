@@ -4,7 +4,7 @@
 ---
 
 # LAST UPDATED
-2026-05-20 — SESSION-0009 (Next.js → Vite Migration)
+2026-05-21 — SESSION-0012 (Operational Polish Sprint — Office Testing Readiness)
 
 ---
 
@@ -46,12 +46,19 @@ frontend/
 │   ├── App.tsx             — Application shell
 │   ├── index.css           — Global styles
 │   ├── components/
-│   │   ├── LayoutEditor.tsx        — Three-panel layout shell
-│   │   ├── canvas/                 — Konva canvas components
-│   │   └── panels/                 — UI control panels
+│   │   ├── LayoutEditor.tsx        — Column layout: DrawingToolbar → panels row → FooterLegend
+│   │   ├── DrawingToolbar.tsx      — Tool selector + "Exportar Plano" button
+│   │   ├── FooterLegend.tsx        — CAD-style title block (9 editable metadata fields)
+│   │   ├── canvas/
+│   │   │   └── LayoutCanvas.tsx    — Konva Stage; exposes exportPNG via forwardRef
+│   │   └── panels/
+│   │       ├── AssetLibraryPanel.tsx   — 34 assets across 6 categories
+│   │       ├── PropertiesPanel.tsx     — Element + drawing properties + color controls
+│   │       └── LegendPanel.tsx         — Category color legend
 │   ├── hooks/
-│   │   └── useCanvasState.ts       — Canvas state management
-│   └── types/                      — TypeScript type definitions
+│   │   └── useCanvasState.ts       — Canvas + drawing + metadata state
+│   └── types/
+│       └── layout.ts               — LayoutElement, DrawingPrimitive, LayoutMeta, etc.
 ```
 
 ---
@@ -60,14 +67,14 @@ frontend/
 
 | Branch | State | Notes |
 |---|---|---|
-| `feat/vite-migration` | Locally validated — NOT yet merged | All SESSION-0009 work lives here |
-| `main` | Pre-migration Next.js scaffold | Last stable baseline; untouched in SESSION-0009 |
+| `feat/vite-migration` | Locally validated — NOT yet merged | All SESSION-0009 through SESSION-0012 work lives here |
+| `main` | Pre-migration Next.js scaffold | Last stable baseline; untouched since SESSION-0009 |
 
 **Merge hold:** Do not merge `feat/vite-migration` → `main` until deployment target is confirmed and production smoke test passes. See RISK-0014.
 
 ---
 
-# VALIDATED BEHAVIORS (local, 2026-05-20)
+# VALIDATED BEHAVIORS (local, 2026-05-21)
 
 | Behavior | Status |
 |---|---|
@@ -75,10 +82,28 @@ frontend/
 | `npm run dev` starts Vite | ✅ |
 | Canvas renders without freeze | ✅ |
 | Zoom (wheel event) | ✅ |
-| Pan (drag on Stage) | ✅ |
-| Object drag | ✅ |
-| Transformer handles | ✅ |
+| Pan (drag on Stage) — isolated from element drag | ✅ |
+| Object drag — no accidental stage pan during asset drag | ✅ |
+| Transformer handles (resize / rotate) | ✅ |
 | No SSR errors | ✅ |
+| Asset placement (click in library → element added to canvas) | ✅ |
+| Element selection → Transformer + Properties panel wired | ✅ |
+| Properties panel live update (x/y/w/h/rotation/name) | ✅ |
+| Delete / Backspace removes selected element | ✅ |
+| Delete / Backspace removes selected drawing | ✅ |
+| Round tables render as circles | ✅ |
+| New assets spawn near visible viewport center | ✅ |
+| Footer legend (9 metadata fields, editable inline) | ✅ |
+| Line / Arrow drawing tools | ✅ |
+| Text annotation | ✅ |
+| Drawing selection (click to select in pointer mode) | ✅ |
+| Drawing color change via Properties panel | ✅ |
+| Drawing opacity via Properties panel | ✅ |
+| Element color change via preset swatches | ✅ |
+| Element opacity via slider | ✅ |
+| Export PNG ("Exportar Plano") — 2x resolution, footer included | ✅ (TypeScript clean, manual test pending) |
+| 34 operational assets in library | ✅ |
+| TypeScript 0 errors | ✅ |
 
 ---
 
@@ -112,6 +137,7 @@ git checkout main
 
 # NEXT PRIORITIES
 
-1. **Confirm deployment target** — Vercel / Render Static / CDN for `frontend/dist/` (closes RISK-0014)
-2. **Merge `feat/vite-migration` → `main`** — after production smoke test passes on chosen host
-3. **SESSION-0010** — First canvas feature: element creation (add shape/text) + property panel wiring
+1. **Manual office testing** — validate exported plans, interaction stability, color controls (SESSION-0012 deliverable)
+2. **Confirm deployment target** — Vercel / Render Static / CDN for `frontend/dist/` (closes RISK-0014)
+3. **Merge `feat/vite-migration` → `main`** — after production smoke test passes on chosen host
+4. **SESSION-0013 options:** Grid snapping, background image upload, layout save/load (browser localStorage), or direct Vercel deployment

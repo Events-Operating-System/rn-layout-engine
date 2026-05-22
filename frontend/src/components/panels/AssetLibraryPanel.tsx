@@ -1,25 +1,47 @@
 import { CATEGORY_COLORS, CATEGORY_LABELS } from '@/types/layout'
 import type { AssetCategory, AssetTemplate } from '@/types/layout'
 
+interface AssetLibraryPanelProps {
+  onAddElement: (template: AssetTemplate) => void
+}
+
 const ASSET_TEMPLATES: AssetTemplate[] = [
+  // Stage
   { name: 'Main Stage',       category: 'stage',       defaultWidth: 20,  defaultHeight: 12  },
   { name: 'Secondary Stage',  category: 'stage',       defaultWidth: 10,  defaultHeight: 8   },
-  { name: 'Podium',           category: 'stage',       defaultWidth: 1.2, defaultHeight: 0.8 },
+  { name: 'Dance Floor',      category: 'stage',       defaultWidth: 10,  defaultHeight: 10  },
+  { name: 'LED Wall',         category: 'stage',       defaultWidth: 8,   defaultHeight: 3   },
+  { name: 'Screen',           category: 'stage',       defaultWidth: 4,   defaultHeight: 3   },
+  { name: 'DJ Booth PRO',     category: 'stage',       defaultWidth: 4,   defaultHeight: 3   },
   { name: 'DJ Booth',         category: 'stage',       defaultWidth: 3,   defaultHeight: 2   },
+  { name: 'Podium',           category: 'stage',       defaultWidth: 1.2, defaultHeight: 0.8 },
+  // Structure
   { name: 'Tent 10×10',       category: 'structure',   defaultWidth: 10,  defaultHeight: 10  },
   { name: 'Tent 20×20',       category: 'structure',   defaultWidth: 20,  defaultHeight: 20  },
   { name: 'Tent 20×40',       category: 'structure',   defaultWidth: 40,  defaultHeight: 20  },
   { name: 'Marquee',          category: 'structure',   defaultWidth: 30,  defaultHeight: 15  },
-  { name: 'Round Table 8',    category: 'seating',     defaultWidth: 1.5, defaultHeight: 1.5 },
-  { name: 'Round Table 10',   category: 'seating',     defaultWidth: 1.8, defaultHeight: 1.8 },
+  { name: 'Bar',              category: 'structure',   defaultWidth: 5,   defaultHeight: 2   },
+  { name: 'Buffet',           category: 'structure',   defaultWidth: 8,   defaultHeight: 2   },
+  { name: 'Lounge',           category: 'structure',   defaultWidth: 6,   defaultHeight: 5   },
+  { name: 'Backstage',        category: 'structure',   defaultWidth: 10,  defaultHeight: 6   },
+  // Seating
+  { name: 'Round Table 8',    category: 'seating',     defaultWidth: 1.5, defaultHeight: 1.5, shape: 'circle' },
+  { name: 'Round Table 10',   category: 'seating',     defaultWidth: 1.8, defaultHeight: 1.8, shape: 'circle' },
+  { name: 'Head Table',       category: 'seating',     defaultWidth: 4,   defaultHeight: 1.5 },
   { name: 'Rect Table',       category: 'seating',     defaultWidth: 2.4, defaultHeight: 0.75},
   { name: 'Chair Row Block',  category: 'seating',     defaultWidth: 5,   defaultHeight: 2   },
   { name: 'Bleacher Block',   category: 'seating',     defaultWidth: 10,  defaultHeight: 4   },
+  // Barrier
   { name: 'Crowd Barrier',    category: 'barrier',     defaultWidth: 2.5, defaultHeight: 0.15},
+  { name: 'Fence',            category: 'barrier',     defaultWidth: 10,  defaultHeight: 0.15},
   { name: 'Fence Panel',      category: 'barrier',     defaultWidth: 3,   defaultHeight: 2   },
+  // Utility
+  { name: 'Kitchen',          category: 'utility',     defaultWidth: 6,   defaultHeight: 4   },
+  { name: 'Restrooms',        category: 'utility',     defaultWidth: 6,   defaultHeight: 3   },
   { name: 'Generator',        category: 'utility',     defaultWidth: 3,   defaultHeight: 1.5 },
-  { name: 'Restroom Block',   category: 'utility',     defaultWidth: 6,   defaultHeight: 3   },
   { name: 'First Aid',        category: 'utility',     defaultWidth: 4,   defaultHeight: 3   },
+  // Circulation
+  { name: 'Entrance',         category: 'circulation', defaultWidth: 6,   defaultHeight: 1   },
   { name: 'Entrance Gate',    category: 'circulation', defaultWidth: 4,   defaultHeight: 0.5 },
   { name: 'Exit Gate',        category: 'circulation', defaultWidth: 4,   defaultHeight: 0.5 },
   { name: 'Emergency Exit',   category: 'circulation', defaultWidth: 2,   defaultHeight: 0.5 },
@@ -29,7 +51,7 @@ const CATEGORY_ORDER: AssetCategory[] = [
   'stage', 'structure', 'seating', 'barrier', 'utility', 'circulation',
 ]
 
-export default function AssetLibraryPanel() {
+export default function AssetLibraryPanel({ onAddElement }: AssetLibraryPanelProps) {
   return (
     <aside className="w-56 flex-none bg-slate-900 border-r border-slate-700/60 flex flex-col overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-700/60 flex-none">
@@ -56,6 +78,7 @@ export default function AssetLibraryPanel() {
                 {assets.map(asset => (
                   <div
                     key={asset.name}
+                    onClick={() => onAddElement(asset)}
                     className="flex items-center justify-between px-2 py-1.5 rounded text-xs text-slate-300 hover:bg-slate-700/40 cursor-pointer group transition-colors"
                   >
                     <span className="truncate">{asset.name}</span>
