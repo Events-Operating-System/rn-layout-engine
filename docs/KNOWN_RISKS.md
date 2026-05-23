@@ -4,7 +4,7 @@
 ---
 
 # LAST UPDATED
-2026-05-23 — SESSION-0014 (iPhone Safari Root Cause Fix)
+2026-05-23 — Deployment audit and stabilization pass
 
 ---
 
@@ -40,14 +40,14 @@ Current state and recommended action.
 After the Next.js → Vite migration (SESSION-0009, DEC-0019), Vite produces a static SPA in `frontend/dist/`. No deployment target was configured.
 
 ### Resolution
-Deployed to Vercel via CLI on 2026-05-23 (SESSION-0013).
+Deployed to Vercel via CLI on 2026-05-23 (SESSION-0013). GitHub-connected auto-deploy confirmed active 2026-05-23 (deployment audit).
 
-**Production URL:** https://frontend-eta-five-50.vercel.app
+**Canonical production URL:** https://rn-layout-engine.vercel.app
 
-Project: `javier-bambaren-d-s-projects/frontend` on Vercel (user: jbd84).
-Branch `feat/vite-migration` deployed manually via `vercel --yes` from `frontend/`.
+Project: `javier-bambaren-d-s-projects/rn-layout-engine` on Vercel (user: jbd84).
+GitHub: `Events-Operating-System/rn-layout-engine` → auto-deploys on push to `feat/vite-migration` (production branch until `main` merge).
 
-**Next step:** Connect the GitHub repo to Vercel for auto-deploy on push to `main` after `feat/vite-migration` is merged.
+**Next step:** Merge `feat/vite-migration` → `main`, then update Vercel production branch setting to `main`.
 
 ---
 
@@ -63,6 +63,35 @@ Konva canvas memory exhaustion on iOS Safari. When `containerSize` was initializ
 2. `pixelRatio={Math.min(window.devicePixelRatio, 2)}` — caps Konva DPR at 2. On a 390×844 iPhone, max canvas per layer: ~2.6 MB × 2 layers = ~5.2 MB, well within iOS Safari limit.
 
 Confirmed fixed on iPhone Safari 2026-05-23.
+
+---
+
+## RISK-0020
+**Severity:** MEDIUM
+**Status:** OPEN — 2026-05-23 (deployment audit)
+
+### Description
+Two active Vercel projects serve the same codebase:
+1. `rn-layout-engine` (`prj_3FI1KiHhe03aL3YuzpdSjDCGteVY`) — GitHub-connected, canonical, `rn-layout-engine.vercel.app`
+2. `frontend` (`prj_C5ILNi9aCuQZgqTYqxDtWoOMQSZi`) — manual-only, deprecated, `frontend-eta-five-50.vercel.app`
+
+Both currently serve the correct iPhone fix. Risk is future divergence: if a hotfix is deployed to `frontend` manually, `rn-layout-engine` will lag. Or vice versa.
+
+Additionally, `main` branch is empty (only 2 initial commits). The Vercel production branch is `feat/vite-migration`. If `main` is ever pushed to Vercel accidentally, it would deploy stale pre-migration code.
+
+### Trigger Condition
+- Developer runs `vercel --prod` from `frontend/` → deploys to deprecated `frontend` project, not canonical one
+- Developer merges `feat/vite-migration` → `main` without updating Vercel production branch → new pushes to `main` may not auto-deploy
+- Developer enables Vercel Deployment Protection on `rn-layout-engine` without testing → iPhone Safari 401
+
+### Impact
+Production deployments diverge from GitHub state. `rn-layout-engine.vercel.app` serves different code than expected.
+
+### Mitigation
+1. Use only `rn-layout-engine.vercel.app` as production URL — do not deploy to `frontend` project
+2. Merge `feat/vite-migration` → `main` and update Vercel production branch to `main`
+3. Delete `frontend` Vercel project after confirming `rn-layout-engine` is stable for ≥ 1 week
+4. Never run `vercel --prod` from `frontend/` — use git push to trigger auto-deploy instead
 
 ---
 

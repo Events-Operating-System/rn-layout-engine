@@ -36,6 +36,49 @@ What remains pending after session.
 
 ---
 
+## AUDIT-2026-05-23
+**Date:** 2026-05-23
+**Branch:** `feat/vite-migration`
+**Operator:** JBD & Claude
+**Status:** COMPLETED
+
+### Scope
+Full deployment and repository audit. No code changes. Stabilize documentation to reflect actual production state.
+
+### Findings
+
+**GitHub:**
+- `feat/vite-migration` tip: `dcc8782` — local = remote = deployed. Clean working tree. No local-only changes.
+- `main` tip: `0e8d4c` — only 2 initial commits. All SESSION work (`0009`–`0014`) exists only on `feat/vite-migration`. `main` has never been merged.
+
+**Vercel — two projects discovered:**
+
+| Project | URL | Fix present | GitHub-connected |
+|---|---|---|---|
+| `rn-layout-engine` | https://rn-layout-engine.vercel.app | ✅ `containerSize=null`, DPR cap | ✅ auto-deploys on push |
+| `frontend` | https://frontend-eta-five-50.vercel.app | ✅ same fix | ❌ manual only |
+
+`rn-layout-engine` is canonical. `frontend` is a debugging artifact from SESSION-0013/0014.
+
+**iPhone fix verification (binary-level):**
+- `rn-layout-engine.vercel.app` production (`pq310qmwp`): `useState(null)` ✅, `Math.min(typeof window<"u"?window.devicePixelRatio:1,2)` ✅, zero `__dbg_js` ✅
+- `frontend-eta-five-50.vercel.app` production: same fix confirmed earlier
+
+**`rn-layout-engine` production branch:** Currently `feat/vite-migration` (not `main`). Pushes to `feat/vite-migration` auto-trigger production deploys. Must be updated to `main` after merge.
+
+### Delivered
+- `docs/DEPLOYMENT.md` — complete rewrite with canonical URL, two-project explanation, mobile fix documentation, deployment rules
+- `docs/SYSTEM_STATE.md` — corrected deployment section, corrected branch state table, updated next priorities
+- `docs/KNOWN_RISKS.md` — corrected RISK-0014 production URL, added RISK-0020 (two Vercel projects + empty main)
+- `docs/SESSION_LOG.md` — this entry
+
+### Open
+- Merge `feat/vite-migration` → `main`
+- Update `rn-layout-engine` Vercel production branch to `main`
+- Delete or archive `frontend` Vercel project
+
+---
+
 ## SESSION-0014
 **Date:** 2026-05-23
 **Branch:** `feat/vite-migration`

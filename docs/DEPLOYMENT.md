@@ -4,156 +4,188 @@
 ---
 
 # LAST UPDATED
-2026-05-23 — SESSION-0014
+2026-05-23 — Deployment audit and stabilization pass
 
 ---
 
-# PRODUCTION URL
+# CANONICAL PRODUCTION URL
 
-**Stable alias:** https://frontend-eta-five-50.vercel.app
+**https://rn-layout-engine.vercel.app**
 
-This alias is permanent. It always points to the current production deployment.
-Do NOT create new temporary aliases — use this URL for sharing, testing, and QA.
+This is the single production URL. Use it for sharing, QA, and all external references.
+Do NOT create new aliases. Do NOT use per-hash deployment URLs (`*-javier-bambaren-d-s-projects.vercel.app`) as stable links — they are ephemeral and may require authentication.
 
 ---
 
-# HOSTING
+# VERCEL PROJECTS — TWO EXIST, ONE IS CANONICAL
+
+Two Vercel projects were created during development. Both currently serve the correct iPhone fix. Only `rn-layout-engine` should be used going forward.
+
+## `rn-layout-engine` — CANONICAL ✅
 
 | Property | Value |
 |---|---|
-| Provider | Vercel |
-| Project | `javier-bambaren-d-s-projects/frontend` |
-| Project ID | `prj_C5ILNi9aCuQZgqTYqxDtWoOMQSZi` |
-| Org | `team_0wJdaPNFeXrAmEpb1eVD1gvc` |
-| Vercel user | `jbd84` |
-| Deployment Protection | **Disabled** — required for iPhone/mobile access |
+| Vercel project ID | `prj_3FI1KiHhe03aL3YuzpdSjDCGteVY` |
+| Project name | `rn-layout-engine` |
+| Root directory | `frontend` |
+| Framework | Vite |
+| GitHub connection | **Connected** — `Events-Operating-System/rn-layout-engine` |
+| Production branch | `feat/vite-migration` (until merged to `main`) |
+| Deployment protection | Enabled — raw deployment URLs require auth; aliases bypass |
+| Production URL | https://rn-layout-engine.vercel.app |
+| Current production deployment | `dpl_ECiEZBLC4MLtqkCfqER4ZrNWwZxf` (`pq310qmwp-...`) |
+
+Auto-deploy behavior:
+- Push to `feat/vite-migration` (current production branch) → production deploy → `rn-layout-engine.vercel.app` updated automatically
+- Push to other branches → preview deploy → temporary URL
+
+## `frontend` — DEPRECATED (debugging artifact, do not use)
+
+| Property | Value |
+|---|---|
+| Vercel project ID | `prj_C5ILNi9aCuQZgqTYqxDtWoOMQSZi` |
+| Project name | `frontend` |
+| GitHub connection | **None** — manual deploys only |
+| Deployment protection | Disabled |
+| Production URL | https://frontend-eta-five-50.vercel.app |
+| Current production deployment | `dpl_FfRVvi8qVg8NYk1wunx4s75zu713` (`frontend-6o0rrn6xc-...`) |
+
+This project was created during SESSION-0013/SESSION-0014 debugging. It has the correct fix deployed but requires manual `vercel --prod` to update. Do not deploy to it going forward. It may be deleted once `rn-layout-engine.vercel.app` is confirmed stable.
 
 ---
 
 # REPOSITORY STRUCTURE
 
 ```
-rn-layout-engine/          ← GitHub repo root
-├── vercel.json            ← Vercel build config (rootDirectory: frontend)
-├── frontend/              ← Vite SPA — this is what Vercel builds
+rn-layout-engine/              ← GitHub repo root (Events-Operating-System/rn-layout-engine)
+├── vercel.json                ← Vercel build config hint (rootDirectory: frontend)
+├── frontend/                  ← Vite SPA — what Vercel builds
 │   ├── package.json
-│   ├── vite.config.ts
-│   └── src/
+│   ├── vite.config.ts         — build.target: ['es2020', 'safari15']
+│   ├── src/
+│   │   ├── main.tsx
+│   │   ├── App.tsx
+│   │   ├── index.css          — #root { height: 100% }, canvas { touch-action: none }
+│   │   └── components/canvas/LayoutCanvas.tsx  — containerSize=null, pixelRatio cap
+│   └── .vercel/project.json   — links CLI to the `frontend` project (deprecated)
 └── docs/
 ```
 
-The Vercel project root is `frontend/`. All build commands run inside `frontend/`.
+The `rn-layout-engine` Vercel project has `rootDirectory: frontend` set in its project settings. Vercel reads from `frontend/` for all builds.
 
 ---
 
-# GITHUB → VERCEL AUTO-DEPLOY (SETUP REQUIRED ONCE)
+# BRANCH → DEPLOYMENT MAPPING
 
-Auto-deploy from `main` is not yet active. To enable it:
+| Branch | Environment | URL | Notes |
+|---|---|---|---|
+| `feat/vite-migration` | Production | https://rn-layout-engine.vercel.app | Current production branch |
+| `main` | — | — | Empty — only 2 initial commits, no SESSION work |
+| Any other branch | Preview | auto-generated URL | Temporary, may require auth |
 
-### One-time setup in Vercel Dashboard
+**Important:** `main` must remain the intended long-term production branch. After `feat/vite-migration` is merged to `main`, update the `rn-layout-engine` project production branch setting to `main` in the Vercel dashboard.
 
-1. Go to: https://vercel.com/javier-bambaren-d-s-projects/frontend/settings/git
-2. Under **"Connected Git Repository"**, click **"Connect"**
-3. Choose **GitHub** → authorize if prompted
-4. Select org: `Events-Operating-System`
-5. Select repo: `rn-layout-engine`
-6. Set **Production Branch**: `main`
-7. Set **Root Directory**: `frontend` (critical — the Vite app is not at repo root)
-8. Click **Save**
+---
 
-After connecting:
-- Every push to `main` → automatic production deploy → `frontend-eta-five-50.vercel.app` updated
-- Every push to other branches → automatic preview deploy → temporary preview URL
+# MOBILE SAFARI FIX — DO NOT REVERT
 
-### What `vercel.json` does
+These changes in `frontend/src/components/canvas/LayoutCanvas.tsx` fixed the iPhone Safari blank screen. They must never be reverted:
 
-`vercel.json` at the repo root tells Vercel what to do when a GitHub-triggered build runs:
+```ts
+// WRONG — causes 33 MB canvas at DPR=3, blanks on iOS Safari
+const [containerSize, setContainerSize] = useState({ width: 800, height: 600 })
 
-```json
-{
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "installCommand": "npm install",
-  "framework": "vite",
-  "rootDirectory": "frontend"
-}
+// CORRECT — defers Stage until ResizeObserver provides real dimensions
+const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null)
 ```
 
-This is already committed. No further changes needed after the dashboard connection.
+```tsx
+// WRONG — no DPR cap; DPR=3 on iPhone 12+ creates ~33 MB total canvas
+<Stage width={...} height={...}>
+
+// CORRECT — caps canvas memory at ~12.5 MB total (safe under iOS 16 MB limit)
+<Stage width={...} height={...} pixelRatio={Math.min(window.devicePixelRatio, 2)}>
+```
+
+```tsx
+// WRONG — renders Stage even when containerSize is unknown
+<Stage width={containerSize.width} height={containerSize.height}>
+
+// CORRECT — Stage only rendered after ResizeObserver fires
+{containerSize !== null && (
+  <Stage width={containerSize.width} height={containerSize.height} ...>
+)}
+```
+
+Root cause: iOS Safari enforces a ~16 MB per-page canvas memory budget. Exceeding it silently blanks canvas elements — no JS error, no console warning.
 
 ---
 
-# MANUAL DEPLOY (CURRENT METHOD)
+# DEPLOYMENT WORKFLOW
 
-Until GitHub is connected, deploy manually from the terminal:
+## Auto-deploy (current method — no action needed)
+
+Every push to `feat/vite-migration` triggers a production deploy automatically on the `rn-layout-engine` Vercel project.
+
+```bash
+git add <files>
+git commit -m "message"
+git push origin feat/vite-migration
+# Vercel builds and deploys automatically — rn-layout-engine.vercel.app updates
+```
+
+## Update production branch to `main` (required after merge)
+
+Once `feat/vite-migration` is merged to `main`:
+1. Go to: https://vercel.com/javier-bambaren-d-s-projects/rn-layout-engine/settings/git
+2. Change Production Branch from `feat/vite-migration` to `main`
+3. Save
+
+After that: push to `main` → production deploy. Push to other branches → preview.
+
+## Emergency manual deploy
+
+If auto-deploy is unavailable and the `rn-layout-engine` project must be updated manually:
 
 ```bash
 cd frontend/
 
-# Standard deploy (uses build cache)
-vercel --prod --yes
-
-# Force deploy (skips build cache — use after dependency changes)
-vercel --prod --yes --force
+# Requires being linked to rn-layout-engine project (currently links to `frontend` project)
+# Better: use Vercel dashboard "Redeploy" on a known-good deployment
 ```
 
-The `frontend-eta-five-50.vercel.app` alias is automatically reassigned to the new production deployment by Vercel.
-
----
-
-# BRANCH → ENVIRONMENT MAPPING
-
-| Branch | Trigger | Environment | URL |
-|---|---|---|---|
-| `main` | push | Production | https://frontend-eta-five-50.vercel.app |
-| any other branch | push | Preview | auto-generated temporary URL |
-
----
-
-# DEPLOYMENT PROTECTION
-
-**Status: DISABLED**
-
-Vercel Deployment Protection was enabled on 2026-05-23 and caused all new deployment URLs to return HTTP 401 on iPhone Safari. Disabled in Project Settings → Deployment Protection.
-
-Do NOT re-enable without first testing on iPhone Safari. When enabled, only custom domain aliases (not per-hash deployment URLs) bypass protection.
-
----
-
-# ALIASES
-
-| Alias | Points To | Purpose |
-|---|---|---|
-| `frontend-eta-five-50.vercel.app` | latest production deployment | **Stable production URL — use this** |
-| `frontend-javier-bambaren-d-s-projects.vercel.app` | latest production deployment | Vercel auto-generated project alias |
-| `frontend-jbd84-javier-bambaren-d-s-projects.vercel.app` | latest production deployment | Vercel auto-generated user alias |
-
-**Rule:** Do NOT create new aliases manually. Only `frontend-eta-five-50.vercel.app` should be shared externally.
+Do NOT run `vercel --prod` from `frontend/` — the `.vercel/project.json` inside `frontend/` links to the deprecated `frontend` project, not `rn-layout-engine`.
 
 ---
 
 # ROLLBACK
 
 ```bash
-# Option A — redeploy a previous commit
-git checkout <commit-hash>
-cd frontend/
-vercel --prod --yes
+# Roll back rn-layout-engine.vercel.app via Vercel dashboard:
+# Go to: vercel.com/javier-bambaren-d-s-projects/rn-layout-engine
+# Find a previous "Ready" deployment → click "..." → "Promote to Production"
 
-# Option B — reset branch and redeploy
-git reset --hard <commit-hash>
-git push origin main --force   # only if already on main
-cd frontend/
-vercel --prod --yes
+# Roll back via git (re-triggers auto-deploy):
+git revert <commit-hash>
+git push origin feat/vite-migration
 ```
 
-Pre-migration Next.js checkpoint (before SESSION-0009): `a89787a`
+**Key safe points:**
+
+| Commit | Description | Safe to roll back to? |
+|---|---|---|
+| `dcc8782` | Add vercel.json + DEPLOYMENT.md (current) | ✅ |
+| `b88d210` | Remove debug overlays — **clean production code** | ✅ |
+| `718fcfe` | SESSION-0014 DPR fix + debug overlay (has green/blue bars) | ⚠️ works but has debug bars |
+| `f782c7d` | SESSION-0013 mobile pass (panels, touch, height chain) | ⚠️ missing DPR fix — blank on iPhone |
+| `036b44f` | SESSION-0012 canvas MVP | ❌ blank screen on iPhone |
+| `a89787a` | Pre-migration Next.js checkpoint | ❌ not deployable as static SPA |
 
 ---
 
 # ENVIRONMENT VARIABLES
 
-None required. This is a client-only SPA with no backend calls and no secrets.
+None. This is a client-only SPA with no backend calls and no secrets.
 
 ---
 
@@ -165,4 +197,15 @@ dist/assets/index-*.css   ~22 kB (gzipped ~5 kB)
 dist/assets/index-*.js    ~543 kB (gzipped ~167 kB)
 ```
 
-The large JS bundle is Konva + React bundled together. No code splitting is currently configured. Acceptable for internal operational tooling.
+Bundle hash changes on every content change (Vite content-addressable output). The hash produced by Vercel's remote build will differ from local build — this is expected and normal. Same source code, same behavior.
+
+---
+
+# RULES — DO NOT VIOLATE
+
+1. **Do NOT use `frontend-eta-five-50.vercel.app` as the canonical URL** — it is a deprecated project alias. Use `rn-layout-engine.vercel.app`.
+2. **Do NOT create manual aliases** with `vercel alias set` — they create cache pollution and confusion.
+3. **Do NOT revert `containerSize=null` or `pixelRatio` cap** — these fix the iPhone blank screen. See mobile fix section above.
+4. **Do NOT run `vercel --prod` from `frontend/`** — that deploys to the deprecated `frontend` project.
+5. **Do NOT re-enable Deployment Protection** on `rn-layout-engine` without testing on iPhone Safari first — the raw per-hash deployment URLs will return 401 on the device.
+6. **Do NOT push the Safari fix** to `frontend-eta-five-50.vercel.app` or the `frontend` Vercel project — it is deprecated.
