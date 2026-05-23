@@ -4,7 +4,7 @@
 ---
 
 # LAST UPDATED
-2026-05-23 — SESSION-0013 (Mobile Stability & Responsive Pass)
+2026-05-23 — SESSION-0014 (iPhone Safari Root Cause Fix)
 
 ---
 
@@ -48,6 +48,21 @@ Project: `javier-bambaren-d-s-projects/frontend` on Vercel (user: jbd84).
 Branch `feat/vite-migration` deployed manually via `vercel --yes` from `frontend/`.
 
 **Next step:** Connect the GitHub repo to Vercel for auto-deploy on push to `main` after `feat/vite-migration` is merged.
+
+---
+
+## RISK-0019
+**Severity:** HIGH
+**Status:** RESOLVED — 2026-05-23 (SESSION-0014)
+
+### Description
+Konva canvas memory exhaustion on iOS Safari. When `containerSize` was initialized to `{ width: 800, height: 600 }` and `window.devicePixelRatio = 3` (iPhone 12+), Konva created canvas backing stores at 2400×1800 px. Two Konva layers (scene + hit) totaled ~33 MB, exceeding iOS Safari's ~16 MB per-page canvas limit. Safari silently blanked all canvas elements with no JavaScript exception.
+
+### Resolution
+1. `containerSize` initializes to `null` — Stage not rendered until ResizeObserver fires with real dimensions. Prevents any canvas allocation before true container size is known.
+2. `pixelRatio={Math.min(window.devicePixelRatio, 2)}` — caps Konva DPR at 2. On a 390×844 iPhone, max canvas per layer: ~2.6 MB × 2 layers = ~5.2 MB, well within iOS Safari limit.
+
+Confirmed fixed on iPhone Safari 2026-05-23.
 
 ---
 

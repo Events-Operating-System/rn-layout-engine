@@ -36,6 +36,77 @@ What remains pending after session.
 
 ---
 
+## SESSION-0014
+**Date:** 2026-05-23
+**Branch:** `feat/vite-migration`
+**Operator:** JBD & Claude
+**Status:** COMPLETED — confirmed on iPhone Safari
+
+### Scope
+Deep root-cause investigation of iPhone Safari blank screen. SESSION-0013 fixes (panel overflow, height chain, touch handlers) were correct and necessary but did not address the primary cause. Full diagnosis required — no guessing, find the exact root cause.
+
+### Root Cause
+
+**PRIMARY — Konva canvas memory exhaustion on iOS Safari:**
+`containerSize` was initialized to `{ width: 800, height: 600 }`. On iPhone 12+ (`window.devicePixelRatio = 3`), Konva creates canvas elements at `width × DPR` × `height × DPR` = `2400 × 1800 = 4,320,000 pixels`. Each canvas layer occupies ~16.5 MB (`2400 × 1800 × 4 bytes`). Konva creates two layers by default (scene layer + hit layer), totaling **~33 MB**. iOS Safari enforces a hard per-page canvas memory limit of **~16 MB**. Exceeding this limit causes Safari to silently blank all canvas elements. The body background (`bg-slate-950`) was all that rendered — the entire Konva stage was invisible.
+
+This is a silent failure with no JavaScript exception, no console error, and no visible DOM change. The Stage node exists in the DOM with correct dimensions, but the canvas backing store is deallocated/blanked by the OS.
+
+**SECONDARY — Deployment protection blocking new builds:**
+All newly deployed Vercel URLs had Deployment Protection enabled (Vercel SSO), requiring authentication. The old public alias (`frontend-eta-five-50.vercel.app`) was serving a cached pre-fix build from the CDN edge. Resolved by disabling Deployment Protection in Vercel project settings.
+
+### Diagnosis Method
+Added two visible diagnostic markers at the DOM level (bypassing React and CSS):
+1. **Green bar** (in `main.tsx` before React mounts): pure DOM injection confirming JavaScript executes on Safari
+2. **Blue bar** (React `DebugOverlay` component): renders after first React paint, showing `#root` dimensions and `App` dimensions
+
+On iPhone Safari, both bars appeared correctly, confirming React mounted and the layout chain was intact. Canvas was sized correctly by the ResizeObserver (390×710 on iPhone 14). Root cause narrowed to rendering — canvas memory.
+
+### Delivered
+
+**`src/components/canvas/LayoutCanvas.tsx`:**
+- `containerSize` state changed from `{ width: 800, height: 600 }` to `null` — Stage not rendered until ResizeObserver fires with real device dimensions. This prevents any canvas memory allocation before the true container size is known.
+- `{containerSize !== null && <Stage ...>}` — conditional render gate
+- `pixelRatio={Math.min(window.devicePixelRatio, 2)}` — caps canvas DPR at 2 (max ~6.2 MB per layer at 390×844, vs ~16.5 MB at DPR=3). Total Konva memory: ≤ ~12.5 MB, well within iOS Safari limit.
+- `exportPNG` guard: `if (!containerSize) return` — safe no-op before Stage is ready
+- Removed `'use client'` directive (Next.js remnant, no-op in Vite but added noise)
+
+**`src/hooks/useCanvasState.ts`:**
+- Removed `'use client'` directive
+
+**`vite.config.ts`:**
+- Added `build.target: ['es2020', 'safari15']` — ensures esbuild transpiles any syntax not supported on Safari 15+
+
+**`src/main.tsx` / `src/App.tsx`:**
+- Added DEBUG-0014 diagnostic overlays (SESSION-0014 diagnostic phase only)
+- Removed in final clean deploy after iPhone confirmation
+
+### Vercel Deployment Protection
+Vercel Deployment Protection was enabled project-wide. New deployment URLs (per-hash) returned HTTP 401. Old production alias was stuck serving CDN-cached pre-fix content. Resolution: disabled Deployment Protection in Vercel project settings dashboard → redeployed → all URLs publicly accessible.
+
+### TypeScript
+Zero errors on `npx tsc --noEmit` after all changes.
+
+### Validated (2026-05-23)
+| Behavior | Status |
+|---|---|
+| iPhone Safari — canvas renders with layout assets visible | ✅ confirmed on device |
+| iPhone Safari — diagnostic bars appeared (React mounted, correct sizing) | ✅ confirmed on device |
+| Vercel production URL publicly accessible (no auth) | ✅ |
+| Debug overlays removed from production build | ✅ |
+| Desktop layout unchanged — no visual regression | ✅ |
+| Export PNG still works (containerSize null guard added) | ✅ |
+| TypeScript 0 errors | ✅ |
+| SESSION-0013 mobile panel toggles preserved | ✅ |
+| SESSION-0012 interactions preserved | ✅ |
+
+### Open
+- Merge `feat/vite-migration` → `main`
+- Connect GitHub repo to Vercel for auto-deploy on push to `main`
+- RISK-0015 (layout persistence), RISK-0016 (export viewport), RISK-0017 (touch drawing), RISK-0018 (iOS prompt)
+
+---
+
 ## SESSION-0013
 **Date:** 2026-05-23
 **Branch:** `feat/vite-migration`

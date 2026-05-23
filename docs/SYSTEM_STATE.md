@@ -4,7 +4,7 @@
 ---
 
 # LAST UPDATED
-2026-05-23 — SESSION-0013 (Mobile Stability & Responsive Pass)
+2026-05-23 — SESSION-0014 (iPhone Safari Root Cause Fix)
 
 ---
 
@@ -108,25 +108,30 @@ frontend/
 | `canvas { touch-action: none }` — prevents native scroll/pinch on canvas | ✅ |
 | Touch pan (single finger) on Konva Stage | ✅ |
 | Pinch-to-zoom (two finger) on Konva Stage | ✅ |
-| Mobile panel toggles (☰ Library, ⊟ Properties) | ✅ (TypeScript clean, device test pending) |
-| Panels hidden on mobile by default, canvas fills full width | ✅ |
+| Mobile panel toggles (☰ Library, ⊟ Properties) | ✅ confirmed on iPhone Safari |
+| Panels hidden on mobile by default, canvas fills full width | ✅ confirmed on iPhone Safari |
 | Panel overlay with backdrop tap-to-dismiss | ✅ |
 | FooterLegend scrollable on narrow viewports | ✅ |
+| Canvas renders on iPhone Safari (DPR=3, iOS Safari) | ✅ confirmed on device |
+| Konva pixelRatio capped at 2 (canvas memory ≤ ~12.5 MB on DPR=3) | ✅ |
+| Stage deferred until ResizeObserver fires (no premature 800×600 canvas) | ✅ |
 
 ---
 
 # DEPLOYMENT
 
-**Status:** LIVE — deployed 2026-05-23 (SESSION-0013)
+**Status:** LIVE — last deployed 2026-05-23 (SESSION-0014 clean build)
 
 | Property | Value |
 |---|---|
 | Provider | Vercel |
-| Production URL | https://frontend-eta-five-50.vercel.app |
+| Production alias | https://frontend-eta-five-50.vercel.app |
+| Latest deployment URL | https://frontend-6o0rrn6xc-javier-bambaren-d-s-projects.vercel.app |
 | Vercel project | `javier-bambaren-d-s-projects/frontend` |
 | Vercel user | `jbd84` |
 | Branch deployed | `feat/vite-migration` |
 | Deploy method | Manual (`vercel --yes` CLI from `frontend/`) |
+| Deployment Protection | **Disabled** (was blocking iPhone access — disabled 2026-05-23) |
 | Auto-deploy | Not yet configured — connect GitHub repo to Vercel for auto-deploy on push to `main` |
 
 See RISK-0014 (RESOLVED).
@@ -148,7 +153,7 @@ git checkout main
 
 # NEXT PRIORITIES
 
-1. **Manual office testing** — validate exported plans, interaction stability, color controls (SESSION-0012 deliverable)
-2. **Confirm deployment target** — Vercel / Render Static / CDN for `frontend/dist/` (closes RISK-0014)
-3. **Merge `feat/vite-migration` → `main`** — after production smoke test passes on chosen host
-4. **SESSION-0013 options:** Grid snapping, background image upload, layout save/load (browser localStorage), or direct Vercel deployment
+1. **Merge `feat/vite-migration` → `main`** — iPhone Safari confirmed, Vercel confirmed, no blockers remain
+2. **Connect GitHub → Vercel** for auto-deploy on push to `main`
+3. **Office testing** — validate exported plans, interaction stability, color controls with real team
+4. **Next feature candidates:** Grid snapping, layout save/load (localStorage), background image upload, touch drawing support (RISK-0017)
