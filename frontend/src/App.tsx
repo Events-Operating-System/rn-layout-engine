@@ -1,4 +1,50 @@
+import { useEffect, useRef } from 'react'
 import LayoutEditor from '@/components/LayoutEditor'
+
+// ── DEBUG-0014: React render + layout diagnostic ──────────────────────────────
+// Inline styles only — works regardless of Tailwind/CSS state.
+// Remove after iPhone diagnosis is confirmed fixed.
+function DebugOverlay() {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const root = document.getElementById('root')!
+    const rootRect = root.getBoundingClientRect()
+    const appEl = root.firstElementChild as HTMLElement | null
+    const appRect = appEl?.getBoundingClientRect()
+    el.textContent = [
+      'React OK',
+      `root:${Math.round(rootRect.width)}×${Math.round(rootRect.height)}`,
+      `app:${appRect ? `${Math.round(appRect.width)}×${Math.round(appRect.height)}` : 'null'}`,
+      `scroll:${document.documentElement.scrollHeight}`,
+    ].join(' | ')
+    // Update JS debug bar to show React mounted
+    const jsBar = document.getElementById('__dbg_js')
+    if (jsBar) jsBar.style.background = '#f59e0b'
+  }, [])
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: 'fixed',
+        top: 20,
+        left: 0,
+        right: 0,
+        background: '#3b82f6',
+        color: '#fff',
+        padding: '6px 10px',
+        zIndex: 999999,
+        fontSize: 11,
+        fontFamily: 'monospace',
+        wordBreak: 'break-all',
+        lineHeight: 1.4,
+      }}
+    >
+      React mounting...
+    </div>
+  )
+}
 
 export default function App() {
   return (
@@ -20,6 +66,7 @@ export default function App() {
         </div>
       </header>
 
+      <DebugOverlay />
       <LayoutEditor />
 
       <footer className="h-10 flex-none bg-slate-900 border-t border-slate-700/60 flex items-center px-4 gap-6 overflow-hidden">

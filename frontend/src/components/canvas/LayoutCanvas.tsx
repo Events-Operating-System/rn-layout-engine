@@ -1,5 +1,3 @@
-'use client'
-
 import { useRef, useCallback, useEffect, useState, forwardRef, useImperativeHandle } from 'react'
 import { Stage, Layer, Line, Arrow, Rect, Circle, Text, Group, Shape, Transformer } from 'react-konva'
 import type Konva from 'konva'
@@ -57,7 +55,9 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     const containerRef = useRef<HTMLDivElement>(null)
     const stageRef = useRef<Konva.Stage>(null)
     const transformerRef = useRef<Konva.Transformer>(null)
-    const [containerSize, setContainerSize] = useState({ width: 800, height: 600 })
+    // null until ResizeObserver fires — prevents oversized canvas on first render
+    // (800×600 at DPR=3 = 33MB which exceeds iOS Safari's ~16MB canvas memory limit)
+    const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null)
     const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null)
 
     // ── Pan refs ──────────────────────────────────────────────────────────────
@@ -160,7 +160,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
     const exportPNG = useCallback(() => {
       const stage = stageRef.current
-      if (!stage) return
+      if (!stage || !containerSize) return
 
       const stageDataURL = stage.toDataURL({ pixelRatio: EXPORT_RATIO })
       const img = new Image()
@@ -381,6 +381,10 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     const elementInteractive = activeTool === 'pointer'
     const drawingsInteractive = activeTool === 'pointer'
 
+    // Cap pixelRatio at 2 — prevents canvas memory exhaustion on iPhone (DPR=3)
+    // At DPR=3 two Konva layers = ~33MB which exceeds iOS Safari's canvas budget
+    const pixelRatio = Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 2)
+
     // ── Render ────────────────────────────────────────────────────────────────
 
     return (
@@ -389,10 +393,13 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         className="relative w-full h-full bg-slate-950 overflow-hidden"
         style={{ cursor }}
       >
+        {/* Stage is not created until ResizeObserver fires with real dimensions */}
+        {containerSize !== null && (
         <Stage
           ref={stageRef}
-          width={Math.max(1, containerSize.width)}
-          height={Math.max(1, containerSize.height)}
+          width={containerSize.width}
+          height={containerSize.height}
+          pixelRatio={pixelRatio}
           x={viewport.x}
           y={viewport.y}
           scaleX={viewport.scale}
@@ -465,6 +472,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
             />
           </Layer>
         </Stage>
+        )}
 
         {/* Cursor HUD */}
         {cursorPos && (

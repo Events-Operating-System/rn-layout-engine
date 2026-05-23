@@ -1,5 +1,3 @@
-'use client'
-
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { LayoutElement, CanvasViewport, AssetTemplate, DrawingPrimitive, DrawingTool, LayoutMeta } from '@/types/layout'
 import { CATEGORY_COLORS, DEFAULT_LAYOUT_META } from '@/types/layout'
