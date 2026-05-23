@@ -115,18 +115,21 @@ frontend/
 
 ---
 
-# DEPLOYMENT (PENDING)
+# DEPLOYMENT
 
-Vite produces a static SPA: `frontend/dist/`. No deployment target is configured yet.
+**Status:** LIVE — deployed 2026-05-23 (SESSION-0013)
 
-**Recommended:** Vercel
-- Connect `rn-layout-engine` repository
-- Root directory: `frontend/`
-- Build command: `npm run build`
-- Output directory: `dist/`
-- Auto-deploy on push to `main`
+| Property | Value |
+|---|---|
+| Provider | Vercel |
+| Production URL | https://frontend-eta-five-50.vercel.app |
+| Vercel project | `javier-bambaren-d-s-projects/frontend` |
+| Vercel user | `jbd84` |
+| Branch deployed | `feat/vite-migration` |
+| Deploy method | Manual (`vercel --yes` CLI from `frontend/`) |
+| Auto-deploy | Not yet configured — connect GitHub repo to Vercel for auto-deploy on push to `main` |
 
-See RISK-0014.
+See RISK-0014 (RESOLVED).
 
 ---
 

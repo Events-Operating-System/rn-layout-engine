@@ -34,27 +34,20 @@ Current state and recommended action.
 
 ## RISK-0014
 **Severity:** MEDIUM
-**Status:** OPEN
+**Status:** RESOLVED — 2026-05-23 (SESSION-0013)
 
 ### Description
-After the Next.js → Vite migration (SESSION-0009, DEC-0019), Vite produces a static SPA in `frontend/dist/`. No deployment target is currently configured for this output. The Layout Engine has no production URL.
+After the Next.js → Vite migration (SESSION-0009, DEC-0019), Vite produces a static SPA in `frontend/dist/`. No deployment target was configured.
 
-### Trigger Condition
-`feat/vite-migration` is merged to `main` and the team needs to access the Layout Engine in a production environment. No hosting service is wired to build and serve `dist/`.
+### Resolution
+Deployed to Vercel via CLI on 2026-05-23 (SESSION-0013).
 
-### Impact
-Layout Engine is not accessible outside of local `npm run dev`. The Vite migration is complete locally but has no live environment. Feature validation and operator use require local setup until this is resolved.
+**Production URL:** https://frontend-eta-five-50.vercel.app
 
-### Mitigation
-Confirm and configure deployment target before merging to `main`. Options:
+Project: `javier-bambaren-d-s-projects/frontend` on Vercel (user: jbd84).
+Branch `feat/vite-migration` deployed manually via `vercel --yes` from `frontend/`.
 
-| Option | Setup | Auto-deploy |
-|---|---|---|
-| **Vercel (recommended)** | Connect repo, root dir = `frontend/`, output = `dist/` | On push to `main` |
-| Render Static Site | Set publish dir = `frontend/dist/`, build cmd = `npm run build` | On push to `main` |
-| Any CDN | Upload `dist/` manually or via CI | Manual |
-
-Rollback: not applicable — no current production deployment exists to roll back.
+**Next step:** Connect the GitHub repo to Vercel for auto-deploy on push to `main` after `feat/vite-migration` is merged.
 
 ---
 
