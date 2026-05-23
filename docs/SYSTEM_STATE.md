@@ -4,7 +4,7 @@
 ---
 
 # LAST UPDATED
-2026-05-23 — Deployment audit and stabilization pass
+2026-05-23 — Pipeline repair: auto-deploy from main confirmed healthy
 
 ---
 
@@ -67,10 +67,10 @@ frontend/
 
 | Branch | Tip commit | State | Notes |
 |---|---|---|---|
-| `feat/vite-migration` | `dcc8782` | **Production** — deployed, iPhone confirmed | All SESSION-0009 through SESSION-0014 work. Local = remote = deployed. |
-| `main` | `0e8d4c` | Governance placeholder | Only 2 initial commits — NO SESSION work. Empty. |
+| `main` | `cc26b22` | **Production** — deployed, iPhone confirmed, pipeline healthy | All SESSION-0009 through SESSION-0014 work + pipeline repair. Local = remote = deployed. |
+| `feat/vite-migration` | `cb48499` | In sync with main | Same content as main (cherry-picked pipeline fix). Preview auto-deploy confirmed. |
 
-**Merge status:** `feat/vite-migration` is ready to merge to `main`. All blockers resolved: deployment confirmed live, iPhone Safari confirmed working, no uncommitted local changes. Merge is the next governance step — see NEXT PRIORITIES.
+**Merge status:** Complete. `feat/vite-migration` merged into `main` 2026-05-23. `main` is now canonical production branch. Auto-deploy confirmed healthy — push to `main` → `rn-layout-engine.vercel.app` updates automatically.
 
 ---
 
@@ -120,16 +120,16 @@ frontend/
 
 # DEPLOYMENT
 
-**Status:** LIVE — auto-deployed 2026-05-23, iPhone Safari confirmed
+**Status:** LIVE — auto-deployed 2026-05-23, iPhone Safari confirmed, pipeline healthy
 
 | Property | Value |
 |---|---|
 | Provider | Vercel |
 | **Canonical production URL** | **https://rn-layout-engine.vercel.app** |
 | Canonical Vercel project | `javier-bambaren-d-s-projects/rn-layout-engine` |
-| Current production deployment | `dpl_ECiEZBLC4MLtqkCfqER4ZrNWwZxf` (auto-deployed from `feat/vite-migration`) |
-| Production branch | `feat/vite-migration` (update to `main` after merge) |
-| Auto-deploy | **Active** — push to `feat/vite-migration` triggers production deploy |
+| Current production deployment | `dpl_YysFxVbt3wdEYVGGqW3FpV3QKXAY` (auto-deployed from `main`) |
+| Production branch | `main` |
+| Auto-deploy | **Active** — push to `main` triggers production deploy |
 | Deployment Protection | Enabled — per-hash URLs require auth; alias URL does not |
 | Secondary URL (deprecated) | https://frontend-eta-five-50.vercel.app — correct code, manual-deploy only |
 
@@ -153,8 +153,6 @@ git checkout main
 
 # NEXT PRIORITIES
 
-1. **Merge `feat/vite-migration` → `main`** — iPhone confirmed, Vercel confirmed, no remaining blockers
-2. **Update Vercel `rn-layout-engine` production branch** from `feat/vite-migration` to `main` (Vercel dashboard) — after merge
-3. **Delete or archive `frontend` Vercel project** — it is a debugging artifact, no longer needed
-4. **Office testing** — validate exported plans, interaction stability, color controls with real team
-5. **Next feature candidates:** Grid snapping, layout save/load (localStorage), background image upload, touch drawing support (RISK-0017)
+1. **Delete or archive `frontend` Vercel project** — debugging artifact, no longer needed. Confirm no unique config, then delete from Vercel dashboard. See RISK-0020.
+2. **Office testing** — validate exported plans, interaction stability, color controls with real team
+3. **Next feature candidates:** Grid snapping, layout save/load (localStorage), background image upload, touch drawing support (RISK-0017)

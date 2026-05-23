@@ -4,7 +4,7 @@
 ---
 
 # LAST UPDATED
-2026-05-23 — Deployment audit and stabilization pass
+2026-05-23 — Pipeline repair complete; RISK-0020 partially mitigated
 
 ---
 
@@ -68,30 +68,32 @@ Confirmed fixed on iPhone Safari 2026-05-23.
 
 ## RISK-0020
 **Severity:** MEDIUM
-**Status:** OPEN — 2026-05-23 (deployment audit)
+**Status:** PARTIALLY MITIGATED — 2026-05-23 (pipeline repair)
 
 ### Description
 Two active Vercel projects serve the same codebase:
 1. `rn-layout-engine` (`prj_3FI1KiHhe03aL3YuzpdSjDCGteVY`) — GitHub-connected, canonical, `rn-layout-engine.vercel.app`
 2. `frontend` (`prj_C5ILNi9aCuQZgqTYqxDtWoOMQSZi`) — manual-only, deprecated, `frontend-eta-five-50.vercel.app`
 
-Both currently serve the correct iPhone fix. Risk is future divergence: if a hotfix is deployed to `frontend` manually, `rn-layout-engine` will lag. Or vice versa.
+Both currently serve the correct iPhone fix. Risk is future divergence if `frontend` is manually updated.
 
-Additionally, `main` branch is empty (only 2 initial commits). The Vercel production branch is `feat/vite-migration`. If `main` is ever pushed to Vercel accidentally, it would deploy stale pre-migration code.
+### Mitigated sub-risks
+- `feat/vite-migration` merged to `main` — complete (2026-05-23)
+- Vercel production branch confirmed as `main` — confirmed (2026-05-23)
+- Auto-deploy pipeline repaired (`rootDirectory` removed from `vercel.json`) — complete (2026-05-23)
+- Push to `main` → production deploy confirmed working — confirmed (2026-05-23)
 
-### Trigger Condition
+### Remaining trigger conditions
 - Developer runs `vercel --prod` from `frontend/` → deploys to deprecated `frontend` project, not canonical one
-- Developer merges `feat/vite-migration` → `main` without updating Vercel production branch → new pushes to `main` may not auto-deploy
 - Developer enables Vercel Deployment Protection on `rn-layout-engine` without testing → iPhone Safari 401
 
 ### Impact
-Production deployments diverge from GitHub state. `rn-layout-engine.vercel.app` serves different code than expected.
+Production deployments diverge from GitHub state if `frontend` project receives manual deploys.
 
 ### Mitigation
 1. Use only `rn-layout-engine.vercel.app` as production URL — do not deploy to `frontend` project
-2. Merge `feat/vite-migration` → `main` and update Vercel production branch to `main`
-3. Delete `frontend` Vercel project after confirming `rn-layout-engine` is stable for ≥ 1 week
-4. Never run `vercel --prod` from `frontend/` — use git push to trigger auto-deploy instead
+2. Delete `frontend` Vercel project — pending (waiting for ≥ 1 stable week on `rn-layout-engine`)
+3. Never run `vercel --prod` from `frontend/` — use `git push origin main` to trigger auto-deploy instead
 
 ---
 

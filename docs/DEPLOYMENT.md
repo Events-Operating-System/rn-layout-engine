@@ -4,7 +4,7 @@
 ---
 
 # LAST UPDATED
-2026-05-23 — Deployment audit and stabilization pass
+2026-05-23 — Pipeline repair: removed invalid rootDirectory from vercel.json, auto-deploy confirmed healthy on main
 
 ---
 
@@ -30,13 +30,13 @@ Two Vercel projects were created during development. Both currently serve the co
 | Root directory | `frontend` |
 | Framework | Vite |
 | GitHub connection | **Connected** — `Events-Operating-System/rn-layout-engine` |
-| Production branch | `feat/vite-migration` (until merged to `main`) |
+| Production branch | `main` |
 | Deployment protection | Enabled — raw deployment URLs require auth; aliases bypass |
 | Production URL | https://rn-layout-engine.vercel.app |
-| Current production deployment | `dpl_ECiEZBLC4MLtqkCfqER4ZrNWwZxf` (`pq310qmwp-...`) |
+| Current production deployment | `dpl_YysFxVbt3wdEYVGGqW3FpV3QKXAY` (`5h6qjdlbm-...`) |
 
 Auto-deploy behavior:
-- Push to `feat/vite-migration` (current production branch) → production deploy → `rn-layout-engine.vercel.app` updated automatically
+- Push to `main` (production branch) → production deploy → `rn-layout-engine.vercel.app` updated automatically
 - Push to other branches → preview deploy → temporary URL
 
 ## `frontend` — DEPRECATED (debugging artifact, do not use)
@@ -125,23 +125,14 @@ Root cause: iOS Safari enforces a ~16 MB per-page canvas memory budget. Exceedin
 
 ## Auto-deploy (current method — no action needed)
 
-Every push to `feat/vite-migration` triggers a production deploy automatically on the `rn-layout-engine` Vercel project.
+Every push to `main` triggers a production deploy automatically on the `rn-layout-engine` Vercel project.
 
 ```bash
 git add <files>
 git commit -m "message"
-git push origin feat/vite-migration
+git push origin main
 # Vercel builds and deploys automatically — rn-layout-engine.vercel.app updates
 ```
-
-## Update production branch to `main` (required after merge)
-
-Once `feat/vite-migration` is merged to `main`:
-1. Go to: https://vercel.com/javier-bambaren-d-s-projects/rn-layout-engine/settings/git
-2. Change Production Branch from `feat/vite-migration` to `main`
-3. Save
-
-After that: push to `main` → production deploy. Push to other branches → preview.
 
 ## Emergency manual deploy
 
@@ -167,14 +158,16 @@ Do NOT run `vercel --prod` from `frontend/` — the `.vercel/project.json` insid
 
 # Roll back via git (re-triggers auto-deploy):
 git revert <commit-hash>
-git push origin feat/vite-migration
+git push origin main
 ```
 
 **Key safe points:**
 
 | Commit | Description | Safe to roll back to? |
 |---|---|---|
-| `dcc8782` | Add vercel.json + DEPLOYMENT.md (current) | ✅ |
+| `cc26b22` | Remove invalid rootDirectory from vercel.json — pipeline repair (current) | ✅ |
+| `3b08897` | Merge feat/vite-migration → main | ✅ |
+| `dcc8782` | Add vercel.json + DEPLOYMENT.md | ✅ |
 | `b88d210` | Remove debug overlays — **clean production code** | ✅ |
 | `718fcfe` | SESSION-0014 DPR fix + debug overlay (has green/blue bars) | ⚠️ works but has debug bars |
 | `f782c7d` | SESSION-0013 mobile pass (panels, touch, height chain) | ⚠️ missing DPR fix — blank on iPhone |
