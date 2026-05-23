@@ -13,8 +13,9 @@
 | Property | Value |
 |---|---|
 | Repo | `rn-layout-engine` |
-| Active development branch | `feat/vite-migration` |
-| Governance branch | `main` |
+| GitHub default branch | `main` |
+| Active development branch | `main` |
+| Legacy branch | `feat/vite-migration` — merged, kept for reference only |
 | Related repo | `RealityNearProject` (EventOS backend — separate, independent) |
 
 ---
@@ -67,8 +68,8 @@ frontend/
 
 | Branch | Tip commit | State | Notes |
 |---|---|---|---|
-| `main` | `cc26b22` | **Production** — deployed, iPhone confirmed, pipeline healthy | All SESSION-0009 through SESSION-0014 work + pipeline repair. Local = remote = deployed. |
-| `feat/vite-migration` | `cb48499` | In sync with main | Same content as main (cherry-picked pipeline fix). Preview auto-deploy confirmed. |
+| `main` | `522a142` | **Production** — deployed, iPhone confirmed, pipeline healthy | All SESSION-0009 through SESSION-0014 work + pipeline repair + governance docs. Local = remote = deployed. |
+| `feat/vite-migration` | `cb48499` | Legacy — merged, preserved for reference | One commit behind main (missing docs-only update). Safe to delete after office testing. |
 
 **Merge status:** Complete. `feat/vite-migration` merged into `main` 2026-05-23. `main` is now canonical production branch. Auto-deploy confirmed healthy — push to `main` → `rn-layout-engine.vercel.app` updates automatically.
 
@@ -131,7 +132,7 @@ frontend/
 | Production branch | `main` |
 | Auto-deploy | **Active** — push to `main` triggers production deploy |
 | Deployment Protection | Enabled — per-hash URLs require auth; alias URL does not |
-| Secondary URL (deprecated) | https://frontend-eta-five-50.vercel.app — correct code, manual-deploy only |
+| Legacy Vercel project (do not use) | https://frontend-eta-five-50.vercel.app — temporary debug artifact, manual-deploy only, pending deletion |
 
 See DEPLOYMENT.md for full project details, mobile fix documentation, and rules.
 See RISK-0020 for two-project governance risk.
@@ -141,13 +142,18 @@ See RISK-0020 for two-project governance risk.
 # ROLLBACK STRATEGY
 
 ```bash
-# Rollback to pre-migration checkpoint (before SESSION-0009)
-git reset --hard a89787a
-git push origin feat/vite-migration --force
+# Roll back via Vercel dashboard (preferred — no force push):
+# Go to: vercel.com/javier-bambaren-d-s-projects/rn-layout-engine
+# Find a previous "Ready" deployment → click "..." → "Promote to Production"
 
-# OR: main branch still holds the pre-migration Next.js scaffold untouched
-git checkout main
+# Roll back via git revert (re-triggers auto-deploy cleanly):
+git revert <commit-hash>
+git push origin main
 ```
+
+**WARNING:** Do NOT `git reset --hard` on `main` and force-push — this is the production branch and will discard commits. Use `git revert` instead.
+
+See DEPLOYMENT.md rollback table for commit-level safety ratings.
 
 ---
 
