@@ -17,6 +17,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Complete the height chain so h-full works all the way down to the canvas */
+#root {
+  height: 100%;
+}
+
+/* Let Konva own all touch gestures — prevents native scroll/pinch from fighting the canvas */
+canvas {
+  touch-action: none;
+}
+
 /* Thin scrollbars for sidebar panels */
 ::-webkit-scrollbar {
   width: 4px;

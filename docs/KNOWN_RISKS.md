@@ -4,7 +4,7 @@
 ---
 
 # LAST UPDATED
-2026-05-21 — SESSION-0012 (Operational Polish Sprint)
+2026-05-23 — SESSION-0013 (Mobile Stability & Responsive Pass)
 
 ---
 
@@ -95,4 +95,40 @@ Operator places elements, then pans/zooms so some elements are off-screen, then 
 Exported plan is incomplete — missing elements that were placed but not in view.
 
 ### Mitigation
-Operators must ensure all elements are visible before exporting. Zoom out to confirm full layout is in frame. A "fit all" zoom button would mitigate this. Add to SESSION-0013 if this becomes a friction point during office testing.
+Operators must ensure all elements are visible before exporting. Zoom out to confirm full layout is in frame. A "fit all" zoom button would mitigate this. Carry to SESSION-0014 backlog.
+
+---
+
+## RISK-0017
+**Severity:** MEDIUM
+**Status:** OPEN
+
+### Description
+Mobile drawing tools (line, arrow, text) are not supported via touch. The touch handlers added in SESSION-0013 cover pan and pinch-to-zoom only. Users on iPhone/iPad cannot create drawing annotations.
+
+### Trigger Condition
+User switches to line/arrow/text tool on a touch device and attempts to draw.
+
+### Impact
+Drawing tools are functionally inaccessible on mobile. Pan and zoom still work. Asset placement and selection work via tap. Export works. Core operational use (placing and reviewing layout assets) is unaffected.
+
+### Mitigation
+Currently accepted as a known limitation for mobile. The primary use case on mobile is reviewing and sharing layouts, not creating annotations. If touch drawing becomes required, add `onTouchStart`/`onTouchMove` routing in `handleTouchStart` for active drawing tools (line/arrow), mirroring the existing mouse logic.
+
+---
+
+## RISK-0018
+**Severity:** LOW
+**Status:** OPEN
+
+### Description
+`window.prompt()` used by the text annotation tool does not work reliably on iOS Safari (may be blocked as a pop-up or not render correctly).
+
+### Trigger Condition
+User taps the canvas in text tool mode on iOS Safari.
+
+### Impact
+Text annotations cannot be added from iPhone/iPad.
+
+### Mitigation
+Currently accepted. Text tool is rarely the primary use case on mobile. Long-term fix: replace `window.prompt()` with an inline text input component rendered on the canvas.

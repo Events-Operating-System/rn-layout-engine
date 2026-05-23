@@ -64,6 +64,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     const isPanning = useRef(false)
     const panOrigin = useRef({ clientX: 0, clientY: 0, vpX: 0, vpY: 0 })
     const isDraggingElement = useRef(false)
+    const lastTouchDist = useRef<number | null>(null)
 
     // ── Drawing refs + state ──────────────────────────────────────────────────
     const drawingStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -117,14 +118,18 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       return () => window.removeEventListener('keydown', handleKeyDown)
     }, [selectedId, selectedDrawingId, onDeleteElement, onDeleteDrawing])
 
-    // ── Global mouseup — commits pan OR drawing ───────────────────────────────
+    // ── Global pointer/touch up — commits pan OR drawing ─────────────────────
 
     useEffect(() => {
-      const onMouseUp = () => {
+      const onUp = () => {
+        const stage = stageRef.current
         if (isPanning.current) {
           isPanning.current = false
-          const stage = stageRef.current
           if (stage) onUpdateViewport({ x: stage.x(), y: stage.y() })
+        }
+        if (lastTouchDist.current !== null) {
+          lastTouchDist.current = null
+          if (stage) onUpdateViewport({ x: stage.x(), y: stage.y(), scale: stage.scaleX() })
         }
 
         const preview = previewDataRef.current
@@ -143,8 +148,12 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         previewDataRef.current = null
         setPreviewDrawing(null)
       }
-      window.addEventListener('mouseup', onMouseUp)
-      return () => window.removeEventListener('mouseup', onMouseUp)
+      window.addEventListener('mouseup', onUp)
+      window.addEventListener('touchend', onUp)
+      return () => {
+        window.removeEventListener('mouseup', onUp)
+        window.removeEventListener('touchend', onUp)
+      }
     }, [onUpdateViewport, onAddDrawing])
 
     // ── Export PNG ────────────────────────────────────────────────────────────
@@ -296,6 +305,66 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       }
     }, [])
 
+    // ── Touch start — single-finger pan or two-finger pinch ──────────────────
+
+    const handleTouchStart = useCallback((e: Konva.KonvaEventObject<TouchEvent>) => {
+      const stage = stageRef.current
+      if (!stage) return
+      e.evt.preventDefault()
+
+      if (e.evt.touches.length === 1) {
+        if (e.target !== e.target.getStage()) return
+        isPanning.current = true
+        panOrigin.current = {
+          clientX: e.evt.touches[0].clientX,
+          clientY: e.evt.touches[0].clientY,
+          vpX: stage.x(),
+          vpY: stage.y(),
+        }
+      } else if (e.evt.touches.length === 2) {
+        isPanning.current = false
+        const dx = e.evt.touches[0].clientX - e.evt.touches[1].clientX
+        const dy = e.evt.touches[0].clientY - e.evt.touches[1].clientY
+        lastTouchDist.current = Math.hypot(dx, dy)
+      }
+    }, [])
+
+    // ── Touch move — pan or pinch-zoom ────────────────────────────────────────
+
+    const handleTouchMove = useCallback((e: Konva.KonvaEventObject<TouchEvent>) => {
+      const stage = stageRef.current
+      if (!stage) return
+      e.evt.preventDefault()
+
+      if (e.evt.touches.length === 1 && isPanning.current) {
+        stage.x(panOrigin.current.vpX + (e.evt.touches[0].clientX - panOrigin.current.clientX))
+        stage.y(panOrigin.current.vpY + (e.evt.touches[0].clientY - panOrigin.current.clientY))
+        stage.batchDraw()
+      } else if (e.evt.touches.length === 2 && lastTouchDist.current !== null) {
+        const dx = e.evt.touches[0].clientX - e.evt.touches[1].clientX
+        const dy = e.evt.touches[0].clientY - e.evt.touches[1].clientY
+        const newDist = Math.hypot(dx, dy)
+        const oldScale = stage.scaleX()
+        const newScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, oldScale * (newDist / lastTouchDist.current)))
+
+        const centerX = (e.evt.touches[0].clientX + e.evt.touches[1].clientX) / 2
+        const centerY = (e.evt.touches[0].clientY + e.evt.touches[1].clientY) / 2
+        const box = stage.container().getBoundingClientRect()
+        const pointer = { x: centerX - box.left, y: centerY - box.top }
+        const mouseAt = {
+          x: (pointer.x - stage.x()) / oldScale,
+          y: (pointer.y - stage.y()) / oldScale,
+        }
+
+        stage.scaleX(newScale)
+        stage.scaleY(newScale)
+        stage.x(pointer.x - mouseAt.x * newScale)
+        stage.y(pointer.y - mouseAt.y * newScale)
+        stage.batchDraw()
+        lastTouchDist.current = newDist
+      }
+    }, [])
+
     // ── Stage click — deselect on background ──────────────────────────────────
 
     const handleStageClick = useCallback(
@@ -322,8 +391,8 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       >
         <Stage
           ref={stageRef}
-          width={containerSize.width}
-          height={containerSize.height}
+          width={Math.max(1, containerSize.width)}
+          height={Math.max(1, containerSize.height)}
           x={viewport.x}
           y={viewport.y}
           scaleX={viewport.scale}
@@ -332,6 +401,8 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           onMouseDown={handleStageMouseDown}
           onMouseMove={handleMouseMove}
           onClick={handleStageClick}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
         >
           {/* Grid — very subtle, non-interactive */}
           <Layer listening={false}>

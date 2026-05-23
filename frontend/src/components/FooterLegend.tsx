@@ -19,8 +19,9 @@ export default function FooterLegend({ meta, onUpdate }: FooterLegendProps) {
         <span className="text-slate-600 text-[8px] uppercase tracking-[0.2em]">Layout Engine</span>
       </div>
 
-      {/* Right — metadata grid */}
-      <div className="flex-1 grid grid-cols-5 divide-x divide-slate-700/60">
+      {/* Right — metadata grid (overflow-x-auto so it scrolls rather than squashes on narrow viewports) */}
+      <div className="flex-1 overflow-x-auto">
+      <div className="grid grid-cols-5 divide-x divide-slate-700/60 h-full min-w-[480px]">
         <Column>
           <MetaField label="CLIENTE"      value={meta.cliente}      onChange={v => onUpdate({ cliente: v })} />
           <MetaField label="LUGAR EVENTO" value={meta.lugarEvento}  onChange={v => onUpdate({ lugarEvento: v })} />
@@ -40,6 +41,7 @@ export default function FooterLegend({ meta, onUpdate }: FooterLegendProps) {
         <Column>
           <MetaField label="CORREO" value={meta.correo} onChange={v => onUpdate({ correo: v })} />
         </Column>
+      </div>
       </div>
     </div>
   )

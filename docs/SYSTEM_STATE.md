@@ -4,7 +4,7 @@
 ---
 
 # LAST UPDATED
-2026-05-21 — SESSION-0012 (Operational Polish Sprint — Office Testing Readiness)
+2026-05-23 — SESSION-0013 (Mobile Stability & Responsive Pass)
 
 ---
 
@@ -74,7 +74,7 @@ frontend/
 
 ---
 
-# VALIDATED BEHAVIORS (local, 2026-05-21)
+# VALIDATED BEHAVIORS (local, 2026-05-23)
 
 | Behavior | Status |
 |---|---|
@@ -101,9 +101,17 @@ frontend/
 | Drawing opacity via Properties panel | ✅ |
 | Element color change via preset swatches | ✅ |
 | Element opacity via slider | ✅ |
-| Export PNG ("Exportar Plano") — 2x resolution, footer included | ✅ (TypeScript clean, manual test pending) |
+| Export PNG ("Exportar Plano") — 2x resolution, footer included | ✅ |
 | 34 operational assets in library | ✅ |
 | TypeScript 0 errors | ✅ |
+| `#root` height chain — `h-full` resolves to full viewport | ✅ |
+| `canvas { touch-action: none }` — prevents native scroll/pinch on canvas | ✅ |
+| Touch pan (single finger) on Konva Stage | ✅ |
+| Pinch-to-zoom (two finger) on Konva Stage | ✅ |
+| Mobile panel toggles (☰ Library, ⊟ Properties) | ✅ (TypeScript clean, device test pending) |
+| Panels hidden on mobile by default, canvas fills full width | ✅ |
+| Panel overlay with backdrop tap-to-dismiss | ✅ |
+| FooterLegend scrollable on narrow viewports | ✅ |
 
 ---
 

@@ -36,6 +36,86 @@ What remains pending after session.
 
 ---
 
+## SESSION-0013
+**Date:** 2026-05-23
+**Branch:** `feat/vite-migration`
+**Operator:** JBD & Claude
+**Status:** LOCALLY VALIDATED — pending iPhone/iPad/Chrome mobile smoke test on Vercel
+
+### Scope
+Mobile stability and responsive pass. Fix blank/dark screen on iPhone Safari. Ensure canvas renders on all viewports without crashing or collapsing to zero width.
+
+### Root Cause (blank screen on iPhone)
+Three compounding issues:
+
+**PRIMARY — Side panel overflow (blank screen trigger):**
+`AssetLibraryPanel` (`w-56` = 224px) + `PropertiesPanel` (`w-60` = 240px) = 464px total panel width. iPhone Safari viewport is ~390px. The canvas `flex-1` container received 0 or negative width. `overflow-hidden` on the parent clipped everything → blank dark screen.
+
+**SECONDARY — `#root` missing height:**
+`html` and `body` both had `height: 100%` but `#root` had no explicit height. This broke the flex height chain from the HTML root down to the Konva canvas container (`h-full`), causing a potential 0-height canvas in some iOS Safari layout passes.
+
+**TERTIARY — No touch event handlers:**
+Stage only had `onMouseDown`, `onMouseMove`, `onClick`. iOS Safari touch events don't reliably fire mouse equivalents on canvas elements. Pan and zoom were not functional on touch.
+
+### Delivered
+
+**`index.html`:**
+- Added `viewport-fit=cover` to the viewport meta tag (iPhone notch / safe area support)
+
+**`src/index.css`:**
+- Added `#root { height: 100%; }` — completes `html → body → #root → App` height chain
+- Added `canvas { touch-action: none; }` — tells the browser to give all touch gestures to Konva, preventing native scroll/pinch from conflicting
+
+**`src/App.tsx`:**
+- Changed root div from `h-screen` (100vh) to `h-full` — more reliable on iOS Safari where `100vh` is the large viewport (URL bar ignored), causing layout mismatch with actual visible area
+- Keyboard hints footer row: `flex` → `hidden sm:flex` — hides verbose desktop hints on mobile
+
+**`src/components/DrawingToolbar.tsx`:**
+- Added mobile panel toggle props: `onToggleLibrary`, `onToggleProperties`, `libraryOpen`, `propertiesOpen`
+- Added mobile toggle buttons (☰ Library, ⊟ Properties), hidden on desktop (`md:hidden`)
+- Tool label: `hidden sm:block` — visible on sm+
+- Keyboard hint text: `hidden md:block` — visible on md+
+- "Clear annotations" button: `hidden sm:block` — hidden on phones
+- Export button label: shows "Exportar Plano" on sm+, "Export" on mobile
+
+**`src/components/LayoutEditor.tsx`:**
+- Added `mobilePanel: 'library' | 'properties' | null` state
+- Panel wrappers use responsive classes: `hidden md:flex md:flex-none` (desktop always visible) vs `absolute inset-y-0 left/right-0 z-20 shadow-2xl flex flex-none md:static md:shadow-none` (mobile overlay)
+- Backdrop `div` (`z-10 md:hidden bg-black/40`) behind open overlay — tap outside to dismiss
+- `handleAddElement` closes the library overlay after placing an asset on mobile
+- Canvas `<main>` gets `min-w-0` — prevents flex overflow from consuming all width
+
+**`src/components/FooterLegend.tsx`:**
+- Metadata grid wrapped in `overflow-x-auto` container with `min-w-[480px]` on the inner grid — footer scrolls horizontally on narrow viewports instead of collapsing/squashing
+
+**`src/components/canvas/LayoutCanvas.tsx`:**
+- Added `lastTouchDist` ref for pinch-to-zoom tracking
+- Added `handleTouchStart`: single-finger → pan start; two-finger → pinch start
+- Added `handleTouchMove`: single-finger → pan update; two-finger → pinch-zoom toward pinch center
+- Updated global `useEffect`: listens to both `mouseup` and `touchend`; touchend also commits scale via `onUpdateViewport`
+- Stage `width`/`height`: `Math.max(1, containerSize.width/height)` — prevents zero-size Konva Stage
+- Stage: added `onTouchStart={handleTouchStart}` and `onTouchMove={handleTouchMove}` props
+
+### TypeScript
+Zero errors on `npx tsc --noEmit` after all changes.
+
+### Validated (local, 2026-05-23)
+| Behavior | Status |
+|---|---|
+| TypeScript 0 errors | ✅ |
+| Desktop layout unchanged | ✅ (panels still visible side-by-side at md+) |
+| Export PNG still works (containerSize used correctly) | ✅ |
+| SESSION-0012 interactions preserved (delete, transformer, drawing selection) | ✅ |
+
+### Open
+- iPhone Safari smoke test (deployed Vercel)
+- Chrome mobile smoke test (deployed Vercel)
+- iPad viewport test
+- Desktop regression check on Vercel
+- Merge `feat/vite-migration` → `main` after mobile validation passes
+
+---
+
 ## SESSION-0012
 **Date:** 2026-05-21
 **Branch:** `feat/vite-migration`

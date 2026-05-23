@@ -2,7 +2,7 @@ import LayoutEditor from '@/components/LayoutEditor'
 
 export default function App() {
   return (
-    <div className="h-screen flex flex-col bg-slate-950 text-slate-200 overflow-hidden">
+    <div className="h-full flex flex-col bg-slate-950 text-slate-200 overflow-hidden">
       <header className="h-10 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-4 gap-3">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-indigo-500" />
@@ -24,7 +24,7 @@ export default function App() {
 
       <footer className="h-10 flex-none bg-slate-900 border-t border-slate-700/60 flex items-center px-4 gap-6 overflow-hidden">
         <LegendInline />
-        <div className="flex items-center gap-5 text-[9px] text-slate-600 ml-auto flex-none">
+        <div className="hidden sm:flex items-center gap-5 text-[9px] text-slate-600 ml-auto flex-none">
           <span>Scroll → Zoom</span>
           <span>Drag canvas → Pan</span>
           <span>Click element → Select</span>

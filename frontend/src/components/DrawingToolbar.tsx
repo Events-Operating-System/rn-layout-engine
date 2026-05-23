@@ -5,6 +5,11 @@ interface DrawingToolbarProps {
   onSetTool: (tool: DrawingTool) => void
   onClearDrawings: () => void
   onExport: () => void
+  // Mobile panel toggles
+  onToggleLibrary: () => void
+  onToggleProperties: () => void
+  libraryOpen: boolean
+  propertiesOpen: boolean
 }
 
 const TOOLS: { tool: DrawingTool; icon: string; title: string }[] = [
@@ -19,9 +24,41 @@ export default function DrawingToolbar({
   onSetTool,
   onClearDrawings,
   onExport,
+  onToggleLibrary,
+  onToggleProperties,
+  libraryOpen,
+  propertiesOpen,
 }: DrawingToolbarProps) {
   return (
     <div className="flex-none h-9 bg-slate-900 border-b border-slate-700/60 flex items-center px-3 gap-2">
+
+      {/* Mobile panel toggles — visible only below md breakpoint */}
+      <div className="flex items-center gap-0.5 md:hidden">
+        <button
+          onClick={onToggleLibrary}
+          title="Asset Library"
+          className={`w-8 h-7 flex items-center justify-center rounded text-xs font-mono transition-colors ${
+            libraryOpen
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/60'
+          }`}
+        >
+          ☰
+        </button>
+        <button
+          onClick={onToggleProperties}
+          title="Properties"
+          className={`w-8 h-7 flex items-center justify-center rounded text-xs font-mono transition-colors ${
+            propertiesOpen
+              ? 'bg-indigo-600 text-white shadow-sm'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/60'
+          }`}
+        >
+          ⊟
+        </button>
+        <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
+      </div>
+
       {/* Tool group */}
       <div className="flex items-center gap-0.5 bg-slate-800/60 rounded p-0.5">
         {TOOLS.map(({ tool, icon, title }) => (
@@ -42,13 +79,13 @@ export default function DrawingToolbar({
 
       <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
 
-      {/* Tool label */}
-      <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider select-none">
+      {/* Tool label — hidden on very small screens */}
+      <span className="hidden sm:block text-[10px] text-slate-500 font-mono uppercase tracking-wider select-none">
         {activeTool === 'pointer' ? 'Select · Pan' : activeTool === 'line' ? 'Line' : activeTool === 'arrow' ? 'Arrow' : 'Text'}
       </span>
 
       {activeTool !== 'pointer' && (
-        <span className="text-[9px] text-slate-600 font-mono select-none">
+        <span className="hidden md:block text-[9px] text-slate-600 font-mono select-none">
           Click &amp; drag to draw · Press S to return to select
         </span>
       )}
@@ -56,16 +93,16 @@ export default function DrawingToolbar({
       {/* Separator */}
       <div className="flex-1" />
 
-      {/* Clear annotations */}
+      {/* Clear annotations — hidden on mobile */}
       <button
         onClick={onClearDrawings}
         title="Clear all annotations"
-        className="h-7 px-2.5 rounded text-[10px] text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors font-mono"
+        className="hidden sm:block h-7 px-2.5 rounded text-[10px] text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors font-mono"
       >
         Clear annotations
       </button>
 
-      <div className="w-px h-5 bg-slate-700/60" />
+      <div className="hidden sm:block w-px h-5 bg-slate-700/60" />
 
       {/* Export */}
       <button
@@ -73,7 +110,8 @@ export default function DrawingToolbar({
         title="Exportar plano como PNG"
         className="h-7 px-3 rounded text-[10px] font-semibold text-white bg-indigo-700 hover:bg-indigo-600 border border-indigo-500/60 transition-colors font-mono uppercase tracking-widest"
       >
-        Exportar Plano
+        <span className="hidden sm:inline">Exportar Plano</span>
+        <span className="sm:hidden">Export</span>
       </button>
     </div>
   )
