@@ -1,0 +1,139 @@
+import { createContext, useContext, useState, type ReactNode } from 'react'
+import type { AssetCategory } from '@/types/layout'
+
+export type Lang = 'en' | 'es'
+
+const strings = {
+  en: {
+    exportPlan: 'Export Plan',
+    clearAnnotations: 'Clear annotations',
+    toolPointer: 'Select / Pan',
+    toolLine: 'Line',
+    toolArrow: 'Arrow',
+    toolText: 'Text annotation',
+    toolHint: 'Click & drag to draw · Press S to select',
+    libraryTitle: 'Asset Library',
+    libraryHint: 'Click to place on canvas',
+    propertiesTitle: 'Properties',
+    selectHint: 'Select an element or drawing to view and edit its properties.',
+    sIdentity: 'Identity',
+    sPosition: 'Position (m)',
+    sDimensions: 'Dimensions (m)',
+    sRotation: 'Rotation',
+    sColor: 'Color',
+    sOpacity: 'Opacity',
+    sNotes: 'Notes',
+    sState: 'State',
+    sDrawing: 'Drawing',
+    sStrokeWidth: 'Stroke Width',
+    fName: 'Name',
+    fCategory: 'Category',
+    fX: 'X', fY: 'Y',
+    fWidth: 'Width', fHeight: 'Height',
+    fDegrees: 'Degrees',
+    fType: 'Type', fText: 'Text', fPx: 'px',
+    lockElement: 'Lock element',
+    deleteElement: 'Delete Element',
+    deleteDrawing: 'Delete Drawing',
+    duplicate: 'Duplicate',
+    notesPlaceholder: 'Operational notes...',
+    area: 'Area',
+    catStage: 'Stage', catStructure: 'Structure', catSeating: 'Seating',
+    catBarrier: 'Barrier', catUtility: 'Utility', catCirculation: 'Circulation',
+    catPrimitive: 'Shapes',
+    headerSub: 'Playground',
+    hintZoom: 'Scroll → Zoom', hintPan: 'Drag canvas → Pan',
+    hintSelect: 'Click element → Select', hintMove: 'Drag element → Move',
+  },
+  es: {
+    exportPlan: 'Exportar Plano',
+    clearAnnotations: 'Borrar anotaciones',
+    toolPointer: 'Seleccionar / Pan',
+    toolLine: 'Línea',
+    toolArrow: 'Flecha',
+    toolText: 'Anotación de texto',
+    toolHint: 'Click y arrastrar para dibujar · S para seleccionar',
+    libraryTitle: 'Librería',
+    libraryHint: 'Click para colocar en canvas',
+    propertiesTitle: 'Propiedades',
+    selectHint: 'Selecciona un elemento para ver y editar sus propiedades.',
+    sIdentity: 'Identidad',
+    sPosition: 'Posición (m)',
+    sDimensions: 'Dimensiones (m)',
+    sRotation: 'Rotación',
+    sColor: 'Color',
+    sOpacity: 'Opacidad',
+    sNotes: 'Notas',
+    sState: 'Estado',
+    sDrawing: 'Dibujo',
+    sStrokeWidth: 'Grosor del trazo',
+    fName: 'Nombre',
+    fCategory: 'Categoría',
+    fX: 'X', fY: 'Y',
+    fWidth: 'Ancho', fHeight: 'Alto',
+    fDegrees: 'Grados',
+    fType: 'Tipo', fText: 'Texto', fPx: 'px',
+    lockElement: 'Bloquear elemento',
+    deleteElement: 'Eliminar Elemento',
+    deleteDrawing: 'Eliminar Dibujo',
+    duplicate: 'Duplicar',
+    notesPlaceholder: 'Notas operacionales...',
+    area: 'Área',
+    catStage: 'Escenario', catStructure: 'Estructura', catSeating: 'Asientos',
+    catBarrier: 'Barrera', catUtility: 'Utilidad', catCirculation: 'Circulación',
+    catPrimitive: 'Formas',
+    headerSub: 'Canvas',
+    hintZoom: 'Scroll → Zoom', hintPan: 'Arrastrar canvas → Pan',
+    hintSelect: 'Click elemento → Seleccionar', hintMove: 'Arrastrar → Mover',
+  },
+} as const
+
+export type Strings = { [K in keyof (typeof strings)['en']]: string }
+
+const CAT_LABEL_KEYS: Record<AssetCategory, keyof Strings> = {
+  stage: 'catStage',
+  structure: 'catStructure',
+  seating: 'catSeating',
+  barrier: 'catBarrier',
+  utility: 'catUtility',
+  circulation: 'catCirculation',
+  primitive: 'catPrimitive',
+}
+
+export function getCategoryLabel(t: Strings, category: AssetCategory): string {
+  return t[CAT_LABEL_KEYS[category]] as string
+}
+
+interface LangContextValue {
+  lang: Lang
+  setLang: (l: Lang) => void
+  t: Strings
+}
+
+const LangContext = createContext<LangContextValue>({
+  lang: 'en',
+  setLang: () => {},
+  t: strings.en,
+})
+
+export function LangProvider({ children }: { children: ReactNode }) {
+  const stored = (() => {
+    try { return localStorage.getItem('rn-lang') as Lang | null } catch { return null }
+  })()
+  const [lang, setLangState] = useState<Lang>(stored === 'es' ? 'es' : 'en')
+
+  const setLang = (l: Lang) => {
+    setLangState(l)
+    try { localStorage.setItem('rn-lang', l) } catch {}
+  }
+
+  return (
+    <LangContext.Provider value={{ lang, setLang, t: strings[lang] }}>
+      {children}
+    </LangContext.Provider>
+  )
+}
+
+export function useLang() {
+  return useContext(LangContext)
+}

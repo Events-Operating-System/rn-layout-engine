@@ -1,5 +1,6 @@
-import { CATEGORY_COLORS, CATEGORY_LABELS } from '@/types/layout'
+import { CATEGORY_COLORS } from '@/types/layout'
 import type { AssetCategory, AssetTemplate } from '@/types/layout'
+import { useLang, getCategoryLabel } from '@/context/LangContext'
 
 interface AssetLibraryPanelProps {
   onAddElement: (template: AssetTemplate) => void
@@ -45,18 +46,27 @@ const ASSET_TEMPLATES: AssetTemplate[] = [
   { name: 'Entrance Gate',    category: 'circulation', defaultWidth: 4,   defaultHeight: 0.5 },
   { name: 'Exit Gate',        category: 'circulation', defaultWidth: 4,   defaultHeight: 0.5 },
   { name: 'Emergency Exit',   category: 'circulation', defaultWidth: 2,   defaultHeight: 0.5 },
+  // Primitives
+  { name: 'Rectangle',        category: 'primitive',   defaultWidth: 6,   defaultHeight: 4,  shape: 'rect'         },
+  { name: 'Circle',           category: 'primitive',   defaultWidth: 4,   defaultHeight: 4,  shape: 'circle'       },
+  { name: 'Oval',             category: 'primitive',   defaultWidth: 8,   defaultHeight: 5,  shape: 'oval'         },
+  { name: 'Rounded Box',      category: 'primitive',   defaultWidth: 6,   defaultHeight: 4,  shape: 'rounded-rect' },
+  { name: 'Tree',             category: 'primitive',   defaultWidth: 3,   defaultHeight: 3,  shape: 'tree',        defaultColor: '#16a34a' },
+  { name: 'Square',           category: 'primitive',   defaultWidth: 4,   defaultHeight: 4,  shape: 'rect'         },
 ]
 
 const CATEGORY_ORDER: AssetCategory[] = [
-  'stage', 'structure', 'seating', 'barrier', 'utility', 'circulation',
+  'stage', 'structure', 'seating', 'barrier', 'utility', 'circulation', 'primitive',
 ]
 
 export default function AssetLibraryPanel({ onAddElement }: AssetLibraryPanelProps) {
+  const { t } = useLang()
+
   return (
     <aside className="w-56 flex-none bg-slate-900 border-r border-slate-700/60 flex flex-col overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-700/60 flex-none">
         <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">
-          Asset Library
+          {t.libraryTitle}
         </p>
       </div>
 
@@ -71,7 +81,7 @@ export default function AssetLibraryPanel({ onAddElement }: AssetLibraryPanelPro
                   style={{ backgroundColor: CATEGORY_COLORS[category] }}
                 />
                 <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">
-                  {CATEGORY_LABELS[category]}
+                  {getCategoryLabel(t, category)}
                 </span>
               </div>
               <div className="space-y-0.5">
@@ -94,7 +104,7 @@ export default function AssetLibraryPanel({ onAddElement }: AssetLibraryPanelPro
       </div>
 
       <div className="px-4 py-2 border-t border-slate-700/60 flex-none">
-        <p className="text-[9px] text-slate-600">Click to place on canvas</p>
+        <p className="text-[9px] text-slate-600">{t.libraryHint}</p>
       </div>
     </aside>
   )

@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect, useState, forwardRef, useImperativeHandle } from 'react'
-import { Stage, Layer, Line, Arrow, Rect, Circle, Text, Group, Shape, Transformer } from 'react-konva'
+import { Stage, Layer, Line, Arrow, Rect, Circle, Ellipse, Text, Group, Shape, Star, Transformer } from 'react-konva'
 import type Konva from 'konva'
 import type { LayoutElement, CanvasViewport, DrawingPrimitive, DrawingTool, LayoutMeta } from '@/types/layout'
 import { FOOTER_HEIGHT_PX } from '@/components/FooterLegend'
@@ -10,6 +10,7 @@ const GRID_TOTAL_PX = GRID_METERS * PIXELS_PER_METER
 const MIN_SCALE = 0.15
 const MAX_SCALE = 6
 const EXPORT_RATIO = 2
+const CANVAS_CENTER_PX = 60 * PIXELS_PER_METER
 
 const DRAW_COLOR = '#fbbf24'   // amber-400 — visible on dark canvas
 const DRAW_STROKE = 2
@@ -48,7 +49,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       elements, selectedId, viewport,
       onSelect, onUpdateElement, onUpdateViewport, onDeleteElement,
       activeTool, drawings, onAddDrawing, layoutMeta,
-      selectedDrawingId, onSelectDrawing, onDeleteDrawing,
+      selectedDrawingId, onSelectDrawing, onDeleteDrawing, onUpdateDrawing,
     }: LayoutCanvasProps,
     ref,
   ) {
@@ -71,6 +72,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     const drawingToolRef = useRef<'line' | 'arrow'>('line')
     const previewDataRef = useRef<{ tool: string; points: number[] } | null>(null)
     const [previewDrawing, setPreviewDrawing] = useState<{ tool: string; points: number[] } | null>(null)
+    const [dragGuide, setDragGuide] = useState<{ x: number; y: number } | null>(null)
 
     // ── Container resize ──────────────────────────────────────────────────────
 
@@ -421,6 +423,40 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
             <GridLines />
           </Layer>
 
+          {/* Alignment guides — canvas center cross + drag element center */}
+          <Layer listening={false}>
+            <Line
+              points={[CANVAS_CENTER_PX, 0, CANVAS_CENTER_PX, GRID_TOTAL_PX]}
+              stroke="rgba(148,163,184,0.10)"
+              strokeWidth={0.7}
+              dash={[12, 8]}
+            />
+            <Line
+              points={[0, CANVAS_CENTER_PX, GRID_TOTAL_PX, CANVAS_CENTER_PX]}
+              stroke="rgba(148,163,184,0.10)"
+              strokeWidth={0.7}
+              dash={[12, 8]}
+            />
+            {dragGuide && (
+              <>
+                <Line
+                  points={[dragGuide.x, 0, dragGuide.x, GRID_TOTAL_PX]}
+                  stroke="#22d3ee"
+                  strokeWidth={0.6}
+                  dash={[8, 6]}
+                  opacity={0.55}
+                />
+                <Line
+                  points={[0, dragGuide.y, GRID_TOTAL_PX, dragGuide.y]}
+                  stroke="#22d3ee"
+                  strokeWidth={0.6}
+                  dash={[8, 6]}
+                  opacity={0.55}
+                />
+              </>
+            )}
+          </Layer>
+
           {/* Assets + drawings + Transformer */}
           <Layer>
             {elements.map(el => (
@@ -431,8 +467,10 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 interactive={elementInteractive}
                 onSelect={() => onSelect(el.id)}
                 onDragStart={() => { isDraggingElement.current = true }}
+                onDragMove={(x, y) => setDragGuide({ x, y })}
                 onDragEnd={(x, y) => {
                   isDraggingElement.current = false
+                  setDragGuide(null)
                   onUpdateElement(el.id, {
                     x: Math.round((x / PIXELS_PER_METER) * 10) / 10,
                     y: Math.round((y / PIXELS_PER_METER) * 10) / 10,
@@ -451,6 +489,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 isSelected={drw.id === selectedDrawingId}
                 interactive={drawingsInteractive}
                 onSelect={() => onSelectDrawing(drw.id)}
+                onMoveDrawing={(newPoints) => onUpdateDrawing(drw.id, { points: newPoints })}
               />
             ))}
 
@@ -543,10 +582,22 @@ interface DrawingShapeProps {
   isSelected: boolean
   interactive: boolean
   onSelect: () => void
+  onMoveDrawing?: (newPoints: number[]) => void
 }
 
-function DrawingShape({ drawing, isSelected, interactive, onSelect }: DrawingShapeProps) {
+function DrawingShape({ drawing, isSelected, interactive, onSelect, onMoveDrawing }: DrawingShapeProps) {
   const opacity = drawing.opacity ?? 1
+
+  const handleDragEnd = interactive && onMoveDrawing
+    ? (e: Konva.KonvaEventObject<DragEvent>) => {
+        const ox = e.target.x()
+        const oy = e.target.y()
+        e.target.x(0)
+        e.target.y(0)
+        onMoveDrawing(drawing.points.map((p, i) => i % 2 === 0 ? p + ox : p + oy))
+      }
+    : undefined
+
   const clickProps = {
     listening: interactive,
     onClick: interactive ? onSelect : undefined,
@@ -556,6 +607,8 @@ function DrawingShape({ drawing, isSelected, interactive, onSelect }: DrawingSha
     shadowColor: '#60a5fa',
     shadowBlur: 10,
     shadowOpacity: 0.85,
+    draggable: interactive,
+    onDragEnd: handleDragEnd,
   }
 
   if (drawing.tool === 'line') {
@@ -643,13 +696,14 @@ interface AssetShapeProps {
   interactive: boolean
   onSelect: () => void
   onDragStart: () => void
+  onDragMove: (x: number, y: number) => void
   onDragEnd: (x: number, y: number) => void
   onTransformEnd: (x: number, y: number, w: number, h: number, rotation: number) => void
 }
 
 function AssetShape({
   element, isSelected, interactive,
-  onSelect, onDragStart, onDragEnd, onTransformEnd,
+  onSelect, onDragStart, onDragMove, onDragEnd, onTransformEnd,
 }: AssetShapeProps) {
   const groupRef = useRef<Konva.Group>(null)
 
@@ -659,9 +713,12 @@ function AssetShape({
   const ph = element.height * PIXELS_PER_METER
 
   const isCircle = element.shape === 'circle'
+  const isOval = element.shape === 'oval'
+  const isRoundedRect = element.shape === 'rounded-rect'
+  const isTree = element.shape === 'tree'
   const radius = Math.min(pw, ph) / 2
   const fontSize = Math.min(13, Math.max(8, Math.min(pw, ph) / 4))
-  const showLabel = pw > 30 && ph > 16
+  const showLabel = !isTree && pw > 30 && ph > 16
 
   const baseOpacity = element.opacity ?? 0.65
 
@@ -700,11 +757,18 @@ function AssetShape({
       onClick={interactive ? onSelect : undefined}
       onTap={interactive ? onSelect : undefined}
       onDragStart={interactive ? onDragStart : undefined}
+      onDragMove={interactive ? (e => onDragMove(e.target.x() + pw / 2, e.target.y() + ph / 2)) : undefined}
       onDragEnd={interactive ? (e => onDragEnd(e.target.x(), e.target.y())) : undefined}
       onTransformEnd={handleTransformEnd}
     >
       {isCircle ? (
         <Circle x={pw / 2} y={ph / 2} radius={radius} {...shapeStyle} />
+      ) : isOval ? (
+        <Ellipse x={pw / 2} y={ph / 2} radiusX={pw / 2} radiusY={ph / 2} {...shapeStyle} />
+      ) : isRoundedRect ? (
+        <Rect width={pw} height={ph} cornerRadius={Math.min(pw, ph) * 0.25} {...shapeStyle} />
+      ) : isTree ? (
+        <Star x={pw / 2} y={ph / 2} numPoints={7} innerRadius={radius * 0.5} outerRadius={radius} {...shapeStyle} />
       ) : (
         <Rect width={pw} height={ph} cornerRadius={2} {...shapeStyle} />
       )}
@@ -747,6 +811,24 @@ function AssetShape({
 
 // ── Footer renderer (PNG export only) ────────────────────────────────────────
 
+function fillTextTruncated(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+) {
+  if (!text || ctx.measureText(text).width <= maxWidth) {
+    ctx.fillText(text, x, y)
+    return
+  }
+  let s = text
+  while (s.length > 1 && ctx.measureText(s + '…').width > maxWidth) {
+    s = s.slice(0, -1)
+  }
+  ctx.fillText(s + '…', x, y)
+}
+
 function renderFooterToCanvas(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -770,14 +852,15 @@ function renderFooterToCanvas(
   // Company name
   ctx.fillStyle = '#f1f5f9'
   ctx.font = 'bold 13px ui-monospace, monospace'
-  ctx.textAlign = 'center'
+  ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
-  ctx.fillText(meta.company || 'Reality Near', leftW / 2, yOffset + footerHeight * 0.38)
+  fillTextTruncated(ctx, meta.company || 'Reality Near', 6, yOffset + footerHeight * 0.38, leftW - 12)
+  ctx.textAlign = 'left'
 
   ctx.fillStyle = '#475569'
   ctx.font = '7px ui-monospace, monospace'
   ctx.letterSpacing = '0.1em'
-  ctx.fillText('LAYOUT ENGINE', leftW / 2, yOffset + footerHeight * 0.65)
+  ctx.fillText('LAYOUT ENGINE', 6, yOffset + footerHeight * 0.65)
   ctx.letterSpacing = '0'
 
   // Left block divider
@@ -837,7 +920,7 @@ function renderFooterToCanvas(
       ctx.fillStyle = '#e2e8f0'
       ctx.font = '10px ui-monospace, monospace'
       ctx.textBaseline = 'bottom'
-      ctx.fillText(field.value || '—', cx + 6, ry + rowH - 5)
+      fillTextTruncated(ctx, field.value || '—', cx + 6, ry + rowH - 5, colW - 14)
     })
   })
 }

@@ -126,7 +126,7 @@ export function useCanvasState() {
         width: template.defaultWidth,
         height: template.defaultHeight,
         rotation: 0,
-        color: CATEGORY_COLORS[template.category],
+        color: template.defaultColor ?? CATEGORY_COLORS[template.category],
         locked: false,
         notes: '',
         shape: template.shape,
@@ -140,6 +140,17 @@ export function useCanvasState() {
   const deleteElement = useCallback((id: string) => {
     setElements(prev => prev.filter(el => el.id !== id))
     setSelectedId(prev => (prev === id ? null : prev))
+  }, [])
+
+  const duplicateElement = useCallback((id: string) => {
+    const newId = `el-${Date.now()}`
+    setElements(prev => {
+      const el = prev.find(e => e.id === id)
+      if (!el) return prev
+      return [...prev, { ...el, id: newId, x: el.x + 2, y: el.y + 2 }]
+    })
+    setSelectedId(newId)
+    setSelectedDrawingId(null)
   }, [])
 
   const setTool = useCallback((tool: DrawingTool) => {
@@ -188,6 +199,7 @@ export function useCanvasState() {
     updateViewport,
     addElement,
     deleteElement,
+    duplicateElement,
     activeTool,
     setTool,
     drawings,

@@ -7,6 +7,7 @@ export type AssetCategory =
   | 'barrier'
   | 'utility'
   | 'circulation'
+  | 'primitive'
 
 export const CATEGORY_COLORS: Record<AssetCategory, string> = {
   stage: '#6366f1',
@@ -15,6 +16,7 @@ export const CATEGORY_COLORS: Record<AssetCategory, string> = {
   barrier: '#ef4444',
   utility: '#22c55e',
   circulation: '#a855f7',
+  primitive: '#64748b',
 }
 
 export const CATEGORY_LABELS: Record<AssetCategory, string> = {
@@ -24,9 +26,10 @@ export const CATEGORY_LABELS: Record<AssetCategory, string> = {
   barrier: 'Barrier',
   utility: 'Utility',
   circulation: 'Circulation',
+  primitive: 'Shapes',
 }
 
-export type ElementShape = 'rect' | 'circle'
+export type ElementShape = 'rect' | 'circle' | 'oval' | 'rounded-rect' | 'tree'
 
 export interface LayoutElement {
   id: string
@@ -56,6 +59,7 @@ export interface AssetTemplate {
   defaultWidth: number
   defaultHeight: number
   shape?: ElementShape
+  defaultColor?: string
 }
 
 // ── Drawing primitives ────────────────────────────────────────────────────────

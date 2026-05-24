@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import AssetLibraryPanel from '@/components/panels/AssetLibraryPanel'
 import PropertiesPanel from '@/components/panels/PropertiesPanel'
 import DrawingToolbar from '@/components/DrawingToolbar'
@@ -24,6 +24,7 @@ export default function LayoutEditor() {
     updateViewport,
     addElement,
     deleteElement,
+    duplicateElement,
     activeTool,
     setTool,
     drawings,
@@ -34,6 +35,25 @@ export default function LayoutEditor() {
     layoutMeta,
     updateMeta,
   } = useCanvasState()
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+        e.preventDefault()
+        if (selectedId) duplicateElement(selectedId)
+        return
+      }
+      if (e.ctrlKey || e.metaKey) return
+      if (e.key === 's') setTool('pointer')
+      else if (e.key === 'l') setTool('line')
+      else if (e.key === 'a') setTool('arrow')
+      else if (e.key === 't') setTool('text')
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedId, duplicateElement, setTool])
 
   function toggleMobilePanel(panel: 'library' | 'properties') {
     setMobilePanel(prev => (prev === panel ? null : panel))
@@ -102,6 +122,8 @@ export default function LayoutEditor() {
           <PropertiesPanel
             element={selectedElement}
             onUpdate={updateElement}
+            onDeleteElement={deleteElement}
+            onDuplicateElement={duplicateElement}
             selectedDrawing={selectedDrawing}
             onUpdateDrawing={updateDrawing}
             onDeleteDrawing={deleteDrawing}
