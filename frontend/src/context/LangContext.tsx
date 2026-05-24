@@ -104,6 +104,53 @@ export function getCategoryLabel(t: Strings, category: AssetCategory): string {
   return t[CAT_LABEL_KEYS[category]] as string
 }
 
+const ASSET_NAME_ES: Record<string, string> = {
+  'Main Stage': 'Escenario Principal',
+  'Secondary Stage': 'Escenario Secundario',
+  'Dance Floor': 'Pista de Baile',
+  'LED Wall': 'Pantalla LED',
+  'Screen': 'Pantalla',
+  'DJ Booth PRO': 'Cabina DJ PRO',
+  'DJ Booth': 'Cabina DJ',
+  'Podium': 'Podio',
+  'Tent 10×10': 'Carpa 10×10',
+  'Tent 20×20': 'Carpa 20×20',
+  'Tent 20×40': 'Carpa 20×40',
+  'Marquee': 'Carpa Marquesina',
+  'Bar': 'Bar',
+  'Buffet': 'Buffet',
+  'Lounge': 'Zona Lounge',
+  'Backstage': 'Backstage',
+  'Round Table 8': 'Mesa Redonda 8',
+  'Round Table 10': 'Mesa Redonda 10',
+  'Head Table': 'Mesa Principal',
+  'Rect Table': 'Mesa Rectangular',
+  'Chair Row Block': 'Bloque de Sillas',
+  'Bleacher Block': 'Gradería',
+  'Crowd Barrier': 'Barrera',
+  'Fence': 'Valla',
+  'Fence Panel': 'Panel Valla',
+  'Kitchen': 'Cocina',
+  'Restrooms': 'Baños',
+  'Generator': 'Generador',
+  'First Aid': 'Primeros Auxilios',
+  'Entrance': 'Entrada',
+  'Entrance Gate': 'Puerta de Entrada',
+  'Exit Gate': 'Puerta de Salida',
+  'Emergency Exit': 'Salida de Emergencia',
+  'Rectangle': 'Rectángulo',
+  'Circle': 'Círculo',
+  'Oval': 'Óvalo',
+  'Rounded Box': 'Caja Redondeada',
+  'Tree': 'Árbol',
+  'Square': 'Cuadrado',
+}
+
+export function getAssetName(lang: Lang, name: string): string {
+  if (lang === 'es') return ASSET_NAME_ES[name] ?? name
+  return name
+}
+
 interface LangContextValue {
   lang: Lang
   setLang: (l: Lang) => void

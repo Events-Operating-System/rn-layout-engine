@@ -13,10 +13,11 @@ export default function FooterLegend({ meta, onUpdate }: FooterLegendProps) {
       className="flex-none bg-slate-900 border-t border-slate-600/80 flex overflow-hidden"
       style={{ height: FOOTER_HEIGHT_PX, fontFamily: 'ui-monospace, monospace' }}
     >
-      {/* Left — company identity */}
-      <div className="w-44 flex-none border-r border-slate-600/80 flex flex-col items-center justify-center px-3 py-2 gap-0.5">
-        <span className="text-slate-100 font-bold text-[13px] tracking-tight">{meta.company}</span>
-        <span className="text-slate-600 text-[8px] uppercase tracking-[0.2em]">Layout Engine</span>
+      {/* Left — product identity */}
+      <div className="w-44 flex-none border-r border-slate-600/80 flex flex-col items-start justify-center px-3 py-2 gap-0">
+        <span className="text-slate-100 font-bold text-[12px] tracking-tight">EventOS Layout</span>
+        <span className="text-slate-600 text-[7px] uppercase tracking-[0.15em] leading-tight">powered by</span>
+        <span className="text-slate-400 text-[10px] tracking-tight leading-tight">{meta.company}</span>
       </div>
 
       {/* Right — metadata grid (overflow-x-auto so it scrolls rather than squashes on narrow viewports) */}

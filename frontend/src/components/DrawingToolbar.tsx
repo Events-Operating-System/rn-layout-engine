@@ -10,6 +10,10 @@ interface DrawingToolbarProps {
   onToggleProperties: () => void
   libraryOpen: boolean
   propertiesOpen: boolean
+  onUndo: () => void
+  onRedo: () => void
+  canUndo: boolean
+  canRedo: boolean
 }
 
 const TOOL_DEFS: { tool: DrawingTool; icon: string; shortcut: string }[] = [
@@ -28,6 +32,10 @@ export default function DrawingToolbar({
   onToggleProperties,
   libraryOpen,
   propertiesOpen,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }: DrawingToolbarProps) {
   const { t } = useLang()
 
@@ -84,6 +92,28 @@ export default function DrawingToolbar({
             {icon}
           </button>
         ))}
+      </div>
+
+      <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
+
+      {/* Undo / Redo */}
+      <div className="flex items-center gap-0.5">
+        <button
+          onClick={onUndo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+          className={`w-7 h-7 flex items-center justify-center rounded text-xs font-mono transition-colors ${
+            canUndo ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/60' : 'text-slate-700 cursor-default'
+          }`}
+        >↩</button>
+        <button
+          onClick={onRedo}
+          disabled={!canRedo}
+          title="Redo (Ctrl+Shift+Z)"
+          className={`w-7 h-7 flex items-center justify-center rounded text-xs font-mono transition-colors ${
+            canRedo ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/60' : 'text-slate-700 cursor-default'
+          }`}
+        >↪</button>
       </div>
 
       <div className="w-px h-5 bg-slate-700/60 mx-0.5" />

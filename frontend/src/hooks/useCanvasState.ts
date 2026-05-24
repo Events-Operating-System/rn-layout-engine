@@ -3,6 +3,12 @@ import type { LayoutElement, CanvasViewport, AssetTemplate, DrawingPrimitive, Dr
 import { CATEGORY_COLORS, DEFAULT_LAYOUT_META } from '@/types/layout'
 
 const PIXELS_PER_METER = 20  // must mirror LayoutCanvas.tsx constant
+const MAX_HISTORY = 50
+
+type Snapshot = {
+  elements: LayoutElement[]
+  drawings: DrawingPrimitive[]
+}
 
 const INITIAL_ELEMENTS: LayoutElement[] = [
   {
@@ -86,6 +92,61 @@ export function useCanvasState() {
   const viewportRef = useRef(viewport)
   useEffect(() => { viewportRef.current = viewport }, [viewport])
 
+  // ── Undo / Redo history ──────────────────────────────────────────────────────
+
+  const historyRef = useRef<{ past: Snapshot[]; future: Snapshot[] }>({ past: [], future: [] })
+  const elementsRef = useRef<LayoutElement[]>(INITIAL_ELEMENTS)
+  const drawingsRef = useRef<DrawingPrimitive[]>([])
+  const [undoSize, setUndoSize] = useState(0)
+  const [redoSize, setRedoSize] = useState(0)
+
+  // Keep refs in sync with state (used by pushHistory to snapshot before changes)
+  useEffect(() => { elementsRef.current = elements }, [elements])
+  useEffect(() => { drawingsRef.current = drawings }, [drawings])
+
+  const pushHistory = useCallback(() => {
+    const h = historyRef.current
+    if (h.past.length >= MAX_HISTORY) h.past.shift()
+    h.past.push({ elements: elementsRef.current, drawings: drawingsRef.current })
+    h.future = []
+    setUndoSize(h.past.length)
+    setRedoSize(0)
+  }, [])
+
+  const undo = useCallback(() => {
+    const h = historyRef.current
+    if (h.past.length === 0) return
+    const snapshot = h.past.pop()!
+    h.future.push({ elements: elementsRef.current, drawings: drawingsRef.current })
+    // Update refs immediately so rapid undo works correctly
+    elementsRef.current = snapshot.elements
+    drawingsRef.current = snapshot.drawings
+    setElements(snapshot.elements)
+    setDrawings(snapshot.drawings)
+    setSelectedId(null)
+    setSelectedDrawingId(null)
+    setUndoSize(h.past.length)
+    setRedoSize(h.future.length)
+  }, [])
+
+  const redo = useCallback(() => {
+    const h = historyRef.current
+    if (h.future.length === 0) return
+    const snapshot = h.future.pop()!
+    h.past.push({ elements: elementsRef.current, drawings: drawingsRef.current })
+    // Update refs immediately so rapid redo works correctly
+    elementsRef.current = snapshot.elements
+    drawingsRef.current = snapshot.drawings
+    setElements(snapshot.elements)
+    setDrawings(snapshot.drawings)
+    setSelectedId(null)
+    setSelectedDrawingId(null)
+    setUndoSize(h.past.length)
+    setRedoSize(h.future.length)
+  }, [])
+
+  // ── Canvas state actions ─────────────────────────────────────────────────────
+
   const selectElement = useCallback((id: string | null) => {
     setSelectedId(id)
     setSelectedDrawingId(null)
@@ -107,11 +168,11 @@ export function useCanvasState() {
   }, [])
 
   const addElement = useCallback((template: AssetTemplate) => {
+    pushHistory()
     const id = `el-${Date.now()}`
     setElements(prev => {
       const vp = viewportRef.current
       const n = prev.length
-      // Spawn near visible viewport center, offset each new element diagonally
       const offset = (n % 5) * 2
       const centerX = (-vp.x + 600) / (vp.scale * PIXELS_PER_METER)
       const centerY = (-vp.y + 400) / (vp.scale * PIXELS_PER_METER)
@@ -135,14 +196,16 @@ export function useCanvasState() {
     })
     setSelectedId(id)
     setSelectedDrawingId(null)
-  }, [])
+  }, [pushHistory])
 
   const deleteElement = useCallback((id: string) => {
+    pushHistory()
     setElements(prev => prev.filter(el => el.id !== id))
     setSelectedId(prev => (prev === id ? null : prev))
-  }, [])
+  }, [pushHistory])
 
   const duplicateElement = useCallback((id: string) => {
+    pushHistory()
     const newId = `el-${Date.now()}`
     setElements(prev => {
       const el = prev.find(e => e.id === id)
@@ -151,7 +214,7 @@ export function useCanvasState() {
     })
     setSelectedId(newId)
     setSelectedDrawingId(null)
-  }, [])
+  }, [pushHistory])
 
   const setTool = useCallback((tool: DrawingTool) => {
     setActiveTool(tool)
@@ -159,16 +222,18 @@ export function useCanvasState() {
   }, [])
 
   const addDrawing = useCallback((primitive: Omit<DrawingPrimitive, 'id'>) => {
+    pushHistory()
     const id = `drw-${Date.now()}`
     setDrawings(prev => [...prev, { ...primitive, id }])
     setSelectedDrawingId(id)
     setSelectedId(null)
-  }, [])
+  }, [pushHistory])
 
   const deleteDrawing = useCallback((id: string) => {
+    pushHistory()
     setDrawings(prev => prev.filter(d => d.id !== id))
     setSelectedDrawingId(prev => (prev === id ? null : prev))
-  }, [])
+  }, [pushHistory])
 
   const updateDrawing = useCallback((id: string, updates: Partial<DrawingPrimitive>) => {
     setDrawings(prev => prev.map(d => (d.id === id ? { ...d, ...updates } : d)))
@@ -209,5 +274,10 @@ export function useCanvasState() {
     clearDrawings,
     layoutMeta,
     updateMeta,
+    pushHistory,
+    undo,
+    redo,
+    canUndo: undoSize > 0,
+    canRedo: redoSize > 0,
   }
 }

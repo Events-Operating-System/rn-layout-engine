@@ -1,6 +1,6 @@
 import { CATEGORY_COLORS } from '@/types/layout'
 import type { AssetCategory, AssetTemplate } from '@/types/layout'
-import { useLang, getCategoryLabel } from '@/context/LangContext'
+import { useLang, getCategoryLabel, getAssetName } from '@/context/LangContext'
 
 interface AssetLibraryPanelProps {
   onAddElement: (template: AssetTemplate) => void
@@ -60,7 +60,7 @@ const CATEGORY_ORDER: AssetCategory[] = [
 ]
 
 export default function AssetLibraryPanel({ onAddElement }: AssetLibraryPanelProps) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
 
   return (
     <aside className="w-56 flex-none bg-slate-900 border-r border-slate-700/60 flex flex-col overflow-hidden">
@@ -91,7 +91,7 @@ export default function AssetLibraryPanel({ onAddElement }: AssetLibraryPanelPro
                     onClick={() => onAddElement(asset)}
                     className="flex items-center justify-between px-2 py-1.5 rounded text-xs text-slate-300 hover:bg-slate-700/40 cursor-pointer group transition-colors"
                   >
-                    <span className="truncate">{asset.name}</span>
+                    <span className="truncate">{getAssetName(lang, asset.name)}</span>
                     <span className="text-slate-600 text-[9px] font-mono ml-1 flex-none group-hover:text-slate-500">
                       {asset.defaultWidth}×{asset.defaultHeight}
                     </span>

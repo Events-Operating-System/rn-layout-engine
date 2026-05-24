@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect, useState, forwardRef, useImperativeHandle } from 'react'
-import { Stage, Layer, Line, Arrow, Rect, Circle, Ellipse, Text, Group, Shape, Star, Transformer } from 'react-konva'
+import { Stage, Layer, Line, Arrow, Rect, Circle, Ellipse, Text, Group, Shape, Transformer } from 'react-konva'
 import type Konva from 'konva'
 import type { LayoutElement, CanvasViewport, DrawingPrimitive, DrawingTool, LayoutMeta } from '@/types/layout'
 import { FOOTER_HEIGHT_PX } from '@/components/FooterLegend'
@@ -39,6 +39,50 @@ interface LayoutCanvasProps {
   onSelectDrawing: (id: string | null) => void
   onDeleteDrawing: (id: string) => void
   onUpdateDrawing: (id: string, updates: Partial<DrawingPrimitive>) => void
+  onPushHistory: () => void
+}
+
+// ── Alignment guide computation ───────────────────────────────────────────────
+
+function computeAlignmentGuides(
+  elements: LayoutElement[],
+  draggedId: string,
+  gx: number,
+  gy: number,
+  pw: number,
+  ph: number,
+  scale: number,
+): { xs: number[]; ys: number[] } {
+  const THRESHOLD = 8 / scale
+  const xSet = new Set<number>()
+  const ySet = new Set<number>()
+
+  const dLeft = gx, dRight = gx + pw, dCx = gx + pw / 2
+  const dTop = gy, dBottom = gy + ph, dCy = gy + ph / 2
+
+  for (const el of elements) {
+    if (el.id === draggedId) continue
+    const epx = el.x * PIXELS_PER_METER
+    const epy = el.y * PIXELS_PER_METER
+    const epw = el.width * PIXELS_PER_METER
+    const eph = el.height * PIXELS_PER_METER
+    const elL = epx, elR = epx + epw, elCx = epx + epw / 2
+    const elT = epy, elB = epy + eph, elCy = epy + eph / 2
+
+    if (Math.abs(dCx - elCx) < THRESHOLD) xSet.add(elCx)
+    if (Math.abs(dLeft - elL) < THRESHOLD) xSet.add(elL)
+    if (Math.abs(dRight - elR) < THRESHOLD) xSet.add(elR)
+    if (Math.abs(dLeft - elR) < THRESHOLD) xSet.add(elR)
+    if (Math.abs(dRight - elL) < THRESHOLD) xSet.add(elL)
+
+    if (Math.abs(dCy - elCy) < THRESHOLD) ySet.add(elCy)
+    if (Math.abs(dTop - elT) < THRESHOLD) ySet.add(elT)
+    if (Math.abs(dBottom - elB) < THRESHOLD) ySet.add(elB)
+    if (Math.abs(dTop - elB) < THRESHOLD) ySet.add(elB)
+    if (Math.abs(dBottom - elT) < THRESHOLD) ySet.add(elT)
+  }
+
+  return { xs: Array.from(xSet), ys: Array.from(ySet) }
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -50,6 +94,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       onSelect, onUpdateElement, onUpdateViewport, onDeleteElement,
       activeTool, drawings, onAddDrawing, layoutMeta,
       selectedDrawingId, onSelectDrawing, onDeleteDrawing, onUpdateDrawing,
+      onPushHistory,
     }: LayoutCanvasProps,
     ref,
   ) {
@@ -72,7 +117,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     const drawingToolRef = useRef<'line' | 'arrow'>('line')
     const previewDataRef = useRef<{ tool: string; points: number[] } | null>(null)
     const [previewDrawing, setPreviewDrawing] = useState<{ tool: string; points: number[] } | null>(null)
-    const [dragGuide, setDragGuide] = useState<{ x: number; y: number } | null>(null)
+    const [alignGuides, setAlignGuides] = useState<{ xs: number[]; ys: number[] }>({ xs: [], ys: [] })
 
     // ── Container resize ──────────────────────────────────────────────────────
 
@@ -423,7 +468,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
             <GridLines />
           </Layer>
 
-          {/* Alignment guides — canvas center cross + drag element center */}
+          {/* Alignment guides — canvas center cross + smart drag guides */}
           <Layer listening={false}>
             <Line
               points={[CANVAS_CENTER_PX, 0, CANVAS_CENTER_PX, GRID_TOTAL_PX]}
@@ -437,24 +482,26 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
               strokeWidth={0.7}
               dash={[12, 8]}
             />
-            {dragGuide && (
-              <>
-                <Line
-                  points={[dragGuide.x, 0, dragGuide.x, GRID_TOTAL_PX]}
-                  stroke="#22d3ee"
-                  strokeWidth={0.6}
-                  dash={[8, 6]}
-                  opacity={0.55}
-                />
-                <Line
-                  points={[0, dragGuide.y, GRID_TOTAL_PX, dragGuide.y]}
-                  stroke="#22d3ee"
-                  strokeWidth={0.6}
-                  dash={[8, 6]}
-                  opacity={0.55}
-                />
-              </>
-            )}
+            {alignGuides.xs.map((x, i) => (
+              <Line
+                key={`gx-${i}`}
+                points={[x, 0, x, GRID_TOTAL_PX]}
+                stroke="#22d3ee"
+                strokeWidth={0.6}
+                dash={[8, 6]}
+                opacity={0.65}
+              />
+            ))}
+            {alignGuides.ys.map((y, i) => (
+              <Line
+                key={`gy-${i}`}
+                points={[0, y, GRID_TOTAL_PX, y]}
+                stroke="#22d3ee"
+                strokeWidth={0.6}
+                dash={[8, 6]}
+                opacity={0.65}
+              />
+            ))}
           </Layer>
 
           {/* Assets + drawings + Transformer */}
@@ -467,18 +514,26 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 interactive={elementInteractive}
                 onSelect={() => onSelect(el.id)}
                 onDragStart={() => { isDraggingElement.current = true }}
-                onDragMove={(x, y) => setDragGuide({ x, y })}
+                onDragMove={(gx, gy) => {
+                  setAlignGuides(computeAlignmentGuides(
+                    elements, el.id, gx, gy,
+                    el.width * PIXELS_PER_METER, el.height * PIXELS_PER_METER,
+                    viewport.scale,
+                  ))
+                }}
                 onDragEnd={(x, y) => {
                   isDraggingElement.current = false
-                  setDragGuide(null)
+                  setAlignGuides({ xs: [], ys: [] })
+                  onPushHistory()
                   onUpdateElement(el.id, {
                     x: Math.round((x / PIXELS_PER_METER) * 10) / 10,
                     y: Math.round((y / PIXELS_PER_METER) * 10) / 10,
                   })
                 }}
-                onTransformEnd={(x, y, w, h, rotation) =>
+                onTransformEnd={(x, y, w, h, rotation) => {
+                  onPushHistory()
                   onUpdateElement(el.id, { x, y, width: w, height: h, rotation })
-                }
+                }}
               />
             ))}
 
@@ -490,6 +545,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 interactive={drawingsInteractive}
                 onSelect={() => onSelectDrawing(drw.id)}
                 onMoveDrawing={(newPoints) => onUpdateDrawing(drw.id, { points: newPoints })}
+                onPushHistory={onPushHistory}
               />
             ))}
 
@@ -583,18 +639,26 @@ interface DrawingShapeProps {
   interactive: boolean
   onSelect: () => void
   onMoveDrawing?: (newPoints: number[]) => void
+  onPushHistory?: () => void
 }
 
-function DrawingShape({ drawing, isSelected, interactive, onSelect, onMoveDrawing }: DrawingShapeProps) {
+function DrawingShape({ drawing, isSelected, interactive, onSelect, onMoveDrawing, onPushHistory }: DrawingShapeProps) {
   const opacity = drawing.opacity ?? 1
 
   const handleDragEnd = interactive && onMoveDrawing
     ? (e: Konva.KonvaEventObject<DragEvent>) => {
-        const ox = e.target.x()
-        const oy = e.target.y()
-        e.target.x(0)
-        e.target.y(0)
-        onMoveDrawing(drawing.points.map((p, i) => i % 2 === 0 ? p + ox : p + oy))
+        onPushHistory?.()
+        if (drawing.tool === 'text') {
+          // Text position is absolute — use final position directly
+          onMoveDrawing([e.target.x(), e.target.y()])
+        } else {
+          // Line/Arrow position is relative — apply offset to all points
+          const ox = e.target.x()
+          const oy = e.target.y()
+          e.target.x(0)
+          e.target.y(0)
+          onMoveDrawing(drawing.points.map((p, i) => i % 2 === 0 ? p + ox : p + oy))
+        }
       }
     : undefined
 
@@ -757,7 +821,7 @@ function AssetShape({
       onClick={interactive ? onSelect : undefined}
       onTap={interactive ? onSelect : undefined}
       onDragStart={interactive ? onDragStart : undefined}
-      onDragMove={interactive ? (e => onDragMove(e.target.x() + pw / 2, e.target.y() + ph / 2)) : undefined}
+      onDragMove={interactive ? (e => onDragMove(e.target.x(), e.target.y())) : undefined}
       onDragEnd={interactive ? (e => onDragEnd(e.target.x(), e.target.y())) : undefined}
       onTransformEnd={handleTransformEnd}
     >
@@ -768,7 +832,17 @@ function AssetShape({
       ) : isRoundedRect ? (
         <Rect width={pw} height={ph} cornerRadius={Math.min(pw, ph) * 0.25} {...shapeStyle} />
       ) : isTree ? (
-        <Star x={pw / 2} y={ph / 2} numPoints={7} innerRadius={radius * 0.5} outerRadius={radius} {...shapeStyle} />
+        <Group>
+          <Circle x={pw / 2} y={ph / 2} radius={radius} {...shapeStyle} />
+          <Circle
+            x={pw / 2} y={ph / 2}
+            radius={radius * 0.42}
+            fill="rgba(255,255,255,0.18)"
+            stroke="transparent"
+            strokeWidth={0}
+            listening={false}
+          />
+        </Group>
       ) : (
         <Rect width={pw} height={ph} cornerRadius={2} {...shapeStyle} />
       )}
@@ -829,6 +903,27 @@ function fillTextTruncated(
   ctx.fillText(s + '…', x, y)
 }
 
+// Shrinks font size until text fits rather than truncating
+function fillTextAdaptive(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  minSizePx = 7,
+) {
+  if (!text) { ctx.fillText(text, x, y); return }
+  const sizeMatch = ctx.font.match(/(\d+(?:\.\d+)?)px/)
+  const baseFont = ctx.font
+  let size = sizeMatch ? parseFloat(sizeMatch[1]) : 10
+  while (size > minSizePx && ctx.measureText(text).width > maxWidth) {
+    size--
+    ctx.font = baseFont.replace(/\d+(?:\.\d+)?px/, `${size}px`)
+  }
+  ctx.fillText(text, x, y)
+  ctx.font = baseFont
+}
+
 function renderFooterToCanvas(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -849,19 +944,24 @@ function renderFooterToCanvas(
   ctx.lineTo(width, yOffset)
   ctx.stroke()
 
-  // Company name
+  // Product name "EventOS Layout"
   ctx.fillStyle = '#f1f5f9'
-  ctx.font = 'bold 13px ui-monospace, monospace'
+  ctx.font = 'bold 12px ui-monospace, monospace'
   ctx.textAlign = 'left'
   ctx.textBaseline = 'middle'
-  fillTextTruncated(ctx, meta.company || 'Reality Near', 6, yOffset + footerHeight * 0.38, leftW - 12)
-  ctx.textAlign = 'left'
+  ctx.fillText('EventOS Layout', 6, yOffset + footerHeight * 0.25)
 
+  // "powered by" label
   ctx.fillStyle = '#475569'
   ctx.font = '7px ui-monospace, monospace'
-  ctx.letterSpacing = '0.1em'
-  ctx.fillText('LAYOUT ENGINE', 6, yOffset + footerHeight * 0.65)
-  ctx.letterSpacing = '0'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('powered by', 6, yOffset + footerHeight * 0.52)
+
+  // Company name
+  ctx.fillStyle = '#94a3b8'
+  ctx.font = '9px ui-monospace, monospace'
+  ctx.textBaseline = 'middle'
+  fillTextTruncated(ctx, meta.company || 'Reality Near', 6, yOffset + footerHeight * 0.78, leftW - 12)
 
   // Left block divider
   ctx.strokeStyle = '#475569'
@@ -920,7 +1020,7 @@ function renderFooterToCanvas(
       ctx.fillStyle = '#e2e8f0'
       ctx.font = '10px ui-monospace, monospace'
       ctx.textBaseline = 'bottom'
-      fillTextTruncated(ctx, field.value || '—', cx + 6, ry + rowH - 5, colW - 14)
+      fillTextAdaptive(ctx, field.value || '—', cx + 6, ry + rowH - 5, colW - 14)
     })
   })
 }

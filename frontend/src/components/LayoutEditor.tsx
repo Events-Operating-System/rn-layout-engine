@@ -34,18 +34,32 @@ export default function LayoutEditor() {
     clearDrawings,
     layoutMeta,
     updateMeta,
+    pushHistory,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useCanvasState()
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
-      if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
-        e.preventDefault()
-        if (selectedId) duplicateElement(selectedId)
+
+      if (e.ctrlKey || e.metaKey) {
+        if (e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+          e.preventDefault(); redo(); return
+        }
+        if (e.key === 'z') { e.preventDefault(); undo(); return }
+        if (e.key === 'y') { e.preventDefault(); redo(); return }
+        if (e.key === 'd') {
+          e.preventDefault()
+          if (selectedId) duplicateElement(selectedId)
+          return
+        }
         return
       }
-      if (e.ctrlKey || e.metaKey) return
+
       if (e.key === 's') setTool('pointer')
       else if (e.key === 'l') setTool('line')
       else if (e.key === 'a') setTool('arrow')
@@ -53,7 +67,7 @@ export default function LayoutEditor() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedId, duplicateElement, setTool])
+  }, [selectedId, duplicateElement, setTool, undo, redo])
 
   function toggleMobilePanel(panel: 'library' | 'properties') {
     setMobilePanel(prev => (prev === panel ? null : panel))
@@ -76,6 +90,10 @@ export default function LayoutEditor() {
         onToggleProperties={() => toggleMobilePanel('properties')}
         libraryOpen={mobilePanel === 'library'}
         propertiesOpen={mobilePanel === 'properties'}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
       />
 
       <div className="flex-1 flex overflow-hidden relative">
@@ -108,6 +126,7 @@ export default function LayoutEditor() {
             onSelectDrawing={selectDrawing}
             onDeleteDrawing={deleteDrawing}
             onUpdateDrawing={updateDrawing}
+            onPushHistory={pushHistory}
           />
         </main>
 
