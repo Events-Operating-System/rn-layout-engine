@@ -39,3 +39,23 @@ This is NOT a general-purpose UI app. It is an operational layout engine for liv
 ## Governance
 
 Session records and decisions live in `docs/` at the repo root (not inside `frontend/`).
+
+## Commit Attribution Policy
+
+Strategic ownership of this project belongs to the founder (Javier Bambaren D).
+AI systems (Claude, agents) are execution collaborators — not strategic owners or autonomous decision-makers.
+
+**For feature/code commits:** standard `Co-Authored-By:` attribution is acceptable.
+
+**For governance, strategy, session-state, and architecture commits:** use the following format in the commit body:
+
+```
+Author: Javier Bambaren D
+Execution Support: Claude Sonnet 4.6
+```
+
+AI systems:
+- Do NOT imply autonomous authority over architectural decisions in commit messages
+- Do NOT claim ownership of strategic direction
+- Do NOT commit governance documents without explicit human instruction to do so
+- MAY draft commit messages, but humans control what is recorded as their intent

@@ -36,6 +36,76 @@ What remains pending after session.
 
 ---
 
+## SESSION-0015
+**Date:** 2026-05-24
+**Branch:** `main`
+**Operator:** JBD & Claude
+**Status:** COMMITTED — pending human push to main + browser validation
+
+### Scope
+Operational UX Pass v1. Seven features targeting faster layout creation, reduced repetitive actions, better alignment, and improved perceived professionalism. No backend, no SSR, no persistence system. All changes are additive.
+
+### Delivered
+
+**1. Language selector (EN/ES)**
+- New `src/context/LangContext.tsx` — React context with full string catalog for English and Spanish
+- Language toggle button in `App.tsx` header (shows current opposite lang as the switch target)
+- Persisted to `localStorage('rn-lang')` — survives page reload
+- Translated: toolbar, library panel, properties panel, category labels, footer hints, legend
+
+**2. Export footer truncation fix**
+- Added `fillTextTruncated()` helper in `LayoutCanvas.tsx`
+- Long values (email, contact info) now truncate with `…` at the column width boundary
+- Company name in left block also truncated if too long
+- Fixes PNG export clipping for real operational data
+
+**3. Asset duplication**
+- `duplicateElement(id)` added to `useCanvasState.ts` — copies element at +2m offset, auto-selects copy
+- "Duplicate" button in `PropertiesPanel.tsx` `ElementProperties` section
+- Keyboard shortcut: `Ctrl+D` / `Cmd+D` (handled in `LayoutEditor.tsx`)
+
+**4. Element delete button**
+- "Delete Element" button added to `ElementProperties` in `PropertiesPanel.tsx`
+- Visible on mobile (in the open Properties panel overlay)
+- Matches existing "Delete Drawing" button pattern
+
+**5. Alignment guides**
+- Canvas center crosshair at 60m×60m — permanent faint dashed lines (slate 10% opacity)
+- During element drag: cyan dashed crosshair tracks element center in real-time
+- New guides `Layer` between grid and assets layer in `LayoutCanvas.tsx`
+- Cleared automatically on drag end
+
+**6. Draggable drawing annotations**
+- All drawing types (line, arrow, text) are now draggable in pointer mode
+- Standard Konva offset pattern: drag applies offset to points array, then resets shape position to 0
+- `onMoveDrawing` prop added to `DrawingShape`
+
+**7. Primitive shapes category**
+- New `'primitive'` asset category (slate #64748b)
+- 6 new templates: Rectangle, Circle, Oval, Rounded Box, Tree, Square
+- New `ElementShape` values: `'oval'`, `'rounded-rect'`, `'tree'`
+- `AssetShape` renders: `Ellipse` for oval, `Rect` w/ high cornerRadius for rounded-rect, `Star` for tree
+- Tree defaults to green (`#16a34a`)
+- `defaultColor` field added to `AssetTemplate` interface
+
+**Also:**
+- Keyboard tool shortcuts (S/L/A/T) now active (handled in `LayoutEditor.tsx`)
+- `react-konva` imports expanded: `Ellipse`, `Star`
+
+### TypeScript
+Zero errors on `npx tsc --noEmit`. Production build: clean.
+
+### iPhone fix code
+`containerSize=null` initialization and `pixelRatio=Math.min(DPR,2)` cap — both untouched.
+
+### Open
+- Human: run `git push origin main` to trigger auto-deploy
+- Human: verify on desktop + iPhone Safari before using in production
+- RISK-0015 (layout persistence) — still open, next priority
+- RISK-0016, RISK-0017, RISK-0018 — still open
+
+---
+
 ## AUDIT-2026-05-23
 **Date:** 2026-05-23
 **Branch:** `feat/vite-migration`
