@@ -36,6 +36,77 @@ What remains pending after session.
 
 ---
 
+## SESSION-0016
+**Date:** 2026-05-24
+**Branch:** `main`
+**Operator:** JBD & Claude
+**Status:** COMMITTED — pending human push to main + browser validation (includes SESSION-0015)
+
+### Scope
+Operational UX Pass v2. Eight fixes targeting quality, correctness, and completeness before first real-world use. No backend, no SSR. All changes additive. Constraint: DO NOT push until all items locally validated together.
+
+### Delivered
+
+**1. Text annotation drag bug fix**
+- `DrawingShape.handleDragEnd` now branches on `drawing.tool === 'text'`
+- Text uses `[e.target.x(), e.target.y()]` directly (absolute position)
+- Line/Arrow use the offset pattern (relative position, unchanged)
+- Fixes teleport-on-drag behavior in SESSION-0015
+
+**2. Undo / Redo**
+- `useCanvasState.ts`: `pushHistory()`, `undo()`, `redo()` + `canUndo`/`canRedo` reactive booleans
+- 50-step history cap; `historyRef` + `elementsRef`/`drawingsRef` for stable snapshots
+- Covered: element add, delete, duplicate, drawing add, delete, drag end, transform end
+- Toolbar: ↩/↪ buttons (disabled state when stack empty)
+- Keyboard: `Ctrl/Cmd+Z` undo, `Ctrl/Cmd+Shift+Z` / `Ctrl/Cmd+Y` redo
+
+**3. Complete EN/ES i18n**
+- `LangContext.tsx`: `ASSET_NAME_ES` map (all 40 assets translated) + `getAssetName(lang, name)` helper
+- `AssetLibraryPanel.tsx`: uses `getAssetName(lang, asset.name)` for display
+- All asset names translate in real-time when language is toggled
+
+**4. Footer branding**
+- `FooterLegend.tsx` left block: "EventOS Layout / powered by / {company}"
+- `renderFooterToCanvas` in `LayoutCanvas.tsx`: same branding applied to PNG export
+- Replaces "Reality Near / Layout Engine" pattern from SESSION-0015
+
+**5. Email clipping fix (final)**
+- New `fillTextAdaptive()` in `LayoutCanvas.tsx`: tries 10→9→8→7px before giving up
+- All metadata value fields in PNG export use adaptive sizing — no hard truncation
+- `fillTextTruncated()` retained for company name (left block) where truncation is acceptable
+
+**6. Smart alignment guides**
+- `computeAlignmentGuides()` function: checks center-to-center + 4 edge-to-edge combinations
+- 8px screen-pixel threshold (adjusts for zoom scale)
+- `alignGuides: { xs, ys }` state replaces old single `dragGuide`
+- Multiple cyan guide lines render simultaneously (Figma-style visual feedback)
+- No snapping — visual indicator only, per spec
+
+**7. Tree asset visual**
+- Replaced `Star` shape with two concentric circles (canopy + inner highlight ring)
+- Inner ring: `rgba(255,255,255,0.18)` overlay at 42% radius — professional top-view landscape look
+- `Star` removed from react-konva imports entirely
+
+**8. Visual professionalism pass**
+- Undo/Redo buttons integrated cleanly into toolbar with disabled state styling
+- Light spacing and icon improvements throughout
+
+### TypeScript
+Zero errors on `npx tsc --noEmit`. Production build: clean (553 KB).
+
+### iPhone fix code
+`containerSize=null` initialization and `pixelRatio=Math.min(DPR,2)` cap — both untouched.
+
+### Commit
+`42c0a25` — "feat: Operational UX Pass v2 — undo/redo, i18n, alignment guides, tree visual, footer branding"
+
+### Open
+- Human: run `git push origin main` to trigger auto-deploy (includes both SESSION-0015 and SESSION-0016)
+- Human: verify on desktop + iPhone Safari before using in production
+- RISK-0015 (layout persistence) — still open, next priority after office testing
+
+---
+
 ## SESSION-0015
 **Date:** 2026-05-24
 **Branch:** `main`

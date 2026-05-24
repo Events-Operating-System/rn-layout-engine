@@ -4,7 +4,7 @@
 ---
 
 # LAST UPDATED
-2026-05-24 — SESSION-0015: Operational UX Pass v1 committed, pending push
+2026-05-24 — SESSION-0016: Operational UX Pass v2 committed, pending push (includes SESSION-0015)
 
 ---
 
@@ -50,16 +50,16 @@ frontend/
 │   │   └── LangContext.tsx     — EN/ES language context, string catalog, useLang() hook
 │   ├── components/
 │   │   ├── LayoutEditor.tsx        — Column layout: DrawingToolbar → panels row → FooterLegend
-│   │   ├── DrawingToolbar.tsx      — Tool selector + export button (translated)
-│   │   ├── FooterLegend.tsx        — CAD-style title block (9 editable metadata fields)
+│   │   ├── DrawingToolbar.tsx      — Tool selector + undo/redo + export button (translated)
+│   │   ├── FooterLegend.tsx        — CAD-style title block; branding: EventOS Layout / powered by / {company}
 │   │   ├── canvas/
 │   │   │   └── LayoutCanvas.tsx    — Konva Stage; exposes exportPNG via forwardRef
 │   │   └── panels/
-│   │       ├── AssetLibraryPanel.tsx   — 40 assets across 7 categories (incl. Shapes)
+│   │       ├── AssetLibraryPanel.tsx   — 40 assets across 7 categories (incl. Shapes); EN/ES asset names
 │   │       ├── PropertiesPanel.tsx     — Element + drawing properties + delete/duplicate
 │   │       └── LegendPanel.tsx         — Category color legend
 │   ├── hooks/
-│   │   └── useCanvasState.ts       — Canvas + drawing + metadata state + duplicateElement
+│   │   └── useCanvasState.ts       — Canvas + drawing + metadata state + undo/redo (50-step history)
 │   └── types/
 │       └── layout.ts               — LayoutElement, DrawingPrimitive, LayoutMeta, etc.
 ```
@@ -70,8 +70,8 @@ frontend/
 
 | Branch | Tip commit | State | Notes |
 |---|---|---|---|
-| `main` | `98ec46f` | **Committed locally, pending push** — SESSION-0015 UX Pass v1 | 7 UX features + keyboard shortcuts. Push to main triggers auto-deploy. |
-| `feat/vite-migration` | `cb48499` | Legacy — merged, preserved for reference | One commit behind main (missing docs-only update). Safe to delete after office testing. |
+| `main` | `42c0a25` | **Committed locally, pending push** — SESSION-0015 + SESSION-0016 | UX Pass v1 + v2: 15 features + undo/redo + i18n + guides. Push triggers auto-deploy. |
+| `feat/vite-migration` | `cb48499` | Legacy — merged, preserved for reference | Behind main. Safe to delete after office testing. |
 
 **Merge status:** Complete. `feat/vite-migration` merged into `main` 2026-05-23. `main` is now canonical production branch. Auto-deploy confirmed healthy — push to `main` → `rn-layout-engine.vercel.app` updates automatically.
 
@@ -161,8 +161,8 @@ See DEPLOYMENT.md rollback table for commit-level safety ratings.
 
 # NEXT PRIORITIES
 
-1. **Push SESSION-0015 to main** — `git push origin main` → auto-deploy fires → verify on desktop + iPhone Safari
-2. **Office testing** — validate UX Pass v1 features with real team, exported plans, interaction stability
+1. **Push to main** — `git push origin main` → auto-deploy fires → verify on desktop + iPhone Safari (includes SESSION-0015 + SESSION-0016)
+2. **Office testing** — validate UX Pass v1 + v2 features with real team, exported plans, interaction stability
 3. **Layout persistence** (RISK-0015) — localStorage save/load is next engineering priority after office testing
 4. **Delete or archive `frontend` Vercel project** — debugging artifact. See RISK-0020.
 5. **Remaining feature candidates:** Touch drawing support (RISK-0017), background image upload, "fit all" zoom
