@@ -1164,7 +1164,7 @@ function renderFooterPDF(
 
   const leftW = 120
   const rightW = width - leftW
-  const colCount = 4
+  const colCount = 5
   const colW = rightW / colCount
   const rowH = footerHeight / 2
 
@@ -1201,7 +1201,11 @@ function renderFooterPDF(
     ],
     [
       { label: 'CONTACTO', value: meta.contacto },
-      { label: 'TELEFONO / CORREO', value: `${meta.telefono || ''}  ${meta.correo || ''}`.trim() },
+      { label: 'TELEFONO', value: meta.telefono },
+    ],
+    [
+      { label: 'CORREO', value: meta.correo },
+      { label: '', value: '' },
     ],
   ]
 
