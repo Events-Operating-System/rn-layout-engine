@@ -1244,7 +1244,7 @@ function renderFooterPDF(
       ctx.fillStyle = '#000000'
       ctx.font = 'bold 11px ui-monospace, monospace'
       ctx.textBaseline = 'bottom'
-      fillTextAdaptive(ctx, field.value || '—', cx + 6, ry + rowH - 5, colW - 12)
+      fillTextAdaptive(ctx, field.value || '—', cx + 6, ry + rowH - 5, colW - 12, 5)
     })
   })
 }
