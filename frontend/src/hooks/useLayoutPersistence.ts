@@ -33,13 +33,16 @@ export function useLayoutPersistence(orgId: string) {
     try {
       const data = await layoutService.load(id)
       setLayoutId(id)
-      const layout = layouts.find(l => l.id === id)
+      // Also fetch the name from the layouts list or re-fetch
+      const list = await layoutService.list(orgId)
+      setLayouts(list)
+      const layout = list.find(l => l.id === id)
       if (layout) setLayoutName(layout.name)
       return data
     } finally {
       setLoading(false)
     }
-  }, [layouts])
+  }, [orgId])
 
   const newLayout = useCallback(() => {
     setLayoutId(null)
