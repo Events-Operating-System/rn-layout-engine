@@ -57,7 +57,7 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
     if (!userId) return
     setSaveStatus('saving')
     const metaWithCliente = { ...layoutMeta, cliente: layoutName }
-    await save({ elements, drawings, meta: metaWithCliente, viewport })
+    await save({ elements, drawings, meta: metaWithCliente, viewport }, layoutName)
     updateMeta({ cliente: layoutName })
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
