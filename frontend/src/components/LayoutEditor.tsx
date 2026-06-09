@@ -19,6 +19,7 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
   const [mobilePanel, setMobilePanel] = useState<'library' | 'properties' | null>(null)
   const [userId, setUserId] = useState<string>('')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [inputName, setInputName] = useState('Sin título')
 
   const {
     elements, selectedId, selectedElement,
@@ -39,10 +40,11 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
   }, [])
 
   const persistence = useLayoutPersistence(userId)
-  const { save, load, layoutName, setLayoutName } = persistence
+  const { save, load } = persistence
 
   const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
 
+  // Cuando se carga un layout existente, sincroniza el inputName
   useEffect(() => {
     if (!layoutIdToLoad || !userId) return
     load(layoutIdToLoad).then(data => {
@@ -51,20 +53,24 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
       if (data.viewport) setViewport(data.viewport)
       if (data.meta) {
         setLayoutMeta(data.meta)
-        if (data.meta.cliente) setLayoutName(data.meta.cliente)
+        if (data.meta.cliente) setInputName(data.meta.cliente)
       }
     })
   }, [layoutIdToLoad, userId])
 
+  // inputName ref para evitar stale closure en handleSave
+  const inputNameRef = useRef(inputName)
+  inputNameRef.current = inputName
+
   const handleSave = useCallback(async () => {
     if (!userId) return
     setSaveStatus('saving')
-    const metaWithCliente = { ...layoutMeta, cliente: layoutName }
-    await save({ elements, drawings, meta: metaWithCliente, viewport }, layoutName)
-    updateMeta({ cliente: layoutName })
+    const currentName = inputNameRef.current
+    const metaWithCliente = { ...layoutMeta, cliente: currentName }
+    await save({ elements, drawings, meta: metaWithCliente, viewport }, currentName)
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
-  }, [userId, save, elements, drawings, layoutMeta, viewport, layoutName, updateMeta])
+  }, [userId, save, elements, drawings, layoutMeta, viewport])
 
   const handleSaveAsAsset = useCallback(async (element: typeof selectedElement) => {
     if (!element) return
@@ -127,9 +133,9 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
 
       <div className="flex-none h-9 bg-slate-900 border-b border-slate-700/60 flex items-center px-4 gap-3">
         <input
-          value={layoutName}
+          value={inputName}
           onChange={e => {
-            setLayoutName(e.target.value)
+            setInputName(e.target.value)
             updateMeta({ cliente: e.target.value })
           }}
           className="bg-slate-800 text-sm text-slate-100 font-medium outline-none border border-slate-600 focus:border-indigo-500 rounded px-3 py-1 w-64 placeholder:text-slate-500 transition-colors"
