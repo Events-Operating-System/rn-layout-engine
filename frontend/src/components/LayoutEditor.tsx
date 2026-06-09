@@ -6,6 +6,7 @@ import FooterLegend from '@/components/FooterLegend'
 import LayoutCanvas, { type LayoutCanvasHandle } from '@/components/canvas/LayoutCanvas'
 import { useCanvasState } from '@/hooks/useCanvasState'
 import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
+import { useCustomAssets } from '@/hooks/useCustomAssets'
 import { supabase } from '@/lib/supabase'
 import type { AssetTemplate } from '@/types/layout'
 
@@ -40,6 +41,8 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
   const persistence = useLayoutPersistence(userId)
   const { save, load, layoutName, setLayoutName } = persistence
 
+  const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
+
   useEffect(() => {
     if (!layoutIdToLoad || !userId) return
     load(layoutIdToLoad).then(data => {
@@ -62,6 +65,18 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
   }, [userId, save, elements, drawings, layoutMeta, viewport, layoutName, updateMeta])
+
+  const handleSaveAsAsset = useCallback(async (element: typeof selectedElement) => {
+    if (!element) return
+    await createAsset({
+      name: element.name,
+      category: element.category,
+      default_width: element.width,
+      default_height: element.height,
+      default_color: element.color,
+      shape: element.shape,
+    })
+  }, [createAsset])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -138,7 +153,13 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
             ? 'absolute inset-y-0 left-0 z-20 shadow-2xl flex flex-none md:static md:shadow-none'
             : 'hidden md:flex md:flex-none'
         }>
-          <AssetLibraryPanel onAddElement={handleAddElement} />
+          <AssetLibraryPanel
+            onAddElement={handleAddElement}
+            customAssets={customAssets}
+            selectedElement={selectedElement}
+            onSaveAsAsset={handleSaveAsAsset}
+            onDeleteAsset={deleteAsset}
+          />
         </div>
 
         <main className="flex-1 flex flex-col overflow-hidden min-w-0">
