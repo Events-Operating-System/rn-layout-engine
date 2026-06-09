@@ -3,6 +3,7 @@ import { Stage, Layer, Line, Arrow, Rect, Circle, Ellipse, Text, Group, Shape, T
 import type Konva from 'konva'
 import type { LayoutElement, CanvasViewport, DrawingPrimitive, DrawingTool, LayoutMeta } from '@/types/layout'
 import { FOOTER_HEIGHT_PX } from '@/components/FooterLegend'
+import jsPDF from 'jspdf'
 
 export const PIXELS_PER_METER = 20
 const GRID_METERS = 120
@@ -19,6 +20,7 @@ const DRAW_STROKE = 2
 
 export interface LayoutCanvasHandle {
   exportPNG: () => void
+  exportPDF: () => void
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -245,7 +247,44 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       img.src = stageDataURL
     }, [containerSize, layoutMeta])
 
-    useImperativeHandle(ref, () => ({ exportPNG }), [exportPNG])
+    const exportPDF = useCallback(() => {
+      const stage = stageRef.current
+      if (!stage || !containerSize) return
+    
+      const stageDataURL = stage.toDataURL({ pixelRatio: EXPORT_RATIO })
+      const img = new Image()
+      img.onload = () => {
+        const ew = containerSize.width * EXPORT_RATIO
+        const eh = (containerSize.height + FOOTER_HEIGHT_PX) * EXPORT_RATIO
+    
+        const canvas = document.createElement('canvas')
+        canvas.width = ew
+        canvas.height = eh
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+    
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, ew, eh)
+        ctx.drawImage(img, 0, 0)
+    
+        ctx.save()
+        ctx.scale(EXPORT_RATIO, EXPORT_RATIO)
+        renderFooterToCanvas(ctx, containerSize.width, containerSize.height, FOOTER_HEIGHT_PX, layoutMeta)
+        ctx.restore()
+    
+        const imgData = canvas.toDataURL('image/png')
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'px',
+          format: [ew, eh],
+        })
+        pdf.addImage(imgData, 'PNG', 0, 0, ew, eh)
+        pdf.save(`rn-layout-${new Date().toISOString().slice(0, 10)}.pdf`)
+      }
+      img.src = stageDataURL
+    }, [containerSize, layoutMeta])
+    
+    useImperativeHandle(ref, () => ({ exportPNG, exportPDF }), [exportPNG, exportPDF])
 
     // ── Zoom (wheel) ──────────────────────────────────────────────────────────
 

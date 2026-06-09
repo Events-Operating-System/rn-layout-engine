@@ -6,6 +6,7 @@ interface DrawingToolbarProps {
   onSetTool: (tool: DrawingTool) => void
   onClearDrawings: () => void
   onExport: () => void
+  onExportPDF: () => void
   onToggleLibrary: () => void
   onToggleProperties: () => void
   libraryOpen: boolean
@@ -28,6 +29,7 @@ export default function DrawingToolbar({
   onSetTool,
   onClearDrawings,
   onExport,
+  onExportPDF,
   onToggleLibrary,
   onToggleProperties,
   libraryOpen,
@@ -49,7 +51,7 @@ export default function DrawingToolbar({
   return (
     <div className="flex-none h-9 bg-slate-900 border-b border-slate-700/60 flex items-center px-3 gap-2">
 
-      {/* Mobile panel toggles — visible only below md breakpoint */}
+      {/* Mobile panel toggles */}
       <div className="flex items-center gap-0.5 md:hidden">
         <button
           onClick={onToggleLibrary}
@@ -140,14 +142,22 @@ export default function DrawingToolbar({
 
       <div className="hidden sm:block w-px h-5 bg-slate-700/60" />
 
-      <button
-        onClick={onExport}
-        title={t.exportPlan}
-        className="h-7 px-3 rounded text-[10px] font-semibold text-white bg-indigo-700 hover:bg-indigo-600 border border-indigo-500/60 transition-colors font-mono uppercase tracking-widest"
-      >
-        <span className="hidden sm:inline">{t.exportPlan}</span>
-        <span className="sm:hidden">↑PNG</span>
-      </button>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={onExport}
+          title="Exportar PNG"
+          className="h-7 px-3 rounded text-[10px] font-semibold text-white bg-slate-700 hover:bg-slate-600 border border-slate-600 transition-colors font-mono uppercase tracking-widest"
+        >
+          PNG
+        </button>
+        <button
+          onClick={onExportPDF}
+          title="Exportar PDF"
+          className="h-7 px-3 rounded text-[10px] font-semibold text-white bg-indigo-700 hover:bg-indigo-600 border border-indigo-500/60 transition-colors font-mono uppercase tracking-widest"
+        >
+          PDF
+        </button>
+      </div>
     </div>
   )
 }

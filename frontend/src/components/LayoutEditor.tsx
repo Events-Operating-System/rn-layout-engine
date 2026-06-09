@@ -44,7 +44,6 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
 
   const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
 
-  // Carga layout existente
   useEffect(() => {
     if (!layoutIdToLoad || !userId) return
     load(layoutIdToLoad).then(data => {
@@ -58,14 +57,12 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
     })
   }, [layoutIdToLoad, userId])
 
-  // Sincroniza inputName cuando el usuario escribe en el footer (campo CLIENTE)
   useEffect(() => {
     if (layoutMeta.cliente !== undefined && layoutMeta.cliente !== inputName) {
       setInputName(layoutMeta.cliente)
     }
   }, [layoutMeta.cliente])
 
-  // Refs para evitar stale closures
   const elementsRef = useRef(elements)
   const drawingsRef = useRef(drawings)
   const viewportRef = useRef(viewport)
@@ -145,6 +142,7 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
         onSetTool={setTool}
         onClearDrawings={clearDrawings}
         onExport={() => canvasRef.current?.exportPNG()}
+        onExportPDF={() => canvasRef.current?.exportPDF()}
         onToggleLibrary={() => toggleMobilePanel('library')}
         onToggleProperties={() => toggleMobilePanel('properties')}
         libraryOpen={mobilePanel === 'library'}
