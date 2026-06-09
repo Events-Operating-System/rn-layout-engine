@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { layoutService, type SavedLayout, type LayoutData } from '@/lib/layoutService'
 
 export function useLayoutPersistence(orgId: string) {
@@ -7,6 +7,10 @@ export function useLayoutPersistence(orgId: string) {
   const [layouts, setLayouts] = useState<SavedLayout[]>([])
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
+
+  // Keep layoutName in a ref so save() always uses the latest value
+  const layoutNameRef = useRef(layoutName)
+  layoutNameRef.current = layoutName
 
   const fetchLayouts = useCallback(async () => {
     if (!orgId) return
@@ -18,22 +22,21 @@ export function useLayoutPersistence(orgId: string) {
     if (!orgId) return
     setSaving(true)
     try {
-      const finalName = name ?? layoutName
+      const finalName = name ?? layoutNameRef.current
       const id = await layoutService.save(layoutId, orgId, finalName, data)
       setLayoutId(id)
-      setLayoutName(finalName)
+      // Do NOT reset layoutName here — keep what the user typed
       await fetchLayouts()
     } finally {
       setSaving(false)
     }
-  }, [orgId, layoutId, layoutName, fetchLayouts])
+  }, [orgId, layoutId, fetchLayouts])
 
   const load = useCallback(async (id: string): Promise<LayoutData> => {
     setLoading(true)
     try {
       const data = await layoutService.load(id)
       setLayoutId(id)
-      // Also fetch the name from the layouts list or re-fetch
       const list = await layoutService.list(orgId)
       setLayouts(list)
       const layout = list.find(l => l.id === id)
