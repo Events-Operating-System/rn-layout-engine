@@ -44,7 +44,7 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
 
   const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
 
-  // Cuando se carga un layout existente, sincroniza el inputName
+  // Carga layout existente
   useEffect(() => {
     if (!layoutIdToLoad || !userId) return
     load(layoutIdToLoad).then(data => {
@@ -58,19 +58,43 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
     })
   }, [layoutIdToLoad, userId])
 
-  // inputName ref para evitar stale closure en handleSave
+  // Sincroniza inputName cuando el usuario escribe en el footer (campo CLIENTE)
+  useEffect(() => {
+    if (layoutMeta.cliente !== undefined && layoutMeta.cliente !== inputName) {
+      setInputName(layoutMeta.cliente)
+    }
+  }, [layoutMeta.cliente])
+
+  // Refs para evitar stale closures
+  const elementsRef = useRef(elements)
+  const drawingsRef = useRef(drawings)
+  const viewportRef = useRef(viewport)
+  const layoutMetaRef = useRef(layoutMeta)
   const inputNameRef = useRef(inputName)
+
+  elementsRef.current = elements
+  drawingsRef.current = drawings
+  viewportRef.current = viewport
+  layoutMetaRef.current = layoutMeta
   inputNameRef.current = inputName
 
   const handleSave = useCallback(async () => {
     if (!userId) return
     setSaveStatus('saving')
     const currentName = inputNameRef.current
-    const metaWithCliente = { ...layoutMeta, cliente: currentName }
-    await save({ elements, drawings, meta: metaWithCliente, viewport }, currentName)
+    const currentMeta = { ...layoutMetaRef.current, cliente: currentName }
+    await save(
+      {
+        elements: elementsRef.current,
+        drawings: drawingsRef.current,
+        meta: currentMeta,
+        viewport: viewportRef.current,
+      },
+      currentName
+    )
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
-  }, [userId, save, elements, drawings, layoutMeta, viewport])
+  }, [userId, save])
 
   const handleSaveAsAsset = useCallback(async (element: typeof selectedElement) => {
     if (!element) return
