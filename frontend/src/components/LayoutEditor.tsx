@@ -46,17 +46,22 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
       if (data.elements) setElements(data.elements)
       if (data.drawings) setDrawings(data.drawings)
       if (data.viewport) setViewport(data.viewport)
-      if (data.meta) setLayoutMeta(data.meta)
+      if (data.meta) {
+        setLayoutMeta(data.meta)
+        if (data.meta.cliente) setLayoutName(data.meta.cliente)
+      }
     })
   }, [layoutIdToLoad, userId])
 
   const handleSave = useCallback(async () => {
     if (!userId) return
     setSaveStatus('saving')
-    await save({ elements, drawings, meta: layoutMeta, viewport })
+    const metaWithCliente = { ...layoutMeta, cliente: layoutName }
+    await save({ elements, drawings, meta: metaWithCliente, viewport })
+    updateMeta({ cliente: layoutName })
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
-  }, [userId, save, elements, drawings, layoutMeta, viewport])
+  }, [userId, save, elements, drawings, layoutMeta, viewport, layoutName, updateMeta])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -105,12 +110,15 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
         canRedo={canRedo}
       />
 
-      <div className="flex-none h-8 bg-slate-950 border-b border-slate-800 flex items-center px-3 gap-3">
+      <div className="flex-none h-9 bg-slate-900 border-b border-slate-700/60 flex items-center px-4 gap-3">
         <input
           value={layoutName}
-          onChange={e => setLayoutName(e.target.value)}
-          className="bg-transparent text-xs text-slate-300 font-medium outline-none border-none w-48 placeholder:text-slate-600"
-          placeholder="Sin título"
+          onChange={e => {
+            setLayoutName(e.target.value)
+            updateMeta({ cliente: e.target.value })
+          }}
+          className="bg-slate-800 text-sm text-slate-100 font-medium outline-none border border-slate-600 focus:border-indigo-500 rounded px-3 py-1 w-64 placeholder:text-slate-500 transition-colors"
+          placeholder="Nombre del cliente / evento"
         />
         <div className="flex-1" />
         {saveStatus === 'saving' && <span className="text-[10px] text-indigo-400 animate-pulse">Guardando...</span>}
@@ -118,7 +126,7 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
         <button
           onClick={handleSave}
           disabled={!userId || saveStatus === 'saving'}
-          className="h-6 px-3 rounded text-[10px] font-semibold text-white bg-indigo-700 hover:bg-indigo-600 disabled:opacity-40 transition-colors"
+          className="h-7 px-4 rounded text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-colors"
         >
           Guardar
         </button>
