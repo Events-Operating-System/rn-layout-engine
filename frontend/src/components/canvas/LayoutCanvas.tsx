@@ -251,7 +251,24 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       const stage = stageRef.current
       if (!stage || !containerSize) return
     
+      // Fuerza fondo blanco temporalmente
+      const gridLayer = stage.getLayers()[0]
+      const rects = gridLayer.find('Rect')
+      rects.forEach((r: Konva.Node) => {
+        const rect = r as Konva.Rect
+        if (rect.fill() === '#020617') rect.fill('#ffffff')
+      })
+      gridLayer.batchDraw()
+    
       const stageDataURL = stage.toDataURL({ pixelRatio: EXPORT_RATIO })
+    
+      // Restaura fondo oscuro
+      rects.forEach((r: Konva.Node) => {
+        const rect = r as Konva.Rect
+        if (rect.fill() === '#ffffff') rect.fill('#020617')
+      })
+      gridLayer.batchDraw()
+    
       const img = new Image()
       img.onload = () => {
         const ew = containerSize.width * EXPORT_RATIO
