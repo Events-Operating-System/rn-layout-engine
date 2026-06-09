@@ -248,58 +248,125 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     }, [containerSize, layoutMeta])
 
     const exportPDF = useCallback(() => {
-      const stage = stageRef.current
-      if (!stage || !containerSize) return
+      if (!containerSize || !elements.length) return
     
-      // Fuerza fondo blanco temporalmente
-      const gridLayer = stage.getLayers()[0]
-      const rects = gridLayer.find('Rect')
-      rects.forEach((r: Konva.Node) => {
-        const rect = r as Konva.Rect
-        if (rect.fill() === '#020617') rect.fill('#ffffff')
-      })
-      gridLayer.batchDraw()
+      const PADDING = 40
+      const PPM = PIXELS_PER_METER
     
-      const stageDataURL = stage.toDataURL({ pixelRatio: EXPORT_RATIO })
+      // Calcular bounding box de todos los elementos
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+      for (const el of elements) {
+        minX = Math.min(minX, el.x * PPM)
+        minY = Math.min(minY, el.y * PPM)
+        maxX = Math.max(maxX, (el.x + el.width) * PPM)
+        maxY = Math.max(maxY, (el.y + el.height) * PPM)
+      }
     
-      // Restaura fondo oscuro
-      rects.forEach((r: Konva.Node) => {
-        const rect = r as Konva.Rect
-        if (rect.fill() === '#ffffff') rect.fill('#020617')
-      })
-      gridLayer.batchDraw()
+      const contentW = maxX - minX + PADDING * 2
+      const contentH = maxY - minY + PADDING * 2
+      const FOOTER_H = FOOTER_HEIGHT_PX
+      const SCALE = 2
     
-      const img = new Image()
-      img.onload = () => {
-        const ew = containerSize.width * EXPORT_RATIO
-        const eh = (containerSize.height + FOOTER_HEIGHT_PX) * EXPORT_RATIO
+      const canvasW = contentW * SCALE
+      const canvasH = (contentH + FOOTER_H) * SCALE
     
-        const canvas = document.createElement('canvas')
-        canvas.width = ew
-        canvas.height = eh
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return
+      const canvas = document.createElement('canvas')
+      canvas.width = canvasW
+      canvas.height = canvasH
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
     
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, ew, eh)
-        ctx.drawImage(img, 0, 0)
+      // Fondo blanco
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, canvasW, canvasH)
+    
+      ctx.save()
+      ctx.scale(SCALE, SCALE)
+    
+      // Borde exterior del plano
+      ctx.strokeStyle = '#000000'
+      ctx.lineWidth = 1.5
+      ctx.strokeRect(8, 8, contentW - 16, contentH - 16)
+    
+      // Dibujar elementos
+      const offsetX = -minX + PADDING
+      const offsetY = -minY + PADDING
+    
+      for (const el of elements) {
+        const x = el.x * PPM + offsetX
+        const y = el.y * PPM + offsetY
+        const w = el.width * PPM
+        const h = el.height * PPM
+    
+        const isTree = el.shape === 'tree'
+        const isCircle = el.shape === 'circle'
+        const isOval = el.shape === 'oval'
+    
+        // Color: árbol=verde, color custom respetado, resto blanco
+        const DEFAULT_COLORS = ['#6366f1','#0891b2','#f59e0b','#ef4444','#22c55e','#a855f7','#16a34a']
+        const hasCustomColor = !DEFAULT_COLORS.includes(el.color)
+        const fillColor = isTree ? '#16a34a' : hasCustomColor ? el.color : '#ffffff'
+        const strokeColor = '#1a1a1a'
     
         ctx.save()
-        ctx.scale(EXPORT_RATIO, EXPORT_RATIO)
-        renderFooterToCanvas(ctx, containerSize.width, containerSize.height, FOOTER_HEIGHT_PX, layoutMeta)
-        ctx.restore()
+        ctx.translate(x + w / 2, y + h / 2)
+        ctx.rotate((el.rotation * Math.PI) / 180)
     
-        const imgData = canvas.toDataURL('image/png')
-        const pdf = new jsPDF({
-          orientation: 'landscape',
-          unit: 'px',
-          format: [ew, eh],
-        })
-        pdf.addImage(imgData, 'PNG', 0, 0, ew, eh)
-        pdf.save(`rn-layout-${new Date().toISOString().slice(0, 10)}.pdf`)
+        ctx.fillStyle = fillColor
+        ctx.strokeStyle = strokeColor
+        ctx.lineWidth = 1.5
+    
+        if (isCircle || isTree) {
+          const r = Math.min(w, h) / 2
+          ctx.beginPath()
+          ctx.arc(0, 0, r, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.stroke()
+        } else if (isOval) {
+          ctx.beginPath()
+          ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2)
+          ctx.fill()
+          ctx.stroke()
+        } else {
+          ctx.beginPath()
+          ctx.rect(-w / 2, -h / 2, w, h)
+          ctx.fill()
+          ctx.stroke()
+        }
+    
+        // Label
+        if (w > 20 && h > 12) {
+          ctx.fillStyle = isTree ? '#ffffff' : '#1a1a1a'
+          const fontSize = Math.min(11, Math.max(7, Math.min(w, h) / 4))
+          ctx.font = `600 ${fontSize}px ui-monospace, monospace`
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(el.name, 0, h > 20 ? -h / 6 : 0)
+    
+          if (h > 24) {
+            ctx.font = `${fontSize - 1}px ui-monospace, monospace`
+            ctx.fillStyle = isTree ? 'rgba(255,255,255,0.8)' : '#555'
+            ctx.fillText(`${el.width}m × ${el.height}m`, 0, h / 6)
+          }
+        }
+    
+        ctx.restore()
       }
-      img.src = stageDataURL
-    }, [containerSize, layoutMeta])
+    
+      // Footer
+      renderFooterToCanvas(ctx, contentW, contentH, FOOTER_H, layoutMeta)
+    
+      ctx.restore()
+    
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({
+        orientation: contentW > contentH ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [canvasW, canvasH],
+      })
+      pdf.addImage(imgData, 'PNG', 0, 0, canvasW, canvasH)
+      pdf.save(`rn-layout-${new Date().toISOString().slice(0, 10)}.pdf`)
+    }, [containerSize, elements, layoutMeta])
     
     useImperativeHandle(ref, () => ({ exportPNG, exportPDF }), [exportPNG, exportPDF])
 
