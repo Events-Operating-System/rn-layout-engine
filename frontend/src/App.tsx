@@ -1,80 +1,135 @@
-import LayoutEditor from '@/components/LayoutEditor'
-import { LangProvider, useLang } from '@/context/LangContext'
+import { useState } from 'react'
+import type { SavedLayout } from '@/lib/layoutService'
 
-export default function App() {
-  return (
-    <LangProvider>
-      <AppShell />
-    </LangProvider>
-  )
+interface Props {
+  layouts: SavedLayout[]
+  loading: boolean
+  onOpen: (id: string) => void
+  onNew: () => void
+  onDelete: (id: string) => void
+  userName: string
+  onSignOut: () => void
 }
 
-function AppShell() {
-  const { lang, setLang, t } = useLang()
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('es-PE', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  })
+}
+
+export default function LayoutDashboard({
+  layouts, loading, onOpen, onNew, onDelete, userName, onSignOut
+}: Props) {
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   return (
-    <div className="h-full flex flex-col bg-slate-950 text-slate-200 overflow-hidden">
-      <header className="h-10 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-4 gap-3">
+    <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col">
+      <header className="h-14 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-6 gap-4">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-indigo-500" />
-          <span className="text-xs font-semibold text-slate-200 tracking-wide">
-            RN Layout Engine
-          </span>
+          <span className="text-sm font-semibold tracking-wide">EventOS Layout</span>
         </div>
         <span className="text-slate-700">|</span>
-        <span className="text-xs text-slate-500">{t.headerSub}</span>
-        <div className="ml-auto flex items-center gap-3">
+        <span className="text-xs text-slate-500">Mis Layouts</span>
+        <div className="ml-auto flex items-center gap-4">
+          <span className="text-xs text-slate-500 hidden sm:block">{userName}</span>
           <button
-            onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
-            title="Toggle language / Cambiar idioma"
-            className="text-[10px] font-mono text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-2 py-0.5 rounded border border-slate-700/60 transition-colors tracking-wider"
+            onClick={onSignOut}
+            className="text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-3 py-1.5 rounded border border-slate-700/60 transition-colors"
           >
-            {lang === 'en' ? 'ES' : 'EN'}
+            Cerrar sesión
           </button>
-          <span className="text-[9px] bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded border border-indigo-900 font-medium tracking-wider uppercase">
-            MVP
-          </span>
-          <span className="hidden sm:block text-[9px] text-slate-600">Reality Near · Events Operating System</span>
         </div>
       </header>
 
-      <LayoutEditor />
-
-      <footer className="h-10 flex-none bg-slate-900 border-t border-slate-700/60 flex items-center px-4 gap-6 overflow-hidden">
-        <LegendInline />
-        <div className="hidden sm:flex items-center gap-5 text-[9px] text-slate-600 ml-auto flex-none">
-          <span>{t.hintZoom}</span>
-          <span>{t.hintPan}</span>
-          <span>{t.hintSelect}</span>
-          <span>{t.hintMove}</span>
+      <main className="flex-1 px-6 py-8 max-w-5xl mx-auto w-full">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-xl font-bold text-slate-100">Layouts</h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {layouts.length === 0 ? 'Ningún layout guardado aún' : `${layouts.length} layout${layouts.length !== 1 ? 's' : ''}`}
+            </p>
+          </div>
+          <button
+            onClick={onNew}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+          >
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+            Nuevo layout
+          </button>
         </div>
-      </footer>
-    </div>
-  )
-}
 
-function LegendInline() {
-  const { t } = useLang()
-  const items = [
-    { label: t.catStage,       color: '#6366f1' },
-    { label: t.catStructure,   color: '#0891b2' },
-    { label: t.catSeating,     color: '#f59e0b' },
-    { label: t.catBarrier,     color: '#ef4444' },
-    { label: t.catUtility,     color: '#22c55e' },
-    { label: t.catCirculation, color: '#a855f7' },
-  ]
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <div className="text-sm text-slate-500">Cargando layouts...</div>
+          </div>
+        ) : layouts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4">
+            <div className="text-5xl opacity-20">🗂</div>
+            <p className="text-slate-500 text-sm">Aún no tienes layouts guardados.</p>
+            <button
+              onClick={onNew}
+              className="text-indigo-400 hover:text-indigo-300 text-sm underline underline-offset-4 transition-colors"
+            >
+              Crear tu primer layout
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {layouts.map(layout => (
+              <div
+                key={layout.id}
+                className="group bg-slate-900 border border-slate-700/60 rounded-xl p-5 hover:border-indigo-500/50 transition-all cursor-pointer relative"
+                onClick={() => onOpen(layout.id)}
+              >
+                <div className="w-full h-24 bg-slate-800 rounded-lg mb-4 flex items-center justify-center">
+                  <div className="text-2xl opacity-10">⚡</div>
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-100 truncate">{layout.name}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{formatDate(layout.updated_at)}</p>
+                  </div>
+                  <button
+                    onClick={e => { e.stopPropagation(); setConfirmDelete(layout.id) }}
+                    className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1 rounded flex-none"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M2 3.5h10M5.5 3.5V2.5h3v1M5 5.5l.5 5M9 5.5l-.5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
 
-  return (
-    <div className="flex items-center gap-4">
-      <span className="text-[9px] font-semibold text-slate-600 uppercase tracking-widest flex-none">
-        Legend
-      </span>
-      {items.map(({ label, color }) => (
-        <div key={color} className="flex items-center gap-1.5 flex-none">
-          <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
-          <span className="text-[10px] text-slate-500">{label}</span>
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-sm font-semibold text-slate-100 mb-2">¿Eliminar layout?</h3>
+            <p className="text-xs text-slate-400 mb-6">Esta acción archivará el layout. No se puede deshacer.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 py-2 rounded-lg border border-slate-700 text-xs text-slate-400 hover:bg-slate-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { onDelete(confirmDelete); setConfirmDelete(null) }}
+                className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-xs text-white font-semibold transition-colors"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
         </div>
-      ))}
+      )}
     </div>
   )
 }
