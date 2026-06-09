@@ -1149,96 +1149,98 @@ function renderFooterToCanvas(
 }
 
 function renderFooterPDF(
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    yOffset: number,
-    footerHeight: number,
-    meta: LayoutMeta,
-  ) {
-    // Fondo blanco
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(0, yOffset, width, footerHeight)
-  
-    // Borde exterior del cajetín
-    ctx.strokeStyle = '#000000'
-    ctx.lineWidth = 1.5
-    ctx.strokeRect(0, yOffset, width, footerHeight)
-  
-    const leftW = 140
-    const rightW = width - leftW
-    const colCount = 5
-    const colW = rightW / colCount
-    const rowH = footerHeight / 2
-  
-    // Columna izquierda — logo/empresa
-    ctx.strokeStyle = '#000000'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(leftW, yOffset)
-    ctx.lineTo(leftW, yOffset + footerHeight)
-    ctx.stroke()
-  
-    // Nombre empresa grande
-    ctx.fillStyle = '#000000'
-    ctx.font = 'bold 16px ui-monospace, monospace'
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.fillText('EventOS', leftW / 2, yOffset + footerHeight * 0.3)
-    ctx.font = 'bold 12px ui-monospace, monospace'
-    ctx.fillText('Layout', leftW / 2, yOffset + footerHeight * 0.52)
-    ctx.fillStyle = '#555555'
-    ctx.font = '8px ui-monospace, monospace'
-    ctx.fillText('by Reality Near', leftW / 2, yOffset + footerHeight * 0.75)
-  
-    // Columnas de datos
-    const cols = [
-      [{ label: 'CLIENTE', value: meta.cliente }, { label: 'LUGAR EVENTO', value: meta.lugarEvento }],
-      [{ label: 'FECHA EVENTO', value: meta.fechaEvento }, { label: 'FECHA DEL PLANO', value: meta.fechaPlano }],
-      [{ label: 'PAX / INVITADOS', value: meta.pax }, { label: 'VERSION', value: meta.version }],
-      [{ label: 'CONTACTO', value: meta.contacto }, { label: 'TELEFONO', value: meta.telefono }],
-      [{ label: 'CORREO', value: meta.correo }, { label: '', value: '' }],
-    ]
-  
-    cols.forEach((col, ci) => {
-      const cx = leftW + ci * colW
-  
-      // Divisor vertical
-      if (ci > 0) {
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  yOffset: number,
+  footerHeight: number,
+  meta: LayoutMeta,
+) {
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, yOffset, width, footerHeight)
+
+  ctx.strokeStyle = '#000000'
+  ctx.lineWidth = 1.5
+  ctx.strokeRect(0, yOffset, width, footerHeight)
+
+  const leftW = 120
+  const rightW = width - leftW
+  const colCount = 4
+  const colW = rightW / colCount
+  const rowH = footerHeight / 2
+
+  ctx.strokeStyle = '#000000'
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(leftW, yOffset)
+  ctx.lineTo(leftW, yOffset + footerHeight)
+  ctx.stroke()
+
+  ctx.fillStyle = '#000000'
+  ctx.font = 'bold 14px ui-monospace, monospace'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('EventOS', leftW / 2, yOffset + footerHeight * 0.28)
+  ctx.font = 'bold 11px ui-monospace, monospace'
+  ctx.fillText('Layout', leftW / 2, yOffset + footerHeight * 0.52)
+  ctx.fillStyle = '#666666'
+  ctx.font = '7px ui-monospace, monospace'
+  ctx.fillText('by Reality Near', leftW / 2, yOffset + footerHeight * 0.76)
+
+  const cols = [
+    [
+      { label: 'CLIENTE', value: meta.cliente },
+      { label: 'LUGAR EVENTO', value: meta.lugarEvento },
+    ],
+    [
+      { label: 'FECHA EVENTO', value: meta.fechaEvento },
+      { label: 'FECHA DEL PLANO', value: meta.fechaPlano },
+    ],
+    [
+      { label: 'PAX / INVITADOS', value: meta.pax },
+      { label: 'VERSION DEL PLANO', value: meta.version },
+    ],
+    [
+      { label: 'CONTACTO', value: meta.contacto },
+      { label: 'TELEFONO / CORREO', value: `${meta.telefono || ''}  ${meta.correo || ''}`.trim() },
+    ],
+  ]
+
+  cols.forEach((col, ci) => {
+    const cx = leftW + ci * colW
+
+    if (ci > 0) {
+      ctx.strokeStyle = '#000000'
+      ctx.lineWidth = 0.75
+      ctx.beginPath()
+      ctx.moveTo(cx, yOffset)
+      ctx.lineTo(cx, yOffset + footerHeight)
+      ctx.stroke()
+    }
+
+    col.forEach((field, ri) => {
+      const ry = yOffset + ri * rowH
+
+      if (ri > 0) {
         ctx.strokeStyle = '#000000'
         ctx.lineWidth = 0.75
         ctx.beginPath()
-        ctx.moveTo(cx, yOffset)
-        ctx.lineTo(cx, yOffset + footerHeight)
+        ctx.moveTo(cx, ry)
+        ctx.lineTo(cx + colW, ry)
         ctx.stroke()
       }
-  
-      col.forEach((field, ri) => {
-        const ry = yOffset + ri * rowH
-  
-        // Divisor horizontal
-        if (ri > 0) {
-          ctx.strokeStyle = '#000000'
-          ctx.lineWidth = 0.75
-          ctx.beginPath()
-          ctx.moveTo(cx, ry)
-          ctx.lineTo(cx + colW, ry)
-          ctx.stroke()
-        }
-  
-        if (!field.label) return
-  
-        // Label
-        ctx.fillStyle = '#555555'
-        ctx.font = '7px ui-monospace, monospace'
-        ctx.textAlign = 'left'
-        ctx.textBaseline = 'top'
-        ctx.fillText(field.label, cx + 5, ry + 4)
-  
-        // Valor
-        ctx.fillStyle = '#000000'
-        ctx.font = 'bold 10px ui-monospace, monospace'
-        ctx.textBaseline = 'bottom'
-        ctx.fillText(field.value || '—', cx + 5, ry + rowH - 4)
-      })
+
+      if (!field.label) return
+
+      ctx.fillStyle = '#666666'
+      ctx.font = '7px ui-monospace, monospace'
+      ctx.textAlign = 'left'
+      ctx.textBaseline = 'top'
+      ctx.fillText(field.label, cx + 6, ry + 5)
+
+      ctx.fillStyle = '#000000'
+      ctx.font = 'bold 11px ui-monospace, monospace'
+      ctx.textBaseline = 'bottom'
+      fillTextAdaptive(ctx, field.value || '—', cx + 6, ry + rowH - 5, colW - 12)
     })
-  }
+  })
+}
