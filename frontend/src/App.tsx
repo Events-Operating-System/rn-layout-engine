@@ -1,135 +1,188 @@
-import { useState } from 'react'
-import type { SavedLayout } from '@/lib/layoutService'
+import { useEffect, useState, useCallback } from 'react'
+import { supabase, type User } from '@/lib/supabase'
+import LayoutEditor from '@/components/LayoutEditor'
+import LayoutDashboard from '@/components/LayoutDashboard'
+import { LangProvider, useLang } from '@/context/LangContext'
+import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
+import { layoutService } from '@/lib/layoutService'
 
-interface Props {
-  layouts: SavedLayout[]
-  loading: boolean
-  onOpen: (id: string) => void
-  onNew: () => void
-  onDelete: (id: string) => void
-  userName: string
-  onSignOut: () => void
-}
+function LoginScreen() {
+  const [loading, setLoading] = useState(false)
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-PE', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  })
-}
-
-export default function LayoutDashboard({
-  layouts, loading, onOpen, onNew, onDelete, userName, onSignOut
-}: Props) {
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  async function handleLogin() {
+    setLoading(true)
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    })
+  }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col">
-      <header className="h-14 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-6 gap-4">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950">
+      <div className="bg-white rounded-2xl p-10 w-full max-w-sm text-center shadow-2xl">
+        <div className="text-4xl mb-4">⚡</div>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">EventOS Layout</h1>
+        <p className="text-gray-500 text-sm mb-8">Powered by Reality Near</p>
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          className="w-full flex items-center justify-center gap-3 border-2 border-gray-200 rounded-xl py-3 text-gray-700 font-semibold hover:bg-gray-50 transition disabled:opacity-50"
+        >
+          <svg width="18" height="18" viewBox="0 0 18 18">
+            <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/>
+            <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+            <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/>
+            <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
+          </svg>
+          {loading ? 'Conectando...' : 'Continuar con Google'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AppShell({ onGoToDashboard }: { onGoToDashboard: () => void }) {
+  const { lang, setLang, t } = useLang()
+
+  const items = [
+    { label: t.catStage,       color: '#6366f1' },
+    { label: t.catStructure,   color: '#0891b2' },
+    { label: t.catSeating,     color: '#f59e0b' },
+    { label: t.catBarrier,     color: '#ef4444' },
+    { label: t.catUtility,     color: '#22c55e' },
+    { label: t.catCirculation, color: '#a855f7' },
+  ]
+
+  return (
+    <div className="h-full flex flex-col bg-slate-950 text-slate-200 overflow-hidden">
+      <header className="h-10 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-4 gap-3">
+        <button
+          onClick={onGoToDashboard}
+          className="flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors"
+          title="Volver a layouts"
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M8 1L3 6l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-indigo-500" />
-          <span className="text-sm font-semibold tracking-wide">EventOS Layout</span>
+          <span className="text-xs font-semibold text-slate-200 tracking-wide">RN Layout Engine</span>
         </div>
         <span className="text-slate-700">|</span>
-        <span className="text-xs text-slate-500">Mis Layouts</span>
-        <div className="ml-auto flex items-center gap-4">
-          <span className="text-xs text-slate-500 hidden sm:block">{userName}</span>
+        <div className="ml-auto flex items-center gap-3">
           <button
-            onClick={onSignOut}
-            className="text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-3 py-1.5 rounded border border-slate-700/60 transition-colors"
+            onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
+            className="text-[10px] font-mono text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-2 py-0.5 rounded border border-slate-700/60 transition-colors tracking-wider"
           >
-            Cerrar sesión
+            {lang === 'en' ? 'ES' : 'EN'}
           </button>
+          <span className="text-[9px] bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded border border-indigo-900 font-medium tracking-wider uppercase">MVP</span>
+          <span className="hidden sm:block text-[9px] text-slate-600">Reality Near · Events Operating System</span>
         </div>
       </header>
 
-      <main className="flex-1 px-6 py-8 max-w-5xl mx-auto w-full">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-xl font-bold text-slate-100">Layouts</h1>
-            <p className="text-xs text-slate-500 mt-0.5">
-              {layouts.length === 0 ? 'Ningún layout guardado aún' : `${layouts.length} layout${layouts.length !== 1 ? 's' : ''}`}
-            </p>
-          </div>
-          <button
-            onClick={onNew}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            Nuevo layout
-          </button>
-        </div>
+      <LayoutEditor />
 
-        {loading ? (
-          <div className="flex items-center justify-center py-24">
-            <div className="text-sm text-slate-500">Cargando layouts...</div>
-          </div>
-        ) : layouts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div className="text-5xl opacity-20">🗂</div>
-            <p className="text-slate-500 text-sm">Aún no tienes layouts guardados.</p>
-            <button
-              onClick={onNew}
-              className="text-indigo-400 hover:text-indigo-300 text-sm underline underline-offset-4 transition-colors"
-            >
-              Crear tu primer layout
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {layouts.map(layout => (
-              <div
-                key={layout.id}
-                className="group bg-slate-900 border border-slate-700/60 rounded-xl p-5 hover:border-indigo-500/50 transition-all cursor-pointer relative"
-                onClick={() => onOpen(layout.id)}
-              >
-                <div className="w-full h-24 bg-slate-800 rounded-lg mb-4 flex items-center justify-center">
-                  <div className="text-2xl opacity-10">⚡</div>
-                </div>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-100 truncate">{layout.name}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{formatDate(layout.updated_at)}</p>
-                  </div>
-                  <button
-                    onClick={e => { e.stopPropagation(); setConfirmDelete(layout.id) }}
-                    className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1 rounded flex-none"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M2 3.5h10M5.5 3.5V2.5h3v1M5 5.5l.5 5M9 5.5l-.5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
-
-      {confirmDelete && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm">
-            <h3 className="text-sm font-semibold text-slate-100 mb-2">¿Eliminar layout?</h3>
-            <p className="text-xs text-slate-400 mb-6">Esta acción archivará el layout. No se puede deshacer.</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                className="flex-1 py-2 rounded-lg border border-slate-700 text-xs text-slate-400 hover:bg-slate-800 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => { onDelete(confirmDelete); setConfirmDelete(null) }}
-                className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-xs text-white font-semibold transition-colors"
-              >
-                Eliminar
-              </button>
+      <footer className="h-10 flex-none bg-slate-900 border-t border-slate-700/60 flex items-center px-4 gap-6 overflow-hidden">
+        <div className="flex items-center gap-4">
+          <span className="text-[9px] font-semibold text-slate-600 uppercase tracking-widest flex-none">Legend</span>
+          {items.map(({ label, color }) => (
+            <div key={color} className="flex items-center gap-1.5 flex-none">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />
+              <span className="text-[10px] text-slate-500">{label}</span>
             </div>
-          </div>
+          ))}
         </div>
-      )}
+        <div className="hidden sm:flex items-center gap-5 text-[9px] text-slate-600 ml-auto flex-none">
+          <span>{t.hintZoom}</span>
+          <span>{t.hintPan}</span>
+          <span>{t.hintSelect}</span>
+          <span>{t.hintMove}</span>
+        </div>
+      </footer>
     </div>
+  )
+}
+
+type View = 'dashboard' | 'editor'
+
+export default function App() {
+  const [user, setUser] = useState<User | null>(null)
+  const [checking, setChecking] = useState(true)
+  const [view, setView] = useState<View>('dashboard')
+  const [dashboardLoading, setDashboardLoading] = useState(false)
+
+  const orgId = user?.id ?? ''
+  const persistence = useLayoutPersistence(orgId)
+  const { fetchLayouts, layouts, newLayout } = persistence
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setChecking(false)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      setDashboardLoading(true)
+      fetchLayouts().finally(() => setDashboardLoading(false))
+    }
+  }, [user])
+
+  const handleSignOut = useCallback(async () => {
+    await supabase.auth.signOut()
+  }, [])
+
+  const handleNewLayout = useCallback(() => {
+    newLayout()
+    setView('editor')
+  }, [newLayout])
+
+  const handleOpenLayout = useCallback(() => {
+    setView('editor')
+  }, [])
+
+  const handleDeleteLayout = useCallback(async (id: string) => {
+    await layoutService.delete(id)
+    await fetchLayouts()
+  }, [fetchLayouts])
+
+  const handleGoToDashboard = useCallback(async () => {
+    await fetchLayouts()
+    setView('dashboard')
+  }, [fetchLayouts])
+
+  if (checking) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-950">
+      <div className="text-white text-sm opacity-50">Cargando...</div>
+    </div>
+  )
+
+  if (!user) return <LoginScreen />
+
+  if (view === 'dashboard') return (
+    <LangProvider>
+      <LayoutDashboard
+        layouts={layouts}
+        loading={dashboardLoading}
+        onOpen={handleOpenLayout}
+        onNew={handleNewLayout}
+        onDelete={handleDeleteLayout}
+        userName={user.email ?? ''}
+        onSignOut={handleSignOut}
+      />
+    </LangProvider>
+  )
+
+  return (
+    <LangProvider>
+      <AppShell onGoToDashboard={handleGoToDashboard} />
+    </LangProvider>
   )
 }
