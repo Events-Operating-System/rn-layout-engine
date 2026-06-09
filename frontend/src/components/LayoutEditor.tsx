@@ -9,7 +9,11 @@ import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
 import { supabase } from '@/lib/supabase'
 import type { AssetTemplate } from '@/types/layout'
 
-export default function LayoutEditor() {
+interface Props {
+  layoutIdToLoad?: string | null
+}
+
+export default function LayoutEditor({ layoutIdToLoad }: Props) {
   const canvasRef = useRef<LayoutCanvasHandle>(null)
   const [mobilePanel, setMobilePanel] = useState<'library' | 'properties' | null>(null)
   const [userId, setUserId] = useState<string>('')
@@ -24,6 +28,7 @@ export default function LayoutEditor() {
     drawings, addDrawing, deleteDrawing, updateDrawing,
     clearDrawings, layoutMeta, updateMeta,
     pushHistory, undo, redo, canUndo, canRedo,
+    setElements, setDrawings, setViewport, setLayoutMeta,
   } = useCanvasState()
 
   useEffect(() => {
@@ -33,7 +38,17 @@ export default function LayoutEditor() {
   }, [])
 
   const persistence = useLayoutPersistence(userId)
-  const { save, layoutName, setLayoutName } = persistence
+  const { save, load, layoutName, setLayoutName } = persistence
+
+  useEffect(() => {
+    if (!layoutIdToLoad || !userId) return
+    load(layoutIdToLoad).then(data => {
+      if (data.elements) setElements(data.elements)
+      if (data.drawings) setDrawings(data.drawings)
+      if (data.viewport) setViewport(data.viewport)
+      if (data.meta) setLayoutMeta(data.meta)
+    })
+  }, [layoutIdToLoad, userId])
 
   const handleSave = useCallback(async () => {
     if (!userId) return
@@ -90,7 +105,6 @@ export default function LayoutEditor() {
         canRedo={canRedo}
       />
 
-      {/* Save bar */}
       <div className="flex-none h-8 bg-slate-950 border-b border-slate-800 flex items-center px-3 gap-3">
         <input
           value={layoutName}

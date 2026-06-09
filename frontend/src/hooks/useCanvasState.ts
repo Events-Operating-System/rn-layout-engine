@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import type { LayoutElement, CanvasViewport, AssetTemplate, DrawingPrimitive, DrawingTool, LayoutMeta } from '@/types/layout'
 import { CATEGORY_COLORS, DEFAULT_LAYOUT_META } from '@/types/layout'
 
-const PIXELS_PER_METER = 20  // must mirror LayoutCanvas.tsx constant
+const PIXELS_PER_METER = 20
 const MAX_HISTORY = 50
 
 type Snapshot = {
@@ -88,11 +88,8 @@ export function useCanvasState() {
   const [drawings, setDrawings] = useState<DrawingPrimitive[]>([])
   const [layoutMeta, setLayoutMeta] = useState<LayoutMeta>(DEFAULT_LAYOUT_META)
 
-  // Ref tracks viewport without making addElement re-create on every pan/zoom
   const viewportRef = useRef(viewport)
   useEffect(() => { viewportRef.current = viewport }, [viewport])
-
-  // ── Undo / Redo history ──────────────────────────────────────────────────────
 
   const historyRef = useRef<{ past: Snapshot[]; future: Snapshot[] }>({ past: [], future: [] })
   const elementsRef = useRef<LayoutElement[]>(INITIAL_ELEMENTS)
@@ -100,7 +97,6 @@ export function useCanvasState() {
   const [undoSize, setUndoSize] = useState(0)
   const [redoSize, setRedoSize] = useState(0)
 
-  // Keep refs in sync with state (used by pushHistory to snapshot before changes)
   useEffect(() => { elementsRef.current = elements }, [elements])
   useEffect(() => { drawingsRef.current = drawings }, [drawings])
 
@@ -118,7 +114,6 @@ export function useCanvasState() {
     if (h.past.length === 0) return
     const snapshot = h.past.pop()!
     h.future.push({ elements: elementsRef.current, drawings: drawingsRef.current })
-    // Update refs immediately so rapid undo works correctly
     elementsRef.current = snapshot.elements
     drawingsRef.current = snapshot.drawings
     setElements(snapshot.elements)
@@ -134,7 +129,6 @@ export function useCanvasState() {
     if (h.future.length === 0) return
     const snapshot = h.future.pop()!
     h.past.push({ elements: elementsRef.current, drawings: drawingsRef.current })
-    // Update refs immediately so rapid redo works correctly
     elementsRef.current = snapshot.elements
     drawingsRef.current = snapshot.drawings
     setElements(snapshot.elements)
@@ -144,8 +138,6 @@ export function useCanvasState() {
     setUndoSize(h.past.length)
     setRedoSize(h.future.length)
   }, [])
-
-  // ── Canvas state actions ─────────────────────────────────────────────────────
 
   const selectElement = useCallback((id: string | null) => {
     setSelectedId(id)
@@ -158,9 +150,7 @@ export function useCanvasState() {
   }, [])
 
   const updateElement = useCallback((id: string, updates: Partial<LayoutElement>) => {
-    setElements(prev =>
-      prev.map(el => (el.id === id ? { ...el, ...updates } : el))
-    )
+    setElements(prev => prev.map(el => (el.id === id ? { ...el, ...updates } : el)))
   }, [])
 
   const updateViewport = useCallback((updates: Partial<CanvasViewport>) => {
@@ -279,5 +269,9 @@ export function useCanvasState() {
     redo,
     canUndo: undoSize > 0,
     canRedo: redoSize > 0,
+    setElements,
+    setDrawings,
+    setViewport,
+    setLayoutMeta,
   }
 }

@@ -41,7 +41,12 @@ function LoginScreen() {
   )
 }
 
-function AppShell({ onGoToDashboard }: { onGoToDashboard: () => void }) {
+interface AppShellProps {
+  onGoToDashboard: () => void
+  layoutIdToLoad: string | null
+}
+
+function AppShell({ onGoToDashboard, layoutIdToLoad }: AppShellProps) {
   const { lang, setLang, t } = useLang()
 
   const items = [
@@ -82,7 +87,7 @@ function AppShell({ onGoToDashboard }: { onGoToDashboard: () => void }) {
         </div>
       </header>
 
-      <LayoutEditor />
+      <LayoutEditor layoutIdToLoad={layoutIdToLoad} />
 
       <footer className="h-10 flex-none bg-slate-900 border-t border-slate-700/60 flex items-center px-4 gap-6 overflow-hidden">
         <div className="flex items-center gap-4">
@@ -111,6 +116,7 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [checking, setChecking] = useState(true)
   const [view, setView] = useState<View>('dashboard')
+  const [layoutIdToLoad, setLayoutIdToLoad] = useState<string | null>(null)
   const [dashboardLoading, setDashboardLoading] = useState(false)
 
   const orgId = user?.id ?? ''
@@ -141,10 +147,12 @@ export default function App() {
 
   const handleNewLayout = useCallback(() => {
     newLayout()
+    setLayoutIdToLoad(null)
     setView('editor')
   }, [newLayout])
 
-  const handleOpenLayout = useCallback(() => {
+  const handleOpenLayout = useCallback((id: string) => {
+    setLayoutIdToLoad(id)
     setView('editor')
   }, [])
 
@@ -182,7 +190,10 @@ export default function App() {
 
   return (
     <LangProvider>
-      <AppShell onGoToDashboard={handleGoToDashboard} />
+      <AppShell
+        onGoToDashboard={handleGoToDashboard}
+        layoutIdToLoad={layoutIdToLoad}
+      />
     </LangProvider>
   )
 }
