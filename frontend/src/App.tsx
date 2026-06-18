@@ -76,6 +76,16 @@ function AppShell({ onGoToDashboard, layoutIdToLoad }: AppShellProps) {
         </div>
         <span className="text-slate-700">|</span>
         <div className="ml-auto flex items-center gap-3">
+          <a
+            href="https://eventos-identity-frontend.vercel.app/dashboard"
+            className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
+              <path d="M7 1L2 5l5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            EventOS
+          </a>
+          <span className="text-slate-700">|</span>
           <button
             onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
             className="text-[10px] font-mono text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-2 py-0.5 rounded border border-slate-700/60 transition-colors tracking-wider"

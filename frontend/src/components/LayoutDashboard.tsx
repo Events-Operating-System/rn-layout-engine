@@ -33,6 +33,16 @@ export default function LayoutDashboard({
         <span className="text-slate-700">|</span>
         <span className="text-xs text-slate-500">Mis Layouts</span>
         <div className="ml-auto flex items-center gap-4">
+          <a
+            href="https://eventos-identity-frontend.vercel.app/dashboard"
+            className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M7 1L2 5l5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            EventOS
+          </a>
+          <span className="text-slate-700">|</span>
           <span className="text-xs text-slate-500 hidden sm:block">{userName}</span>
           <button
             onClick={onSignOut}
