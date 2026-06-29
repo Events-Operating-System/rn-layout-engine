@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
-import { supabase, type User } from '@/lib/supabase'
+import { supabase, checkOrgMembership, type User } from '@/lib/supabase'
 import LayoutEditor from '@/components/LayoutEditor'
 import LayoutDashboard from '@/components/LayoutDashboard'
+import SinAcceso from '@/components/SinAcceso'
 import { LangProvider, useLang } from '@/context/LangContext'
 import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
 import { layoutService } from '@/lib/layoutService'
@@ -125,6 +126,7 @@ type View = 'dashboard' | 'editor'
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [checking, setChecking] = useState(true)
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [view, setView] = useState<View>('dashboard')
   const [layoutIdToLoad, setLayoutIdToLoad] = useState<string | null>(null)
   const [dashboardLoading, setDashboardLoading] = useState(false)
@@ -134,12 +136,24 @@ export default function App() {
   const { fetchLayouts, layouts, newLayout } = persistence
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null)
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      const currentUser = session?.user ?? null
+      setUser(currentUser)
+      if (currentUser) {
+        const access = await checkOrgMembership()
+        setHasAccess(access)
+      }
       setChecking(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const currentUser = session?.user ?? null
+      setUser(currentUser)
+      if (currentUser) {
+        const access = await checkOrgMembership()
+        setHasAccess(access)
+      } else {
+        setHasAccess(null)
+      }
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -183,6 +197,14 @@ export default function App() {
   )
 
   if (!user) return <LoginScreen />
+
+  if (hasAccess === null) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-950">
+      <div className="text-white text-sm opacity-50">Verificando acceso...</div>
+    </div>
+  )
+
+  if (!hasAccess) return <SinAcceso />
 
   if (view === 'dashboard') return (
     <LangProvider>

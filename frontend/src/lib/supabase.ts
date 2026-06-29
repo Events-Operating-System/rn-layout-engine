@@ -6,3 +6,15 @@ export const supabase = createClient(
 )
 
 export type { User, Session } from '@supabase/supabase-js'
+
+export async function checkOrgMembership(): Promise<boolean> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+  const { data } = await supabase
+    .from('organization_members')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('is_active', true)
+    .maybeSingle()
+  return data !== null
+}
