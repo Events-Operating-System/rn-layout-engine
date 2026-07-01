@@ -45,9 +45,10 @@ function LoginScreen() {
 interface AppShellProps {
   onGoToDashboard: () => void
   layoutIdToLoad: string | null
+  eventId: string | null
 }
 
-function AppShell({ onGoToDashboard, layoutIdToLoad }: AppShellProps) {
+function AppShell({ onGoToDashboard, layoutIdToLoad, eventId }: AppShellProps) {
   const { lang, setLang, t } = useLang()
 
   const items = [
@@ -98,7 +99,7 @@ function AppShell({ onGoToDashboard, layoutIdToLoad }: AppShellProps) {
         </div>
       </header>
 
-      <LayoutEditor layoutIdToLoad={layoutIdToLoad} />
+      <LayoutEditor layoutIdToLoad={layoutIdToLoad} eventId={eventId} />
 
       <footer className="h-10 flex-none bg-slate-900 border-t border-slate-700/60 flex items-center px-4 gap-6 overflow-hidden">
         <div className="flex items-center gap-4">
@@ -130,6 +131,7 @@ export default function App() {
   const [view, setView] = useState<View>('dashboard')
   const [layoutIdToLoad, setLayoutIdToLoad] = useState<string | null>(null)
   const [dashboardLoading, setDashboardLoading] = useState(false)
+  const [eventId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('event_id'))
 
   const orgId = user?.id ?? ''
   const persistence = useLayoutPersistence(orgId)
@@ -175,10 +177,13 @@ export default function App() {
     setView('editor')
   }, [newLayout])
 
-  const handleOpenLayout = useCallback((id: string) => {
+  const handleOpenLayout = useCallback(async (id: string) => {
+    if (eventId) {
+      await layoutService.setEventId(id, eventId)
+    }
     setLayoutIdToLoad(id)
     setView('editor')
-  }, [])
+  }, [eventId])
 
   const handleDeleteLayout = useCallback(async (id: string) => {
     await layoutService.delete(id)
@@ -216,6 +221,7 @@ export default function App() {
         onDelete={handleDeleteLayout}
         userName={user.email ?? ''}
         onSignOut={handleSignOut}
+        eventId={eventId}
       />
     </LangProvider>
   )
@@ -225,6 +231,7 @@ export default function App() {
       <AppShell
         onGoToDashboard={handleGoToDashboard}
         layoutIdToLoad={layoutIdToLoad}
+        eventId={eventId}
       />
     </LangProvider>
   )

@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { layoutService, type SavedLayout, type LayoutData } from '@/lib/layoutService'
 
-export function useLayoutPersistence(orgId: string) {
+export function useLayoutPersistence(orgId: string, eventId?: string | null) {
   const [layoutId, setLayoutId] = useState<string | null>(null)
   const [layoutName, setLayoutName] = useState('Sin título')
   const [layouts, setLayouts] = useState<SavedLayout[]>([])
@@ -11,6 +11,10 @@ export function useLayoutPersistence(orgId: string) {
   // Keep layoutName in a ref so save() always uses the latest value
   const layoutNameRef = useRef(layoutName)
   layoutNameRef.current = layoutName
+
+  // Keep eventId in a ref so save() always uses the latest value
+  const eventIdRef = useRef(eventId)
+  eventIdRef.current = eventId
 
   const fetchLayouts = useCallback(async () => {
     if (!orgId) return
@@ -23,7 +27,7 @@ export function useLayoutPersistence(orgId: string) {
     setSaving(true)
     try {
       const finalName = name ?? layoutNameRef.current
-      const id = await layoutService.save(layoutId, orgId, finalName, data)
+      const id = await layoutService.save(layoutId, orgId, finalName, data, eventIdRef.current)
       setLayoutId(id)
       // Do NOT reset layoutName here — keep what the user typed
       await fetchLayouts()

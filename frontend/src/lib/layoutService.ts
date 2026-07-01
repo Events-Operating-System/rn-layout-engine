@@ -37,22 +37,36 @@ export const layoutService = {
     return data as LayoutData
   },
 
-  async save(id: string | null, orgId: string, name: string, payload: LayoutData): Promise<string> {
+  async save(id: string | null, orgId: string, name: string, payload: LayoutData, eventId?: string | null): Promise<string> {
     if (id) {
       const { error } = await supabase
         .from('layouts')
-        .update({ name, ...payload })
+        .update({ name, ...payload, ...(eventId ? { event_id: eventId } : {}) })
         .eq('id', id)
       if (error) throw error
       return id
     }
     const { data, error } = await supabase
       .from('layouts')
-      .insert({ org_id: orgId, name, ...payload, created_by: (await supabase.auth.getUser()).data.user?.id })
+      .insert({
+        org_id: orgId,
+        name,
+        ...payload,
+        ...(eventId ? { event_id: eventId } : {}),
+        created_by: (await supabase.auth.getUser()).data.user?.id
+      })
       .select('id')
       .single()
     if (error) throw error
     return data.id
+  },
+
+  async setEventId(id: string, eventId: string): Promise<void> {
+    const { error } = await supabase
+      .from('layouts')
+      .update({ event_id: eventId })
+      .eq('id', id)
+    if (error) throw error
   },
 
   async delete(id: string): Promise<void> {

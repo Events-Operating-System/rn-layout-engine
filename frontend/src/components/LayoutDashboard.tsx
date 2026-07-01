@@ -9,6 +9,7 @@ interface Props {
   onDelete: (id: string) => void
   userName: string
   onSignOut: () => void
+  eventId?: string | null
 }
 
 function formatDate(iso: string) {
@@ -19,12 +20,18 @@ function formatDate(iso: string) {
 }
 
 export default function LayoutDashboard({
-  layouts, loading, onOpen, onNew, onDelete, userName, onSignOut
+  layouts, loading, onOpen, onNew, onDelete, userName, onSignOut, eventId
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col">
+      {eventId && (
+        <div className="flex-none bg-indigo-950/60 border-b border-indigo-800/60 px-6 py-2 text-xs text-indigo-300 flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-none" />
+          Creando layout para evento <span className="font-mono text-indigo-200">{eventId}</span>
+        </div>
+      )}
       <header className="h-14 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-6 gap-4">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-indigo-500" />

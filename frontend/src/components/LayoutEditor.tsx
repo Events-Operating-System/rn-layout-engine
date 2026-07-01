@@ -12,9 +12,10 @@ import type { AssetTemplate } from '@/types/layout'
 
 interface Props {
   layoutIdToLoad?: string | null
+  eventId?: string | null
 }
 
-export default function LayoutEditor({ layoutIdToLoad }: Props) {
+export default function LayoutEditor({ layoutIdToLoad, eventId }: Props) {
   const canvasRef = useRef<LayoutCanvasHandle>(null)
   const [mobilePanel, setMobilePanel] = useState<'library' | 'properties' | null>(null)
   const [userId, setUserId] = useState<string>('')
@@ -39,7 +40,7 @@ export default function LayoutEditor({ layoutIdToLoad }: Props) {
     })
   }, [])
 
-  const persistence = useLayoutPersistence(userId)
+  const persistence = useLayoutPersistence(userId, eventId)
   const { save, load } = persistence
 
   const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
