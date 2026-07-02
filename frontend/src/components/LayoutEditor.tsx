@@ -27,9 +27,9 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
   const [inputName, setInputName] = useState('Sin título')
 
   const {
-    elements, selectedId, selectedElement,
+    elements, selectedId, selectedIds, selectedElement,
     selectedDrawingId, selectedDrawing,
-    viewport, selectElement, selectDrawing,
+    viewport, selectElement, toggleSelectElement, selectElements, selectDrawing,
     updateElement, updateViewport, addElement,
     deleteElement, duplicateElement, activeTool, setTool,
     drawings, addDrawing, deleteDrawing, updateDrawing,
@@ -37,6 +37,31 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
     pushHistory, undo, redo, canUndo, canRedo,
     setElements, setDrawings, setViewport, setLayoutMeta,
   } = useCanvasState()
+
+  // Holding Space temporarily switches to Hand mode without touching the
+  // persisted activeTool — releasing it reverts automatically (Figma pattern).
+  const [spaceHeld, setSpaceHeld] = useState(false)
+  const effectiveTool = spaceHeld ? 'hand' : activeTool
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat) return
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+      e.preventDefault()
+      setSpaceHeld(true)
+    }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return
+      setSpaceHeld(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+    }
+  }, [])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -173,6 +198,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
         return
       }
       if (e.key === 's') setTool('pointer')
+      else if (e.key === 'h') setTool('hand')
       else if (e.key === 'l') setTool('line')
       else if (e.key === 'a') setTool('arrow')
       else if (e.key === 't') setTool('text')
@@ -194,6 +220,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
     <div className="flex-1 flex flex-col overflow-hidden">
       <DrawingToolbar
         activeTool={activeTool}
+        effectiveTool={effectiveTool}
         onSetTool={setTool}
         onClearDrawings={clearDrawings}
         onExport={() => canvasRef.current?.exportPNG()}
@@ -266,12 +293,15 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
             ref={canvasRef}
             elements={elements}
             selectedId={selectedId}
+            selectedIds={selectedIds}
             viewport={viewport}
             onSelect={selectElement}
+            onToggleSelect={toggleSelectElement}
+            onSelectMultiple={selectElements}
             onUpdateElement={updateElement}
             onUpdateViewport={updateViewport}
             onDeleteElement={deleteElement}
-            activeTool={activeTool}
+            activeTool={effectiveTool}
             drawings={drawings}
             onAddDrawing={addDrawing}
             layoutMeta={layoutMeta}

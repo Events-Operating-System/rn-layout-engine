@@ -3,6 +3,10 @@ import { useLang } from '@/context/LangContext'
 
 interface DrawingToolbarProps {
   activeTool: DrawingTool
+  // What the mode indicator label shows — same as activeTool except while
+  // Space is held, when it temporarily reads 'hand' without changing the
+  // button highlighting (activeTool) or persisted tool.
+  effectiveTool: DrawingTool
   onSetTool: (tool: DrawingTool) => void
   onClearDrawings: () => void
   onExport: () => void
@@ -19,6 +23,7 @@ interface DrawingToolbarProps {
 
 const TOOL_DEFS: { tool: DrawingTool; icon: string; shortcut: string }[] = [
   { tool: 'pointer', icon: '↖', shortcut: 'S' },
+  { tool: 'hand',    icon: '✋', shortcut: 'H' },
   { tool: 'line',    icon: '—', shortcut: 'L' },
   { tool: 'arrow',   icon: '→', shortcut: 'A' },
   { tool: 'text',    icon: 'T', shortcut: 'T' },
@@ -26,6 +31,7 @@ const TOOL_DEFS: { tool: DrawingTool; icon: string; shortcut: string }[] = [
 
 export default function DrawingToolbar({
   activeTool,
+  effectiveTool,
   onSetTool,
   onClearDrawings,
   onExport,
@@ -43,6 +49,7 @@ export default function DrawingToolbar({
 
   const toolLabels: Record<DrawingTool, string> = {
     pointer: t.toolPointer,
+    hand: t.toolHand,
     line: t.toolLine,
     arrow: t.toolArrow,
     text: t.toolText,
@@ -121,10 +128,10 @@ export default function DrawingToolbar({
       <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
 
       <span className="hidden sm:block text-[10px] text-slate-500 font-mono uppercase tracking-wider select-none">
-        {toolLabels[activeTool]}
+        {toolLabels[effectiveTool]}
       </span>
 
-      {activeTool !== 'pointer' && (
+      {activeTool !== 'pointer' && activeTool !== 'hand' && effectiveTool === activeTool && (
         <span className="hidden md:block text-[9px] text-slate-600 font-mono select-none">
           {t.toolHint}
         </span>

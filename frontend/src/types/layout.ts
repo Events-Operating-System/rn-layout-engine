@@ -64,7 +64,7 @@ export interface AssetTemplate {
 
 // ── Drawing primitives ────────────────────────────────────────────────────────
 
-export type DrawingTool = 'pointer' | 'line' | 'arrow' | 'text'
+export type DrawingTool = 'pointer' | 'hand' | 'line' | 'arrow' | 'text'
 
 export interface DrawingPrimitive {
   id: string

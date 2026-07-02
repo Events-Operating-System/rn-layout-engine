@@ -28,8 +28,11 @@ export interface LayoutCanvasHandle {
 interface LayoutCanvasProps {
   elements: LayoutElement[]
   selectedId: string | null
+  selectedIds: Set<string>
   viewport: CanvasViewport
   onSelect: (id: string | null) => void
+  onToggleSelect: (id: string) => void
+  onSelectMultiple: (ids: string[]) => void
   onUpdateElement: (id: string, updates: Partial<LayoutElement>) => void
   onUpdateViewport: (updates: Partial<CanvasViewport>) => void
   onDeleteElement: (id: string) => void
@@ -92,8 +95,8 @@ function computeAlignmentGuides(
 const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
   function LayoutCanvas(
     {
-      elements, selectedId, viewport,
-      onSelect, onUpdateElement, onUpdateViewport, onDeleteElement,
+      elements, selectedId, selectedIds, viewport,
+      onSelect, onToggleSelect, onSelectMultiple, onUpdateElement, onUpdateViewport, onDeleteElement,
       activeTool, drawings, onAddDrawing, layoutMeta,
       selectedDrawingId, onSelectDrawing, onDeleteDrawing, onUpdateDrawing,
       onPushHistory,
@@ -113,6 +116,18 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     const panOrigin = useRef({ clientX: 0, clientY: 0, vpX: 0, vpY: 0 })
     const isDraggingElement = useRef(false)
     const lastTouchDist = useRef<number | null>(null)
+
+    // ── Marquee-select refs + state (Selection mode only) ────────────────────
+    const marqueeOrigin = useRef<{ x: number; y: number } | null>(null)
+    const marqueeMoved = useRef(false)
+    const marqueeRectRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
+    const [marqueeRect, setMarqueeRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null)
+
+    // A real drag (pan or marquee) just completed — the browser still fires a
+    // native `click` right after `mouseup` on the same target, which would
+    // otherwise hit handleStageClick and immediately deselect what the drag
+    // just selected (or drop the selection after a pan). Consumed once.
+    const suppressNextClick = useRef(false)
 
     // ── Drawing refs + state ──────────────────────────────────────────────────
     const drawingStartRef = useRef<{ x: number; y: number } | null>(null)
@@ -137,6 +152,9 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
     useEffect(() => {
       if (!transformerRef.current || !stageRef.current) return
+      // Resize/rotate handles only make sense for a single element — with
+      // multiple selected, elements still get a highlight (see AssetShape's
+      // isSelected), just no Transformer (group-transform is a future batch).
       if (selectedId) {
         const node = stageRef.current.findOne(`#${selectedId}`)
         if (node) {
@@ -196,6 +214,32 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         drawingStartRef.current = null
         previewDataRef.current = null
         setPreviewDrawing(null)
+
+        // Marquee-select completion (Selection mode only)
+        if (marqueeOrigin.current !== null) {
+          if (marqueeMoved.current) {
+            const rect = marqueeRectRef.current
+            if (rect) {
+              const rLeft = rect.x, rRight = rect.x + rect.width
+              const rTop = rect.y, rBottom = rect.y + rect.height
+              const hitIds = elements
+                .filter(el => {
+                  const elL = el.x * PIXELS_PER_METER
+                  const elT = el.y * PIXELS_PER_METER
+                  const elR = elL + el.width * PIXELS_PER_METER
+                  const elB = elT + el.height * PIXELS_PER_METER
+                  return elL < rRight && elR > rLeft && elT < rBottom && elB > rTop
+                })
+                .map(el => el.id)
+              onSelectMultiple(hitIds)
+            }
+            suppressNextClick.current = true
+          }
+          marqueeOrigin.current = null
+          marqueeMoved.current = false
+          marqueeRectRef.current = null
+          setMarqueeRect(null)
+        }
       }
       window.addEventListener('mouseup', onUp)
       window.addEventListener('touchend', onUp)
@@ -203,7 +247,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         window.removeEventListener('mouseup', onUp)
         window.removeEventListener('touchend', onUp)
       }
-    }, [onUpdateViewport, onAddDrawing])
+    }, [onUpdateViewport, onAddDrawing, elements, onSelectMultiple])
 
     // ── Export PNG ────────────────────────────────────────────────────────────
 
@@ -497,16 +541,29 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         return
       }
 
-      // Pointer mode: pan only on stage background
+      if (activeTool === 'hand') {
+        // Hand mode: pan from anywhere — empty canvas or on top of an
+        // element. Elements are non-interactive in this mode (see
+        // elementInteractive below), so nothing else can claim the drag.
+        isPanning.current = true
+        panOrigin.current = {
+          clientX: e.evt.clientX,
+          clientY: e.evt.clientY,
+          vpX: stage.x(),
+          vpY: stage.y(),
+        }
+        return
+      }
+
+      // Selection mode: click on an element is handled by the element's own
+      // handlers (select / shift-toggle / drag). A click-drag starting on
+      // empty canvas begins a marquee-select instead of panning.
       if (e.target !== e.target.getStage()) return
       if (isDraggingElement.current) return
-      isPanning.current = true
-      panOrigin.current = {
-        clientX: e.evt.clientX,
-        clientY: e.evt.clientY,
-        vpX: stage.x(),
-        vpY: stage.y(),
-      }
+      const pos = stage.getRelativePointerPosition()
+      if (!pos) return
+      marqueeOrigin.current = pos
+      marqueeMoved.current = false
     }, [activeTool, onAddDrawing])
 
     // ── Mouse move ────────────────────────────────────────────────────────────
@@ -532,6 +589,27 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         stage.x(panOrigin.current.vpX + (e.evt.clientX - panOrigin.current.clientX))
         stage.y(panOrigin.current.vpY + (e.evt.clientY - panOrigin.current.clientY))
         stage.batchDraw()
+        return
+      }
+
+      if (marqueeOrigin.current !== null) {
+        const pos = stage.getRelativePointerPosition()
+        if (pos) {
+          const origin = marqueeOrigin.current
+          if (!marqueeMoved.current && Math.hypot(pos.x - origin.x, pos.y - origin.y) > 4) {
+            marqueeMoved.current = true
+          }
+          if (marqueeMoved.current) {
+            const rect = {
+              x: Math.min(origin.x, pos.x),
+              y: Math.min(origin.y, pos.y),
+              width: Math.abs(pos.x - origin.x),
+              height: Math.abs(pos.y - origin.y),
+            }
+            marqueeRectRef.current = rect
+            setMarqueeRect(rect)
+          }
+        }
         return
       }
 
@@ -608,15 +686,24 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
     const handleStageClick = useCallback(
       (e: Konva.KonvaEventObject<MouseEvent>) => {
+        // The browser fires a native click right after mouseup on the same
+        // target even when that mouseup ended a real drag (marquee-select) —
+        // don't let it immediately undo what the drag just selected.
+        if (suppressNextClick.current) {
+          suppressNextClick.current = false
+          return
+        }
+        // Hand mode never selects/deselects — only Selection mode does.
+        if (activeTool !== 'pointer') return
         if (e.target === e.target.getStage()) {
           onSelect(null)
           onSelectDrawing(null)
         }
       },
-      [onSelect, onSelectDrawing],
+      [activeTool, onSelect, onSelectDrawing],
     )
 
-    const cursor = activeTool !== 'pointer' ? 'crosshair' : 'default'
+    const cursor = activeTool === 'hand' ? 'grab' : activeTool !== 'pointer' ? 'crosshair' : 'default'
     const elementInteractive = activeTool === 'pointer'
     const drawingsInteractive = activeTool === 'pointer'
 
@@ -702,9 +789,9 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
               <AssetShape
                 key={el.id}
                 element={el}
-                isSelected={el.id === selectedId}
+                isSelected={selectedIds.has(el.id)}
                 interactive={elementInteractive}
-                onSelect={() => onSelect(el.id)}
+                onSelect={(shiftKey) => (shiftKey ? onToggleSelect(el.id) : onSelect(el.id))}
                 onDragStart={() => { isDraggingElement.current = true }}
                 onDragMove={(gx, gy) => {
                   setAlignGuides(computeAlignmentGuides(
@@ -743,6 +830,19 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
             {previewDrawing && (
               <DrawingPreview tool={previewDrawing.tool} points={previewDrawing.points} />
+            )}
+
+            {marqueeRect && (
+              <Rect
+                x={marqueeRect.x}
+                y={marqueeRect.y}
+                width={marqueeRect.width}
+                height={marqueeRect.height}
+                fill="rgba(99,102,241,0.15)"
+                stroke="#6366f1"
+                strokeWidth={1 / viewport.scale}
+                listening={false}
+              />
             )}
 
             <Transformer
@@ -950,7 +1050,7 @@ interface AssetShapeProps {
   element: LayoutElement
   isSelected: boolean
   interactive: boolean
-  onSelect: () => void
+  onSelect: (shiftKey: boolean) => void
   onDragStart: () => void
   onDragMove: (x: number, y: number) => void
   onDragEnd: (x: number, y: number) => void
@@ -1010,8 +1110,8 @@ function AssetShape({
       y={py}
       rotation={element.rotation}
       draggable={interactive && !element.locked}
-      onClick={interactive ? onSelect : undefined}
-      onTap={interactive ? onSelect : undefined}
+      onClick={interactive ? (e => onSelect(e.evt.shiftKey)) : undefined}
+      onTap={interactive ? () => onSelect(false) : undefined}
       onDragStart={interactive ? onDragStart : undefined}
       onDragMove={interactive ? (e => onDragMove(e.target.x(), e.target.y())) : undefined}
       onDragEnd={interactive ? (e => onDragEnd(e.target.x(), e.target.y())) : undefined}

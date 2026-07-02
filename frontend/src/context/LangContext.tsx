@@ -7,7 +7,8 @@ const strings = {
   en: {
     exportPlan: 'Export Plan',
     clearAnnotations: 'Clear annotations',
-    toolPointer: 'Select / Pan',
+    toolPointer: 'Selection',
+    toolHand: 'Hand (Pan)',
     toolLine: 'Line',
     toolArrow: 'Arrow',
     toolText: 'Text annotation',
@@ -48,7 +49,8 @@ const strings = {
   es: {
     exportPlan: 'Exportar Plano',
     clearAnnotations: 'Borrar anotaciones',
-    toolPointer: 'Seleccionar / Pan',
+    toolPointer: 'Selección',
+    toolHand: 'Mano (Pan)',
     toolLine: 'Línea',
     toolArrow: 'Flecha',
     toolText: 'Anotación de texto',

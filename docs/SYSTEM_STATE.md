@@ -108,6 +108,11 @@ frontend/
 | Export PDF — elementos alineados 1:1 con el canvas, incl. elementos rotados (fix: pivote de rotación en export igualado al de Konva, antes rotaba sobre el centro en vez de la esquina superior-izquierda) | ✅ |
 | Export PDF — drawings (líneas, flechas, anotaciones de texto) incluidos en el PDF, alineados con el canvas y con bounding box del crop automático (antes exportPDF solo iteraba `elements`; drawings desaparecían del PDF aunque sí se veían en pantalla) | ✅ (verificado por análisis de código/geometría; pendiente de confirmación visual en app real con sesión autenticada) |
 | 34 operational assets in library | ✅ |
+| Modo Selección (default) vs Modo Mano — dos modos explícitos y mutuamente excluyentes en la toolbar (patrón Figma/Miro): en Selección, click-arrastre en área vacía dibuja un rectángulo de marquee-select y selecciona todo lo que intersecta al soltar; en Mano, click-arrastre desde cualquier punto (vacío o sobre un elemento) siempre hace pan, sin seleccionar ni mover elementos | ✅ verificado end-to-end en navegador real (Playwright + mocks de Supabase) |
+| Shift+click agrega/quita un elemento de la selección actual (multi-select acumulativo) | ✅ verificado end-to-end |
+| Barra espaciadora mantenida activa Modo Mano temporalmente desde cualquier herramienta (incluida Selección); al soltar, vuelve al modo/herramienta anterior sin alterar el estado persistido | ✅ verificado end-to-end (incl. indicador de modo en la toolbar) |
+| Click en área vacía sin arrastrar deselecciona todo (Modo Selección); en Modo Mano nunca selecciona ni deselecciona | ✅ verificado end-to-end |
+| Selección múltiple: estado canónico `selectedIds: Set<string>` en `useCanvasState`; `selectedId`/`selectedElement` quedan derivados (no-null solo si `selectedIds.size===1`) para no romper Properties panel, Transformer, Ctrl+D ni Delete — ver informe de sesión para el batch de copiar/eliminar en bloque | ✅ |
 | TypeScript 0 errors | ✅ |
 | `#root` height chain — `h-full` resolves to full viewport | ✅ |
 | `canvas { touch-action: none }` — prevents native scroll/pinch on canvas | ✅ |

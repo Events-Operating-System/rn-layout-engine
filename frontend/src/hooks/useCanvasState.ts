@@ -81,7 +81,11 @@ const INITIAL_ELEMENTS: LayoutElement[] = [
 
 export function useCanvasState() {
   const [elements, setElements] = useState<LayoutElement[]>(INITIAL_ELEMENTS)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Canonical multi-select state (base for the next batch's bulk actions).
+  // `selectedId` below is derived from it — single-selection call sites
+  // (Properties panel, Transformer, duplicate, delete-key) keep working
+  // unchanged because it's only non-null when exactly one id is selected.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null)
   const [viewport, setViewport] = useState<CanvasViewport>({ x: 40, y: 40, scale: 1 })
   const [activeTool, setActiveTool] = useState<DrawingTool>('pointer')
@@ -118,7 +122,7 @@ export function useCanvasState() {
     drawingsRef.current = snapshot.drawings
     setElements(snapshot.elements)
     setDrawings(snapshot.drawings)
-    setSelectedId(null)
+    setSelectedIds(new Set())
     setSelectedDrawingId(null)
     setUndoSize(h.past.length)
     setRedoSize(h.future.length)
@@ -133,20 +137,40 @@ export function useCanvasState() {
     drawingsRef.current = snapshot.drawings
     setElements(snapshot.elements)
     setDrawings(snapshot.drawings)
-    setSelectedId(null)
+    setSelectedIds(new Set())
     setSelectedDrawingId(null)
     setUndoSize(h.past.length)
     setRedoSize(h.future.length)
   }, [])
 
+  // Replace the whole selection with a single element (or clear it if null).
+  // Existing call sites (click-to-select, stage-background deselect, etc.)
+  // keep their exact previous behavior.
   const selectElement = useCallback((id: string | null) => {
-    setSelectedId(id)
+    setSelectedIds(id ? new Set([id]) : new Set())
+    setSelectedDrawingId(null)
+  }, [])
+
+  // Shift+click — add/remove one element from the current selection.
+  const toggleSelectElement = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+    setSelectedDrawingId(null)
+  }, [])
+
+  // Marquee-select result — replaces the whole selection with the given ids.
+  const selectElements = useCallback((ids: string[]) => {
+    setSelectedIds(new Set(ids))
     setSelectedDrawingId(null)
   }, [])
 
   const selectDrawing = useCallback((id: string | null) => {
     setSelectedDrawingId(id)
-    setSelectedId(null)
+    setSelectedIds(new Set())
   }, [])
 
   const updateElement = useCallback((id: string, updates: Partial<LayoutElement>) => {
@@ -184,14 +208,19 @@ export function useCanvasState() {
       }
       return [...prev, newEl]
     })
-    setSelectedId(id)
+    setSelectedIds(new Set([id]))
     setSelectedDrawingId(null)
   }, [pushHistory])
 
   const deleteElement = useCallback((id: string) => {
     pushHistory()
     setElements(prev => prev.filter(el => el.id !== id))
-    setSelectedId(prev => (prev === id ? null : prev))
+    setSelectedIds(prev => {
+      if (!prev.has(id)) return prev
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
   }, [pushHistory])
 
   const duplicateElement = useCallback((id: string) => {
@@ -202,13 +231,15 @@ export function useCanvasState() {
       if (!el) return prev
       return [...prev, { ...el, id: newId, x: el.x + 2, y: el.y + 2 }]
     })
-    setSelectedId(newId)
+    setSelectedIds(new Set([newId]))
     setSelectedDrawingId(null)
   }, [pushHistory])
 
   const setTool = useCallback((tool: DrawingTool) => {
     setActiveTool(tool)
-    if (tool !== 'pointer') setSelectedId(null)
+    // Hand is a viewport-navigation aid, not an editing tool — switching to
+    // it (or back) preserves whatever was selected, matching Figma.
+    if (tool !== 'pointer' && tool !== 'hand') setSelectedIds(new Set())
   }, [])
 
   const addDrawing = useCallback((primitive: Omit<DrawingPrimitive, 'id'>) => {
@@ -216,7 +247,7 @@ export function useCanvasState() {
     const id = `drw-${Date.now()}`
     setDrawings(prev => [...prev, { ...primitive, id }])
     setSelectedDrawingId(id)
-    setSelectedId(null)
+    setSelectedIds(new Set())
   }, [pushHistory])
 
   const deleteDrawing = useCallback((id: string) => {
@@ -238,17 +269,24 @@ export function useCanvasState() {
     setLayoutMeta(prev => ({ ...prev, ...updates }))
   }, [])
 
+  // Non-null only when exactly one element is selected — every single-
+  // selection consumer (Properties panel, Transformer, Ctrl+D, Delete key)
+  // reads this and is unaffected by multi-select.
+  const selectedId = selectedIds.size === 1 ? [...selectedIds][0] : null
   const selectedElement = elements.find(el => el.id === selectedId) ?? null
   const selectedDrawing = drawings.find(d => d.id === selectedDrawingId) ?? null
 
   return {
     elements,
     selectedId,
+    selectedIds,
     selectedElement,
     selectedDrawingId,
     selectedDrawing,
     viewport,
     selectElement,
+    toggleSelectElement,
+    selectElements,
     selectDrawing,
     updateElement,
     updateViewport,
