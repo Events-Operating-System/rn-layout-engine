@@ -3,6 +3,7 @@ import { Stage, Layer, Line, Arrow, Rect, Circle, Ellipse, Text, Group, Shape, T
 import type Konva from 'konva'
 import type { LayoutElement, CanvasViewport, DrawingPrimitive, DrawingTool, LayoutMeta } from '@/types/layout'
 import { FOOTER_HEIGHT_PX } from '@/components/FooterLegend'
+import { lengthMeters, angleDegrees, applyAngleSnap, pointFromLengthAngle } from '@/lib/drawingMath'
 import jsPDF from 'jspdf'
 
 export const PIXELS_PER_METER = 20
@@ -142,6 +143,11 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     const drawingToolRef = useRef<'line' | 'arrow'>('line')
     const previewDataRef = useRef<{ tool: string; points: number[] } | null>(null)
     const [previewDrawing, setPreviewDrawing] = useState<{ tool: string; points: number[] } | null>(null)
+    // Live length/angle readout shown next to the cursor while dragging a
+    // line/arrow — screenX/Y are container-relative for the DOM tooltip.
+    const [drawingReadout, setDrawingReadout] = useState<{
+      screenX: number; screenY: number; lengthM: number; angleDeg: number; snapped: boolean
+    } | null>(null)
     const [alignGuides, setAlignGuides] = useState<{ xs: number[]; ys: number[] }>({ xs: [], ys: [] })
 
     // ── Container resize ──────────────────────────────────────────────────────
@@ -224,6 +230,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         drawingStartRef.current = null
         previewDataRef.current = null
         setPreviewDrawing(null)
+        setDrawingReadout(null)
 
         // Marquee-select completion (Selection mode only)
         if (marqueeOrigin.current !== null) {
@@ -591,12 +598,27 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       if (drawingStartRef.current !== null) {
         const pos = stage.getRelativePointerPosition()
         if (pos) {
+          const origin = drawingStartRef.current
+          const rawAngle = angleDegrees(origin.x, origin.y, pos.x, pos.y)
+          const snappedAngle = applyAngleSnap(rawAngle, e.evt.shiftKey)
+          const lengthM = lengthMeters(origin.x, origin.y, pos.x, pos.y, PIXELS_PER_METER)
+          const endPoint = pointFromLengthAngle(origin, lengthM, snappedAngle, PIXELS_PER_METER)
+
           const newPreview = {
             tool: drawingToolRef.current,
-            points: [drawingStartRef.current.x, drawingStartRef.current.y, pos.x, pos.y],
+            points: [origin.x, origin.y, endPoint.x, endPoint.y],
           }
           previewDataRef.current = newPreview
           setPreviewDrawing(newPreview)
+
+          const box = containerRef.current?.getBoundingClientRect()
+          setDrawingReadout({
+            screenX: box ? e.evt.clientX - box.left : 0,
+            screenY: box ? e.evt.clientY - box.top : 0,
+            lengthM,
+            angleDeg: snappedAngle,
+            snapped: snappedAngle !== rawAngle,
+          })
         }
         return
       }
@@ -939,6 +961,20 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         <div className="absolute top-3 right-3 font-mono text-[10px] text-slate-400 bg-slate-900/80 px-2 py-1 rounded border border-slate-700/50 pointer-events-none">
           {Math.round(viewport.scale * 100)}%
         </div>
+
+        {/* Live length/angle readout while drawing a line/arrow */}
+        {drawingReadout && (
+          <div
+            className={`absolute font-mono text-[10px] px-2 py-1 rounded border pointer-events-none whitespace-nowrap ${
+              drawingReadout.snapped
+                ? 'text-amber-300 bg-amber-950/80 border-amber-700/60'
+                : 'text-slate-300 bg-slate-900/80 border-slate-700/50'
+            }`}
+            style={{ left: drawingReadout.screenX + 14, top: drawingReadout.screenY + 14 }}
+          >
+            {drawingReadout.lengthM.toFixed(2)}m · {Math.round(drawingReadout.angleDeg)}°
+          </div>
+        )}
       </div>
     )
   }

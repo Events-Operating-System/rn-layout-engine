@@ -1,5 +1,7 @@
 import type { LayoutElement, DrawingPrimitive } from '@/types/layout'
 import { useLang, getCategoryLabel } from '@/context/LangContext'
+import { PIXELS_PER_METER } from '@/components/canvas/LayoutCanvas'
+import { lengthMeters, angleDegrees, pointFromLengthAngle } from '@/lib/drawingMath'
 
 interface PropertiesPanelProps {
   element: LayoutElement | null
@@ -302,6 +304,38 @@ function DrawingProperties({
           </Field>
         )}
       </Section>
+
+      {(drawing.tool === 'line' || drawing.tool === 'arrow') && (
+        <Section label={t.sMeasurement}>
+          <div className="grid grid-cols-2 gap-2">
+            <Field label={t.fLength}>
+              <NumberInput
+                value={Math.round(lengthMeters(drawing.points[0], drawing.points[1], drawing.points[2], drawing.points[3], PIXELS_PER_METER) * 100) / 100}
+                step={0.1}
+                min={0.1}
+                onChange={v => {
+                  const [x1, y1, x2, y2] = drawing.points
+                  const angle = angleDegrees(x1, y1, x2, y2)
+                  const end = pointFromLengthAngle({ x: x1, y: y1 }, Math.max(0.1, v), angle, PIXELS_PER_METER)
+                  onUpdate(drawing.id, { points: [x1, y1, end.x, end.y] })
+                }}
+              />
+            </Field>
+            <Field label={t.fAngleDeg}>
+              <NumberInput
+                value={Math.round(angleDegrees(drawing.points[0], drawing.points[1], drawing.points[2], drawing.points[3]))}
+                step={1}
+                onChange={v => {
+                  const [x1, y1, x2, y2] = drawing.points
+                  const len = lengthMeters(x1, y1, x2, y2, PIXELS_PER_METER)
+                  const end = pointFromLengthAngle({ x: x1, y: y1 }, len, v, PIXELS_PER_METER)
+                  onUpdate(drawing.id, { points: [x1, y1, end.x, end.y] })
+                }}
+              />
+            </Field>
+          </div>
+        </Section>
+      )}
 
       <Section label={t.sColor}>
         <ColorPicker
