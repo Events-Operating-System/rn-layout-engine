@@ -308,32 +308,35 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         const fillColor = isTree ? '#16a34a' : hasCustomColor ? el.color : '#ffffff'
         const strokeColor = '#1a1a1a'
     
+        // Pivote de rotación en (x, y) — esquina superior-izquierda —
+        // igual que el Group de Konva en pantalla (sin offsetX/offsetY),
+        // para que la orientación coincida exactamente con el canvas.
         ctx.save()
-        ctx.translate(x + w / 2, y + h / 2)
+        ctx.translate(x, y)
         ctx.rotate((el.rotation * Math.PI) / 180)
-    
+
         ctx.fillStyle = fillColor
         ctx.strokeStyle = strokeColor
         ctx.lineWidth = 1.5
-    
+
         if (isCircle || isTree) {
           const r = Math.min(w, h) / 2
           ctx.beginPath()
-          ctx.arc(0, 0, r, 0, Math.PI * 2)
+          ctx.arc(w / 2, h / 2, r, 0, Math.PI * 2)
           ctx.fill()
           ctx.stroke()
         } else if (isOval) {
           ctx.beginPath()
-          ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2)
+          ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2)
           ctx.fill()
           ctx.stroke()
         } else {
           ctx.beginPath()
-          ctx.rect(-w / 2, -h / 2, w, h)
+          ctx.rect(0, 0, w, h)
           ctx.fill()
           ctx.stroke()
         }
-    
+
         // Label
         if (w > 20 && h > 12) {
           ctx.fillStyle = isTree ? '#ffffff' : '#1a1a1a'
@@ -341,15 +344,15 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           ctx.font = `600 ${fontSize}px ui-monospace, monospace`
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
-          ctx.fillText(el.name, 0, h > 20 ? -h / 6 : 0)
-    
+          ctx.fillText(el.name, w / 2, h > 20 ? h / 2 - h / 6 : h / 2)
+
           if (h > 24) {
             ctx.font = `${fontSize - 1}px ui-monospace, monospace`
             ctx.fillStyle = isTree ? 'rgba(255,255,255,0.8)' : '#555'
-            ctx.fillText(`${el.width}m × ${el.height}m`, 0, h / 6)
+            ctx.fillText(`${el.width}m × ${el.height}m`, w / 2, h / 2 + h / 6)
           }
         }
-    
+
         ctx.restore()
       }
     

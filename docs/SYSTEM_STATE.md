@@ -105,6 +105,7 @@ frontend/
 | Element color change via preset swatches | ✅ |
 | Element opacity via slider | ✅ |
 | Export PNG ("Exportar Plano") — 2x resolution, footer included | ✅ |
+| Export PDF — elementos alineados 1:1 con el canvas, incl. elementos rotados (fix: pivote de rotación en export igualado al de Konva, antes rotaba sobre el centro en vez de la esquina superior-izquierda) | ✅ |
 | 34 operational assets in library | ✅ |
 | TypeScript 0 errors | ✅ |
 | `#root` height chain — `h-full` resolves to full viewport | ✅ |
