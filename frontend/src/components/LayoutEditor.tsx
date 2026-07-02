@@ -31,7 +31,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
     selectedDrawingId, selectedDrawing,
     viewport, selectElement, toggleSelectElement, selectElements, selectDrawing,
     updateElement, updateElements, updateViewport, addElement,
-    deleteElement, deleteElements, duplicateElement, duplicateElements, activeTool, setTool,
+    deleteElement, deleteElements, duplicateElement, duplicateElements,
+    bringToFront, sendToBack, activeTool, setTool,
     drawings, addDrawing, deleteDrawing, updateDrawing,
     clearDrawings, layoutMeta, updateMeta,
     pushHistory, undo, redo, canUndo, canRedo,
@@ -333,6 +334,9 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
             selectedDrawing={selectedDrawing}
             onUpdateDrawing={updateDrawing}
             onDeleteDrawing={deleteDrawing}
+            selectedIds={selectedIds}
+            onBringToFront={bringToFront}
+            onSendToBack={sendToBack}
           />
         </div>
 

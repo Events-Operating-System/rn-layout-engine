@@ -274,6 +274,32 @@ export function useCanvasState() {
     setSelectedDrawingId(null)
   }, [pushHistory])
 
+  // Z-order — render/stacking order is simply the `elements` array order
+  // (later = drawn later = visually on top), in both the Konva Layer and
+  // the PDF export loop, so reordering the array is the whole mechanism;
+  // it persists automatically since `elements` is saved as-is. For a
+  // multi-element selection, the whole group moves to the front/back
+  // together while keeping its own internal relative order.
+  const bringToFront = useCallback((ids: string[]) => {
+    pushHistory()
+    const idSet = new Set(ids)
+    setElements(prev => {
+      const rest = prev.filter(el => !idSet.has(el.id))
+      const selected = prev.filter(el => idSet.has(el.id))
+      return [...rest, ...selected]
+    })
+  }, [pushHistory])
+
+  const sendToBack = useCallback((ids: string[]) => {
+    pushHistory()
+    const idSet = new Set(ids)
+    setElements(prev => {
+      const rest = prev.filter(el => !idSet.has(el.id))
+      const selected = prev.filter(el => idSet.has(el.id))
+      return [...selected, ...rest]
+    })
+  }, [pushHistory])
+
   const setTool = useCallback((tool: DrawingTool) => {
     setActiveTool(tool)
     // Hand is a viewport-navigation aid, not an editing tool — switching to
@@ -335,6 +361,8 @@ export function useCanvasState() {
     deleteElements,
     duplicateElement,
     duplicateElements,
+    bringToFront,
+    sendToBack,
     activeTool,
     setTool,
     drawings,

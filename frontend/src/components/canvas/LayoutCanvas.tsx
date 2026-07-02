@@ -378,6 +378,12 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         ctx.translate(x, y)
         ctx.rotate((el.rotation * Math.PI) / 180)
 
+        // Flip — misma matemática que el Group interno en pantalla
+        // (offsetX/Y=w/h + scale -1), aplicado DESPUÉS de la rotación para
+        // que el pivote de rotación (arriba) no se vea afectado.
+        if (el.flipX) { ctx.translate(w, 0); ctx.scale(-1, 1) }
+        if (el.flipY) { ctx.translate(0, h); ctx.scale(1, -1) }
+
         ctx.fillStyle = fillColor
         ctx.strokeStyle = strokeColor
         ctx.lineWidth = 1.5
@@ -467,7 +473,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           ctx.closePath()
           ctx.fill()
         } else if (drw.tool === 'text' && drw.text) {
-          ctx.font = '14px ui-monospace, monospace'
+          ctx.font = `${drw.fontSize ?? 14}px ui-monospace, monospace`
           ctx.textAlign = 'left'
           ctx.textBaseline = 'top'
           ctx.fillText(drw.text, drw.points[0] + offsetX, drw.points[1] + offsetY)
@@ -1063,7 +1069,7 @@ function DrawingShape({ drawing, isSelected, interactive, onSelect, onMoveDrawin
         y={drawing.points[1]}
         text={drawing.text}
         fill={drawing.color}
-        fontSize={14}
+        fontSize={drawing.fontSize ?? 14}
         fontFamily="ui-monospace, monospace"
         opacity={opacity}
         {...clickProps}
@@ -1178,60 +1184,74 @@ function AssetShape({
       onDragEnd={interactive ? (e => onDragEnd(e.target.x(), e.target.y())) : undefined}
       onTransformEnd={handleTransformEnd}
     >
-      {isCircle ? (
-        <Circle x={pw / 2} y={ph / 2} radius={radius} {...shapeStyle} />
-      ) : isOval ? (
-        <Ellipse x={pw / 2} y={ph / 2} radiusX={pw / 2} radiusY={ph / 2} {...shapeStyle} />
-      ) : isRoundedRect ? (
-        <Rect width={pw} height={ph} cornerRadius={Math.min(pw, ph) * 0.25} {...shapeStyle} />
-      ) : isTree ? (
-        <Group>
+      {/* Flip lives on its own inner Group, decoupled from the outer Group's
+          drag/rotate/resize (Transformer manipulates the outer Group's own
+          scaleX/scaleY during resize, then handleTransformEnd resets it to
+          1 — mixing that with a persistent flip scale would corrupt both).
+          offsetX/Y = pw/ph mirrors content in place around its own center
+          without shifting the outer bounding box or touching the rotation
+          pivot (still the outer Group's x,y, unaffected by this nesting). */}
+      <Group
+        offsetX={element.flipX ? pw : 0}
+        offsetY={element.flipY ? ph : 0}
+        scaleX={element.flipX ? -1 : 1}
+        scaleY={element.flipY ? -1 : 1}
+      >
+        {isCircle ? (
           <Circle x={pw / 2} y={ph / 2} radius={radius} {...shapeStyle} />
-          <Circle
-            x={pw / 2} y={ph / 2}
-            radius={radius * 0.42}
-            fill="rgba(255,255,255,0.18)"
-            stroke="transparent"
-            strokeWidth={0}
+        ) : isOval ? (
+          <Ellipse x={pw / 2} y={ph / 2} radiusX={pw / 2} radiusY={ph / 2} {...shapeStyle} />
+        ) : isRoundedRect ? (
+          <Rect width={pw} height={ph} cornerRadius={Math.min(pw, ph) * 0.25} {...shapeStyle} />
+        ) : isTree ? (
+          <Group>
+            <Circle x={pw / 2} y={ph / 2} radius={radius} {...shapeStyle} />
+            <Circle
+              x={pw / 2} y={ph / 2}
+              radius={radius * 0.42}
+              fill="rgba(255,255,255,0.18)"
+              stroke="transparent"
+              strokeWidth={0}
+              listening={false}
+            />
+          </Group>
+        ) : (
+          <Rect width={pw} height={ph} cornerRadius={2} {...shapeStyle} />
+        )}
+
+        {showLabel && (
+          <Text
+            text={element.name}
+            width={pw}
+            height={ph * 0.6}
+            y={isCircle ? ph * 0.2 : 0}
+            align="center"
+            verticalAlign="middle"
+            fill="#f8fafc"
+            fontSize={fontSize}
+            fontFamily="ui-monospace, monospace"
+            fontStyle="500"
+            listening={false}
+            ellipsis
+            wrap="none"
+          />
+        )}
+
+        {showLabel && (
+          <Text
+            text={`${element.width}m × ${element.height}m`}
+            width={pw}
+            height={ph * 0.4}
+            y={isCircle ? ph * 0.5 : ph * 0.6}
+            align="center"
+            verticalAlign="middle"
+            fill="rgba(248,250,252,0.55)"
+            fontSize={Math.min(10, fontSize - 1)}
+            fontFamily="ui-monospace, monospace"
             listening={false}
           />
-        </Group>
-      ) : (
-        <Rect width={pw} height={ph} cornerRadius={2} {...shapeStyle} />
-      )}
-
-      {showLabel && (
-        <Text
-          text={element.name}
-          width={pw}
-          height={ph * 0.6}
-          y={isCircle ? ph * 0.2 : 0}
-          align="center"
-          verticalAlign="middle"
-          fill="#f8fafc"
-          fontSize={fontSize}
-          fontFamily="ui-monospace, monospace"
-          fontStyle="500"
-          listening={false}
-          ellipsis
-          wrap="none"
-        />
-      )}
-
-      {showLabel && (
-        <Text
-          text={`${element.width}m × ${element.height}m`}
-          width={pw}
-          height={ph * 0.4}
-          y={isCircle ? ph * 0.5 : ph * 0.6}
-          align="center"
-          verticalAlign="middle"
-          fill="rgba(248,250,252,0.55)"
-          fontSize={Math.min(10, fontSize - 1)}
-          fontFamily="ui-monospace, monospace"
-          listening={false}
-        />
-      )}
+        )}
+      </Group>
     </Group>
   )
 }

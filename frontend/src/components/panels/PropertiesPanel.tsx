@@ -9,6 +9,9 @@ interface PropertiesPanelProps {
   selectedDrawing: DrawingPrimitive | null
   onUpdateDrawing: (id: string, updates: Partial<DrawingPrimitive>) => void
   onDeleteDrawing: (id: string) => void
+  selectedIds: Set<string>
+  onBringToFront: (ids: string[]) => void
+  onSendToBack: (ids: string[]) => void
 }
 
 const COLOR_PRESETS = [
@@ -26,9 +29,11 @@ const COLOR_PRESETS = [
 export default function PropertiesPanel({
   element, onUpdate, onDeleteElement, onDuplicateElement,
   selectedDrawing, onUpdateDrawing, onDeleteDrawing,
+  selectedIds, onBringToFront, onSendToBack,
 }: PropertiesPanelProps) {
   const { t } = useLang()
-  const hasSelection = element !== null || selectedDrawing !== null
+  const isMultiSelect = element === null && selectedDrawing === null && selectedIds.size > 1
+  const hasSelection = element !== null || selectedDrawing !== null || isMultiSelect
 
   return (
     <aside className="w-60 flex-none bg-slate-900 border-l border-slate-700/60 flex flex-col overflow-hidden">
@@ -56,9 +61,53 @@ export default function PropertiesPanel({
           onUpdate={onUpdate}
           onDelete={onDeleteElement}
           onDuplicate={onDuplicateElement}
+          onBringToFront={() => onBringToFront([element.id])}
+          onSendToBack={() => onSendToBack([element.id])}
         />
-      ) : null}
+      ) : (
+        <MultiSelectProperties
+          count={selectedIds.size}
+          onBringToFront={() => onBringToFront([...selectedIds])}
+          onSendToBack={() => onSendToBack([...selectedIds])}
+        />
+      )}
     </aside>
+  )
+}
+
+// ── Multi-selection properties (z-order only — other fields don't apply
+// to a heterogeneous group) ─────────────────────────────────────────────────
+
+function MultiSelectProperties({
+  count, onBringToFront, onSendToBack,
+}: {
+  count: number
+  onBringToFront: () => void
+  onSendToBack: () => void
+}) {
+  const { t } = useLang()
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      <p className="text-xs text-slate-400">
+        {count} {t.elementsSelected}
+      </p>
+      <Section label={t.sOrder}>
+        <div className="flex gap-2">
+          <button
+            onClick={onBringToFront}
+            className="flex-1 h-7 rounded text-[10px] text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border border-slate-600 transition-colors font-mono uppercase tracking-wider"
+          >
+            {t.bringToFront}
+          </button>
+          <button
+            onClick={onSendToBack}
+            className="flex-1 h-7 rounded text-[10px] text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border border-slate-600 transition-colors font-mono uppercase tracking-wider"
+          >
+            {t.sendToBack}
+          </button>
+        </div>
+      </Section>
+    </div>
   )
 }
 
@@ -69,11 +118,15 @@ function ElementProperties({
   onUpdate,
   onDelete,
   onDuplicate,
+  onBringToFront,
+  onSendToBack,
 }: {
   element: LayoutElement
   onUpdate: (id: string, updates: Partial<LayoutElement>) => void
   onDelete: (id: string) => void
   onDuplicate: (id: string) => void
+  onBringToFront: () => void
+  onSendToBack: () => void
 }) {
   const { t } = useLang()
 
@@ -122,6 +175,48 @@ function ElementProperties({
         <Field label={t.fDegrees}>
           <NumberInput value={element.rotation} step={15} min={0} max={360} onChange={v => onUpdate(element.id, { rotation: v })} />
         </Field>
+      </Section>
+
+      <Section label={t.sFlip}>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onUpdate(element.id, { flipX: !element.flipX })}
+            className={`flex-1 h-7 rounded text-[10px] border transition-colors font-mono uppercase tracking-wider ${
+              element.flipX
+                ? 'text-indigo-300 bg-indigo-950/50 border-indigo-700'
+                : 'text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border-slate-600'
+            }`}
+          >
+            {t.flipHorizontal}
+          </button>
+          <button
+            onClick={() => onUpdate(element.id, { flipY: !element.flipY })}
+            className={`flex-1 h-7 rounded text-[10px] border transition-colors font-mono uppercase tracking-wider ${
+              element.flipY
+                ? 'text-indigo-300 bg-indigo-950/50 border-indigo-700'
+                : 'text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border-slate-600'
+            }`}
+          >
+            {t.flipVertical}
+          </button>
+        </div>
+      </Section>
+
+      <Section label={t.sOrder}>
+        <div className="flex gap-2">
+          <button
+            onClick={onBringToFront}
+            className="flex-1 h-7 rounded text-[10px] text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border border-slate-600 transition-colors font-mono uppercase tracking-wider"
+          >
+            {t.bringToFront}
+          </button>
+          <button
+            onClick={onSendToBack}
+            className="flex-1 h-7 rounded text-[10px] text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border border-slate-600 transition-colors font-mono uppercase tracking-wider"
+          >
+            {t.sendToBack}
+          </button>
+        </div>
       </Section>
 
       <Section label={t.sColor}>
@@ -214,6 +309,20 @@ function DrawingProperties({
           onChange={v => onUpdate(drawing.id, { color: v })}
         />
       </Section>
+
+      {drawing.tool === 'text' && (
+        <Section label={t.sFontSize}>
+          <Field label={t.fPx}>
+            <NumberInput
+              value={drawing.fontSize ?? 14}
+              step={1}
+              min={6}
+              max={72}
+              onChange={v => onUpdate(drawing.id, { fontSize: v })}
+            />
+          </Field>
+        </Section>
+      )}
 
       {drawing.tool !== 'text' && (
         <Section label={t.sStrokeWidth}>

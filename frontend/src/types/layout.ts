@@ -45,6 +45,8 @@ export interface LayoutElement {
   locked: boolean
   notes: string
   shape?: ElementShape
+  flipX?: boolean  // mirror horizontally in place, defaults to false
+  flipY?: boolean  // mirror vertically in place, defaults to false
 }
 
 export interface CanvasViewport {
@@ -74,6 +76,7 @@ export interface DrawingPrimitive {
   color: string
   strokeWidth: number
   opacity?: number   // 0–1, defaults to 1
+  fontSize?: number  // px, text tool only — defaults to 14
 }
 
 // ── Layout metadata (title block / footer) ────────────────────────────────────
