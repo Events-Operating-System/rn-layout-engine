@@ -106,6 +106,7 @@ frontend/
 | Element opacity via slider | ✅ |
 | Export PNG ("Exportar Plano") — 2x resolution, footer included | ✅ |
 | Export PDF — elementos alineados 1:1 con el canvas, incl. elementos rotados (fix: pivote de rotación en export igualado al de Konva, antes rotaba sobre el centro en vez de la esquina superior-izquierda) | ✅ |
+| Export PDF — drawings (líneas, flechas, anotaciones de texto) incluidos en el PDF, alineados con el canvas y con bounding box del crop automático (antes exportPDF solo iteraba `elements`; drawings desaparecían del PDF aunque sí se veían en pantalla) | ✅ (verificado por análisis de código/geometría; pendiente de confirmación visual en app real con sesión autenticada) |
 | 34 operational assets in library | ✅ |
 | TypeScript 0 errors | ✅ |
 | `#root` height chain — `h-full` resolves to full viewport | ✅ |

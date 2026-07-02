@@ -253,7 +253,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       const PADDING = 40
       const PPM = PIXELS_PER_METER
     
-      // Calcular bounding box de todos los elementos
+      // Calcular bounding box de todos los elementos + drawings (líneas/flechas/texto)
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
       for (const el of elements) {
         minX = Math.min(minX, el.x * PPM)
@@ -261,7 +261,16 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         maxX = Math.max(maxX, (el.x + el.width) * PPM)
         maxY = Math.max(maxY, (el.y + el.height) * PPM)
       }
-    
+      // drawing.points ya están en world-pixel coords (mismo espacio que el.x * PPM)
+      for (const drw of drawings) {
+        for (let i = 0; i < drw.points.length; i += 2) {
+          minX = Math.min(minX, drw.points[i])
+          minY = Math.min(minY, drw.points[i + 1])
+          maxX = Math.max(maxX, drw.points[i])
+          maxY = Math.max(maxY, drw.points[i + 1])
+        }
+      }
+
       const contentW = maxX - minX + PADDING * 2
       const contentH = maxY - minY + PADDING * 2
       const FOOTER_H = FOOTER_HEIGHT_PX
@@ -355,7 +364,64 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
         ctx.restore()
       }
-    
+
+      // Dibujar drawings (líneas, flechas, anotaciones de texto) — mismo
+      // color/grosor/opacidad que en pantalla (ver DrawingShape), trasladados
+      // con el mismo offsetX/offsetY que los elementos.
+      for (const drw of drawings) {
+        ctx.save()
+        ctx.globalAlpha = drw.opacity ?? 1
+        ctx.strokeStyle = drw.color
+        ctx.fillStyle = drw.color
+        ctx.lineWidth = drw.strokeWidth
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+
+        if (drw.tool === 'line') {
+          ctx.beginPath()
+          ctx.moveTo(drw.points[0] + offsetX, drw.points[1] + offsetY)
+          for (let i = 2; i < drw.points.length; i += 2) {
+            ctx.lineTo(drw.points[i] + offsetX, drw.points[i + 1] + offsetY)
+          }
+          ctx.stroke()
+        } else if (drw.tool === 'arrow') {
+          const x1 = drw.points[0] + offsetX
+          const y1 = drw.points[1] + offsetY
+          const x2 = drw.points[drw.points.length - 2] + offsetX
+          const y2 = drw.points[drw.points.length - 1] + offsetY
+
+          ctx.beginPath()
+          ctx.moveTo(x1, y1)
+          ctx.lineTo(x2, y2)
+          ctx.stroke()
+
+          // Cabeza de flecha (pointerLength=10, pointerWidth=8 — igual que <Arrow> en pantalla)
+          const POINTER_LENGTH = 10
+          const POINTER_WIDTH = 8
+          const angle = Math.atan2(y2 - y1, x2 - x1)
+          const baseX = x2 - POINTER_LENGTH * Math.cos(angle)
+          const baseY = y2 - POINTER_LENGTH * Math.sin(angle)
+          const leftX = baseX + (POINTER_WIDTH / 2) * Math.cos(angle + Math.PI / 2)
+          const leftY = baseY + (POINTER_WIDTH / 2) * Math.sin(angle + Math.PI / 2)
+          const rightX = baseX + (POINTER_WIDTH / 2) * Math.cos(angle - Math.PI / 2)
+          const rightY = baseY + (POINTER_WIDTH / 2) * Math.sin(angle - Math.PI / 2)
+
+          ctx.beginPath()
+          ctx.moveTo(x2, y2)
+          ctx.lineTo(leftX, leftY)
+          ctx.lineTo(rightX, rightY)
+          ctx.closePath()
+          ctx.fill()
+        } else if (drw.tool === 'text' && drw.text) {
+          ctx.font = '14px ui-monospace, monospace'
+          ctx.textAlign = 'left'
+          ctx.textBaseline = 'top'
+          ctx.fillText(drw.text, drw.points[0] + offsetX, drw.points[1] + offsetY)
+        }
+
+        ctx.restore()
+      }
+
       // Footer
       renderFooterPDF(ctx, contentW, contentH, FOOTER_H, layoutMeta)
     
@@ -369,8 +435,8 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       })
       pdf.addImage(imgData, 'PNG', 0, 0, canvasW, canvasH)
       pdf.save(`rn-layout-${new Date().toISOString().slice(0, 10)}.pdf`)
-    }, [containerSize, elements, layoutMeta])
-    
+    }, [containerSize, elements, drawings, layoutMeta])
+
     useImperativeHandle(ref, () => ({ exportPNG, exportPDF }), [exportPNG, exportPDF])
 
     // ── Zoom (wheel) ──────────────────────────────────────────────────────────
