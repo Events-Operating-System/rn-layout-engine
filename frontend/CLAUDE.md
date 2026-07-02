@@ -18,16 +18,14 @@
 
 ### Sesión 2026-07-01
 **Completado:**
-- Columna event_id agregada a tabla layouts en Supabase
-- App.tsx lee ?event_id de la URL al montar y lo propaga
-- LayoutDashboard.tsx muestra banner cuando hay event_id en URL
-- layoutService.ts: save() acepta event_id opcional en INSERT/UPDATE
-- Nuevo setEventId() para vincular layouts existentes a un evento
-- useLayoutPersistence.ts y LayoutEditor.tsx hilan eventId hasta save()
-- Verificado en producción: layout "Patrick prueba" guardado con
-  event_id correcto en Supabase
-- Sin event_id en URL el comportamiento es exactamente igual al actual
+- Columna event_id agregada a tabla layouts
+- Banner "Creando layout para evento" cuando hay event_id en URL
+- layoutService.save() acepta event_id opcional
+- Ruta /editor/:layoutId para abrir layout directamente
+- vercel.json movido a /frontend/ para SPA rewrites correctos
+- Redirect a Identity cuando no hay sesión en /editor/:layoutId
+- VITE_IDENTITY_URL agregada como variable de entorno
 
 **Próximo paso:**
-- Sesión dedicada a fixes de Layout Engine (lista pendiente con Javier)
-- Mostrar layouts vinculados al evento en tab Layout del expediente
+- Fixes de Layout Engine (lista pendiente con Javier)
+- Layout 3D con Three.js
