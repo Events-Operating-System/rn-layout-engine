@@ -124,12 +124,18 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId }: AppShellProps) {
 
 type View = 'dashboard' | 'editor'
 
+function getLayoutIdFromPath(): string | null {
+  const match = window.location.pathname.match(/^\/editor\/([^/]+)\/?$/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [checking, setChecking] = useState(true)
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
-  const [view, setView] = useState<View>('dashboard')
-  const [layoutIdToLoad, setLayoutIdToLoad] = useState<string | null>(null)
+  const [directLayoutId] = useState<string | null>(() => getLayoutIdFromPath())
+  const [view, setView] = useState<View>(() => (directLayoutId ? 'editor' : 'dashboard'))
+  const [layoutIdToLoad, setLayoutIdToLoad] = useState<string | null>(() => directLayoutId)
   const [dashboardLoading, setDashboardLoading] = useState(false)
   const [eventId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('event_id'))
 
@@ -191,6 +197,9 @@ export default function App() {
   }, [fetchLayouts])
 
   const handleGoToDashboard = useCallback(async () => {
+    if (getLayoutIdFromPath()) {
+      window.history.replaceState(null, '', '/' + window.location.search)
+    }
     await fetchLayouts()
     setView('dashboard')
   }, [fetchLayouts])
