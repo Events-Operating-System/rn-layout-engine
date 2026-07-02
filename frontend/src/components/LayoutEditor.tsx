@@ -30,8 +30,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
     elements, selectedId, selectedIds, selectedElement,
     selectedDrawingId, selectedDrawing,
     viewport, selectElement, toggleSelectElement, selectElements, selectDrawing,
-    updateElement, updateViewport, addElement,
-    deleteElement, duplicateElement, activeTool, setTool,
+    updateElement, updateElements, updateViewport, addElement,
+    deleteElement, deleteElements, duplicateElement, duplicateElements, activeTool, setTool,
     drawings, addDrawing, deleteDrawing, updateDrawing,
     clearDrawings, layoutMeta, updateMeta,
     pushHistory, undo, redo, canUndo, canRedo,
@@ -193,7 +193,12 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
         if (e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); redo(); return }
         if (e.key === 'z') { e.preventDefault(); undo(); return }
         if (e.key === 'y') { e.preventDefault(); redo(); return }
-        if (e.key === 'd') { e.preventDefault(); if (selectedId) duplicateElement(selectedId); return }
+        if (e.key === 'd') {
+          e.preventDefault()
+          if (selectedIds.size > 1) duplicateElements([...selectedIds])
+          else if (selectedId) duplicateElement(selectedId)
+          return
+        }
         if (e.key === 's') { e.preventDefault(); handleSave(); return }
         return
       }
@@ -205,7 +210,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedId, duplicateElement, setTool, undo, redo, handleSave])
+  }, [selectedId, selectedIds, duplicateElement, duplicateElements, setTool, undo, redo, handleSave])
 
   function toggleMobilePanel(panel: 'library' | 'properties') {
     setMobilePanel(prev => (prev === panel ? null : panel))
@@ -299,8 +304,10 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
             onToggleSelect={toggleSelectElement}
             onSelectMultiple={selectElements}
             onUpdateElement={updateElement}
+            onUpdateElements={updateElements}
             onUpdateViewport={updateViewport}
             onDeleteElement={deleteElement}
+            onDeleteElements={deleteElements}
             activeTool={effectiveTool}
             drawings={drawings}
             onAddDrawing={addDrawing}

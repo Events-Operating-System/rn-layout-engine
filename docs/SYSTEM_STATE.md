@@ -112,7 +112,11 @@ frontend/
 | Shift+click agrega/quita un elemento de la selección actual (multi-select acumulativo) | ✅ verificado end-to-end |
 | Barra espaciadora mantenida activa Modo Mano temporalmente desde cualquier herramienta (incluida Selección); al soltar, vuelve al modo/herramienta anterior sin alterar el estado persistido | ✅ verificado end-to-end (incl. indicador de modo en la toolbar) |
 | Click en área vacía sin arrastrar deselecciona todo (Modo Selección); en Modo Mano nunca selecciona ni deselecciona | ✅ verificado end-to-end |
-| Selección múltiple: estado canónico `selectedIds: Set<string>` en `useCanvasState`; `selectedId`/`selectedElement` quedan derivados (no-null solo si `selectedIds.size===1`) para no romper Properties panel, Transformer, Ctrl+D ni Delete — ver informe de sesión para el batch de copiar/eliminar en bloque | ✅ |
+| Selección múltiple: estado canónico `selectedIds: Set<string>` en `useCanvasState`; `selectedId`/`selectedElement` quedan derivados (no-null solo si `selectedIds.size===1`) para no romper Properties panel, Transformer, Ctrl+D ni Delete | ✅ |
+| Mover en bloque — con `selectedIds.size > 1`, arrastrar cualquier elemento de la selección mueve todo el grupo preservando posiciones relativas (drag imperativo de los nodos Konva hermanos vía `stage.findOne` durante el gesto, commit único a estado al soltar); con 1 solo elemento, comportamiento sin cambios | ✅ verificado end-to-end |
+| Copiar en bloque (Ctrl+D) — con `selectedIds.size > 1`, duplica todo el grupo manteniendo la disposición relativa (+2m offset, igual que el caso simple) y dej las copias nuevas como selección activa, listas para mover de inmediato; con 1 solo elemento, comportamiento sin cambios | ✅ verificado end-to-end |
+| Eliminar en bloque (Delete/Backspace) — con `selectedIds.size > 1`, borra todo el grupo en una sola operación; con 1 solo elemento, comportamiento sin cambios | ✅ verificado end-to-end |
+| Undo/redo de operaciones en bloque — mover, copiar y eliminar en bloque quedan como UNA sola entrada de historial (un solo Ctrl+Z restaura todo el grupo afectado) | ✅ verificado end-to-end (`useCanvasState.updateElements/deleteElements/duplicateElements`, un solo `pushHistory()` por operación) |
 | TypeScript 0 errors | ✅ |
 | `#root` height chain — `h-full` resolves to full viewport | ✅ |
 | `canvas { touch-action: none }` — prevents native scroll/pinch on canvas | ✅ |

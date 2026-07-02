@@ -34,8 +34,10 @@ interface LayoutCanvasProps {
   onToggleSelect: (id: string) => void
   onSelectMultiple: (ids: string[]) => void
   onUpdateElement: (id: string, updates: Partial<LayoutElement>) => void
+  onUpdateElements: (updates: Record<string, Partial<LayoutElement>>) => void
   onUpdateViewport: (updates: Partial<CanvasViewport>) => void
   onDeleteElement: (id: string) => void
+  onDeleteElements: (ids: string[]) => void
   activeTool: DrawingTool
   drawings: DrawingPrimitive[]
   onAddDrawing: (primitive: Omit<DrawingPrimitive, 'id'>) => void
@@ -96,7 +98,8 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
   function LayoutCanvas(
     {
       elements, selectedId, selectedIds, viewport,
-      onSelect, onToggleSelect, onSelectMultiple, onUpdateElement, onUpdateViewport, onDeleteElement,
+      onSelect, onToggleSelect, onSelectMultiple, onUpdateElement, onUpdateElements, onUpdateViewport,
+      onDeleteElement, onDeleteElements,
       activeTool, drawings, onAddDrawing, layoutMeta,
       selectedDrawingId, onSelectDrawing, onDeleteDrawing, onUpdateDrawing,
       onPushHistory,
@@ -116,6 +119,11 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     const panOrigin = useRef({ clientX: 0, clientY: 0, vpX: 0, vpY: 0 })
     const isDraggingElement = useRef(false)
     const lastTouchDist = useRef<number | null>(null)
+
+    // Group-drag (multi-select move): world-px starting position of every
+    // selected element, captured on drag start, keyed by id — non-null only
+    // while dragging a node that's part of a >1-element selection.
+    const groupDragOrigin = useRef<Map<string, { x: number; y: number }> | null>(null)
 
     // ── Marquee-select refs + state (Selection mode only) ────────────────────
     const marqueeOrigin = useRef<{ x: number; y: number } | null>(null)
@@ -175,7 +183,9 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         const target = e.target as HTMLElement
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
         e.preventDefault()
-        if (selectedId) {
+        if (selectedIds.size > 1) {
+          onDeleteElements([...selectedIds])
+        } else if (selectedId) {
           onDeleteElement(selectedId)
         } else if (selectedDrawingId) {
           onDeleteDrawing(selectedDrawingId)
@@ -183,7 +193,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       }
       window.addEventListener('keydown', handleKeyDown)
       return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [selectedId, selectedDrawingId, onDeleteElement, onDeleteDrawing])
+    }, [selectedId, selectedIds, selectedDrawingId, onDeleteElement, onDeleteElements, onDeleteDrawing])
 
     // ── Global pointer/touch up — commits pan OR drawing ─────────────────────
 
@@ -792,8 +802,42 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 isSelected={selectedIds.has(el.id)}
                 interactive={elementInteractive}
                 onSelect={(shiftKey) => (shiftKey ? onToggleSelect(el.id) : onSelect(el.id))}
-                onDragStart={() => { isDraggingElement.current = true }}
+                onDragStart={() => {
+                  isDraggingElement.current = true
+                  // Dragging a node that's part of a >1 selection moves the
+                  // whole group together — capture everyone's starting
+                  // world position so onDragMove/onDragEnd can apply the
+                  // same delta to all of them. Locked elements (which
+                  // can't be dragged individually either) are excluded.
+                  if (selectedIds.size > 1 && selectedIds.has(el.id)) {
+                    const origin = new Map<string, { x: number; y: number }>()
+                    for (const id of selectedIds) {
+                      const other = elements.find(e => e.id === id)
+                      if (other && !other.locked) {
+                        origin.set(id, { x: other.x * PIXELS_PER_METER, y: other.y * PIXELS_PER_METER })
+                      }
+                    }
+                    groupDragOrigin.current = origin
+                  } else {
+                    groupDragOrigin.current = null
+                  }
+                }}
                 onDragMove={(gx, gy) => {
+                  const origin = groupDragOrigin.current
+                  if (origin && origin.has(el.id)) {
+                    const start = origin.get(el.id)!
+                    const dx = gx - start.x
+                    const dy = gy - start.y
+                    const stage = stageRef.current
+                    if (stage) {
+                      for (const [id, startPos] of origin) {
+                        if (id === el.id) continue
+                        const node = stage.findOne(`#${id}`)
+                        node?.position({ x: startPos.x + dx, y: startPos.y + dy })
+                      }
+                      stage.batchDraw()
+                    }
+                  }
                   setAlignGuides(computeAlignmentGuides(
                     elements, el.id, gx, gy,
                     el.width * PIXELS_PER_METER, el.height * PIXELS_PER_METER,
@@ -803,6 +847,23 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 onDragEnd={(x, y) => {
                   isDraggingElement.current = false
                   setAlignGuides({ xs: [], ys: [] })
+                  const origin = groupDragOrigin.current
+                  if (origin && origin.has(el.id)) {
+                    const start = origin.get(el.id)!
+                    const dx = x - start.x
+                    const dy = y - start.y
+                    onPushHistory()
+                    const updates: Record<string, Partial<LayoutElement>> = {}
+                    for (const [id, startPos] of origin) {
+                      updates[id] = {
+                        x: Math.round(((startPos.x + dx) / PIXELS_PER_METER) * 10) / 10,
+                        y: Math.round(((startPos.y + dy) / PIXELS_PER_METER) * 10) / 10,
+                      }
+                    }
+                    onUpdateElements(updates)
+                    groupDragOrigin.current = null
+                    return
+                  }
                   onPushHistory()
                   onUpdateElement(el.id, {
                     x: Math.round((x / PIXELS_PER_METER) * 10) / 10,

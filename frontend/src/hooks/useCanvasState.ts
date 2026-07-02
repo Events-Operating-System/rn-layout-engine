@@ -177,6 +177,14 @@ export function useCanvasState() {
     setElements(prev => prev.map(el => (el.id === id ? { ...el, ...updates } : el)))
   }, [])
 
+  // Bulk position commit for group-drag (multi-select). Caller is
+  // responsible for calling pushHistory() once beforehand — same
+  // convention as updateElement, just applied to several ids in one
+  // setElements pass so it's a single state transition.
+  const updateElements = useCallback((updates: Record<string, Partial<LayoutElement>>) => {
+    setElements(prev => prev.map(el => (updates[el.id] ? { ...el, ...updates[el.id] } : el)))
+  }, [])
+
   const updateViewport = useCallback((updates: Partial<CanvasViewport>) => {
     setViewport(prev => ({ ...prev, ...updates }))
   }, [])
@@ -223,6 +231,18 @@ export function useCanvasState() {
     })
   }, [pushHistory])
 
+  // Bulk delete (multi-select) — one history entry restores all of them.
+  const deleteElements = useCallback((ids: string[]) => {
+    pushHistory()
+    const idSet = new Set(ids)
+    setElements(prev => prev.filter(el => !idSet.has(el.id)))
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      for (const id of ids) next.delete(id)
+      return next
+    })
+  }, [pushHistory])
+
   const duplicateElement = useCallback((id: string) => {
     pushHistory()
     const newId = `el-${Date.now()}`
@@ -232,6 +252,25 @@ export function useCanvasState() {
       return [...prev, { ...el, id: newId, x: el.x + 2, y: el.y + 2 }]
     })
     setSelectedIds(new Set([newId]))
+    setSelectedDrawingId(null)
+  }, [pushHistory])
+
+  // Bulk duplicate (multi-select) — copies the whole group, preserving
+  // relative layout (same +2/+2m offset as the single-element case), and
+  // selects the new copies so they can be moved immediately.
+  const duplicateElements = useCallback((ids: string[]) => {
+    pushHistory()
+    const idSet = new Set(ids)
+    const timestamp = Date.now()
+    const source = elementsRef.current.filter(el => idSet.has(el.id))
+    const duplicates = source.map((el, i) => ({
+      ...el,
+      id: `el-${timestamp}-${i}`,
+      x: el.x + 2,
+      y: el.y + 2,
+    }))
+    setElements(prev => [...prev, ...duplicates])
+    setSelectedIds(new Set(duplicates.map(d => d.id)))
     setSelectedDrawingId(null)
   }, [pushHistory])
 
@@ -289,10 +328,13 @@ export function useCanvasState() {
     selectElements,
     selectDrawing,
     updateElement,
+    updateElements,
     updateViewport,
     addElement,
     deleteElement,
+    deleteElements,
     duplicateElement,
+    duplicateElements,
     activeTool,
     setTool,
     drawings,
