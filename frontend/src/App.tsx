@@ -124,6 +124,9 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId }: AppShellProps) {
 
 type View = 'dashboard' | 'editor'
 
+const IDENTITY_URL = import.meta.env.VITE_IDENTITY_URL
+  ?? 'https://eventos-identity-frontend.vercel.app'
+
 function getLayoutIdFromPath(): string | null {
   const match = window.location.pathname.match(/^\/editor\/([^/]+)\/?$/)
   return match ? decodeURIComponent(match[1]) : null
@@ -173,6 +176,12 @@ export default function App() {
     }
   }, [user])
 
+  useEffect(() => {
+    if (!checking && !user && directLayoutId) {
+      window.location.replace(`${IDENTITY_URL}?redirect=${window.location.href}`)
+    }
+  }, [checking, user, directLayoutId])
+
   const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut()
   }, [])
@@ -210,7 +219,14 @@ export default function App() {
     </div>
   )
 
-  if (!user) return <LoginScreen />
+  if (!user) {
+    if (directLayoutId) return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <div className="text-white text-sm opacity-50">Redirigiendo...</div>
+      </div>
+    )
+    return <LoginScreen />
+  }
 
   if (hasAccess === null) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950">
