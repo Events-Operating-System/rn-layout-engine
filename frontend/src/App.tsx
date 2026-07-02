@@ -46,9 +46,10 @@ interface AppShellProps {
   onGoToDashboard: () => void
   layoutIdToLoad: string | null
   eventId: string | null
+  onLayoutForked: (newId: string) => void
 }
 
-function AppShell({ onGoToDashboard, layoutIdToLoad, eventId }: AppShellProps) {
+function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, onLayoutForked }: AppShellProps) {
   const { lang, setLang, t } = useLang()
 
   const items = [
@@ -99,7 +100,7 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId }: AppShellProps) {
         </div>
       </header>
 
-      <LayoutEditor layoutIdToLoad={layoutIdToLoad} eventId={eventId} />
+      <LayoutEditor layoutIdToLoad={layoutIdToLoad} eventId={eventId} onLayoutForked={onLayoutForked} />
 
       <footer className="h-10 flex-none bg-slate-900 border-t border-slate-700/60 flex items-center px-4 gap-6 overflow-hidden">
         <div className="flex items-center gap-4">
@@ -205,6 +206,31 @@ export default function App() {
     await fetchLayouts()
   }, [fetchLayouts])
 
+  const handleDuplicateLayout = useCallback(async (id: string) => {
+    const original = await layoutService.getForDuplicate(id)
+    const newName = `${original.name} (copia)`
+    const newId = await layoutService.duplicate(
+      original.org_id,
+      newName,
+      {
+        elements: original.elements,
+        drawings: original.drawings,
+        meta: { ...original.meta, cliente: newName },
+        viewport: original.viewport,
+      },
+      id
+    )
+    await fetchLayouts()
+    setLayoutIdToLoad(newId)
+    setView('editor')
+  }, [fetchLayouts])
+
+  // Editor-side duplicate actions ("Duplicar" and "Guardar como copia")
+  // already create the row themselves — this just navigates the SPA to it.
+  const handleLayoutForked = useCallback((newId: string) => {
+    setLayoutIdToLoad(newId)
+  }, [])
+
   const handleGoToDashboard = useCallback(async () => {
     if (getLayoutIdFromPath()) {
       window.history.replaceState(null, '', '/' + window.location.search)
@@ -244,6 +270,7 @@ export default function App() {
         onOpen={handleOpenLayout}
         onNew={handleNewLayout}
         onDelete={handleDeleteLayout}
+        onDuplicate={handleDuplicateLayout}
         userName={user.email ?? ''}
         onSignOut={handleSignOut}
         eventId={eventId}
@@ -257,6 +284,7 @@ export default function App() {
         onGoToDashboard={handleGoToDashboard}
         layoutIdToLoad={layoutIdToLoad}
         eventId={eventId}
+        onLayoutForked={handleLayoutForked}
       />
     </LangProvider>
   )

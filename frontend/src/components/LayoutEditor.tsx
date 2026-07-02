@@ -8,18 +8,22 @@ import { useCanvasState } from '@/hooks/useCanvasState'
 import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
 import { useCustomAssets } from '@/hooks/useCustomAssets'
 import { supabase } from '@/lib/supabase'
+import { layoutService } from '@/lib/layoutService'
 import type { AssetTemplate } from '@/types/layout'
 
 interface Props {
   layoutIdToLoad?: string | null
   eventId?: string | null
+  onLayoutForked?: (newId: string) => void
 }
 
-export default function LayoutEditor({ layoutIdToLoad, eventId }: Props) {
+export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }: Props) {
   const canvasRef = useRef<LayoutCanvasHandle>(null)
   const [mobilePanel, setMobilePanel] = useState<'library' | 'properties' | null>(null)
   const [userId, setUserId] = useState<string>('')
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [duplicating, setDuplicating] = useState(false)
+  const [savingAsCopy, setSavingAsCopy] = useState(false)
   const [inputName, setInputName] = useState('Sin título')
 
   const {
@@ -41,7 +45,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId }: Props) {
   }, [])
 
   const persistence = useLayoutPersistence(userId, eventId)
-  const { save, load } = persistence
+  const { save, load, layoutId } = persistence
 
   const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
 
@@ -93,6 +97,56 @@ export default function LayoutEditor({ layoutIdToLoad, eventId }: Props) {
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
   }, [userId, save])
+
+  // "Duplicar" — forks the layout's last SAVED content (re-reads from DB,
+  // ignores any unsaved edits currently on the canvas). Original untouched.
+  const handleDuplicate = useCallback(async () => {
+    if (!layoutId) return
+    setDuplicating(true)
+    try {
+      const original = await layoutService.getForDuplicate(layoutId)
+      const newName = `${original.name} (copia)`
+      const newId = await layoutService.duplicate(
+        original.org_id,
+        newName,
+        {
+          elements: original.elements,
+          drawings: original.drawings,
+          meta: { ...original.meta, cliente: newName },
+          viewport: original.viewport,
+        },
+        layoutId
+      )
+      onLayoutForked?.(newId)
+    } finally {
+      setDuplicating(false)
+    }
+  }, [layoutId, onLayoutForked])
+
+  // "Guardar como copia" — forks the CURRENT canvas state (including
+  // unsaved changes), as a new independent row. Original untouched.
+  const handleSaveAsCopy = useCallback(async () => {
+    if (!userId) return
+    setSavingAsCopy(true)
+    try {
+      const currentName = inputNameRef.current
+      const newName = `${currentName} (copia)`
+      const newId = await layoutService.duplicate(
+        userId,
+        newName,
+        {
+          elements: elementsRef.current,
+          drawings: drawingsRef.current,
+          meta: { ...layoutMetaRef.current, cliente: newName },
+          viewport: viewportRef.current,
+        },
+        layoutId
+      )
+      onLayoutForked?.(newId)
+    } finally {
+      setSavingAsCopy(false)
+    }
+  }, [userId, layoutId, onLayoutForked])
 
   const handleSaveAsAsset = useCallback(async (element: typeof selectedElement) => {
     if (!element) return
@@ -167,6 +221,22 @@ export default function LayoutEditor({ layoutIdToLoad, eventId }: Props) {
         <div className="flex-1" />
         {saveStatus === 'saving' && <span className="text-[10px] text-indigo-400 animate-pulse">Guardando...</span>}
         {saveStatus === 'saved' && <span className="text-[10px] text-green-500">✓ Guardado</span>}
+        <button
+          onClick={handleSaveAsCopy}
+          disabled={!userId || savingAsCopy}
+          title="Crea una copia independiente a partir del estado actual del canvas — el original no se modifica"
+          className="h-7 px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 disabled:opacity-40 transition-colors"
+        >
+          {savingAsCopy ? 'Guardando copia...' : 'Guardar como copia'}
+        </button>
+        <button
+          onClick={handleDuplicate}
+          disabled={!layoutId || duplicating}
+          title={layoutId ? 'Duplica el layout (última versión guardada)' : 'Guarda el layout antes de duplicarlo'}
+          className="h-7 px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 disabled:opacity-40 transition-colors"
+        >
+          {duplicating ? 'Duplicando...' : 'Duplicar'}
+        </button>
         <button
           onClick={handleSave}
           disabled={!userId || saveStatus === 'saving'}

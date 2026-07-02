@@ -7,6 +7,7 @@ interface Props {
   onOpen: (id: string) => void
   onNew: () => void
   onDelete: (id: string) => void
+  onDuplicate: (id: string) => Promise<void>
   userName: string
   onSignOut: () => void
   eventId?: string | null
@@ -20,9 +21,10 @@ function formatDate(iso: string) {
 }
 
 export default function LayoutDashboard({
-  layouts, loading, onOpen, onNew, onDelete, userName, onSignOut, eventId
+  layouts, loading, onOpen, onNew, onDelete, onDuplicate, userName, onSignOut, eventId
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col">
@@ -110,14 +112,36 @@ export default function LayoutDashboard({
                     <p className="text-sm font-semibold text-slate-100 truncate">{layout.name}</p>
                     <p className="text-xs text-slate-500 mt-0.5">{formatDate(layout.updated_at)}</p>
                   </div>
-                  <button
-                    onClick={e => { e.stopPropagation(); setConfirmDelete(layout.id) }}
-                    className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-1 rounded flex-none"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M2 3.5h10M5.5 3.5V2.5h3v1M5 5.5l.5 5M9 5.5l-.5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                  </button>
+                  <div className="opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 flex-none">
+                    <button
+                      disabled={duplicatingId === layout.id}
+                      onClick={async e => {
+                        e.stopPropagation()
+                        setDuplicatingId(layout.id)
+                        try {
+                          await onDuplicate(layout.id)
+                        } finally {
+                          setDuplicatingId(null)
+                        }
+                      }}
+                      title="Duplicar layout"
+                      className="text-slate-600 hover:text-indigo-400 transition-colors p-1 rounded disabled:opacity-40"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <rect x="4.5" y="4.5" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.5"/>
+                        <path d="M1.5 9.5V2a.5.5 0 0 1 .5-.5h7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                    </button>
+                    <button
+                      onClick={e => { e.stopPropagation(); setConfirmDelete(layout.id) }}
+                      title="Eliminar layout"
+                      className="text-slate-600 hover:text-red-400 transition-colors p-1 rounded"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M2 3.5h10M5.5 3.5V2.5h3v1M5 5.5l.5 5M9 5.5l-.5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

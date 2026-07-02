@@ -61,6 +61,37 @@ export const layoutService = {
     return data.id
   },
 
+  async getForDuplicate(id: string): Promise<{ org_id: string; name: string } & LayoutData> {
+    const { data, error } = await supabase
+      .from('layouts')
+      .select('org_id, name, elements, drawings, meta, viewport')
+      .eq('id', id)
+      .single()
+    if (error) throw error
+    return data
+  },
+
+  // Creates a brand-new, independent layout row forked from `parentLayoutId`
+  // (or a fresh root if null). Never touches the parent row — used by both
+  // "Duplicar" (re-fetches the parent's last saved content) and "Guardar
+  // como copia" (forks the editor's current, possibly unsaved, canvas state).
+  async duplicate(orgId: string, name: string, payload: LayoutData, parentLayoutId: string | null): Promise<string> {
+    const { data, error } = await supabase
+      .from('layouts')
+      .insert({
+        org_id: orgId,
+        name,
+        ...payload,
+        parent_layout_id: parentLayoutId,
+        version_number: 1,
+        created_by: (await supabase.auth.getUser()).data.user?.id,
+      })
+      .select('id')
+      .single()
+    if (error) throw error
+    return data.id
+  },
+
   async setEventId(id: string, eventId: string): Promise<void> {
     const { error } = await supabase
       .from('layouts')

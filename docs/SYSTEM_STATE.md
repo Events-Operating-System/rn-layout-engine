@@ -120,6 +120,9 @@ frontend/
 | Canvas renders on iPhone Safari (DPR=3, iOS Safari) | ✅ confirmed on device |
 | Konva pixelRatio capped at 2 (canvas memory ≤ ~12.5 MB on DPR=3) | ✅ |
 | Stage deferred until ResizeObserver fires (no premature 800×600 canvas) | ✅ |
+| Duplicar layout (dashboard y editor) — crea registro nuevo e independiente, copia elements/drawings/meta/viewport, `parent_layout_id` → original, `version_number`=1, `name`="{original} (copia)", NO hereda `event_id`, redirige al editor del duplicado | ✅ (verificado por análisis de código; pendiente de confirmación visual en app real con sesión autenticada — requiere migración SQL aplicada primero, ver `supabase/migrations/`) |
+| Guardar como copia (editor) — fork desde el ESTADO ACTUAL del canvas (incluye cambios no guardados), no desde el último guardado en DB; el original nunca se modifica | ✅ (mismo pendiente de confirmación visual que arriba) |
+| "Carpeta de cliente" — NO existe como concepto en este repo (dashboard es lista plana por `org_id`; `cliente` es solo texto libre en `LayoutMeta`, sin FK ni agrupador). Ver DECISION_LOG / sesión 2026-07-02 | N/A — reportado, no construido |
 
 ---
 
@@ -163,6 +166,7 @@ See DEPLOYMENT.md rollback table for commit-level safety ratings.
 
 # NEXT PRIORITIES
 
+0. **⚠️ Ejecutar migración SQL pendiente** — `supabase/migrations/20260702000000_layout_duplication.sql` (agrega `parent_layout_id` + `version_number` a `layouts`). Sin esta migración, "Duplicar" y "Guardar como copia" fallarán en producción. No se ejecutó automáticamente — no hay acceso de service-role/CLI desde este entorno de agente.
 1. **Push to main** — `git push origin main` → auto-deploy fires → verify on desktop + iPhone Safari (includes SESSION-0015 + SESSION-0016)
 2. **Office testing** — validate UX Pass v1 + v2 features with real team, exported plans, interaction stability
 3. **Layout persistence** (RISK-0015) — localStorage save/load is next engineering priority after office testing
