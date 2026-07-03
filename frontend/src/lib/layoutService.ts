@@ -58,7 +58,45 @@ export const layoutService = {
       .select('id')
       .single()
     if (error) throw error
+
+    // First layout ever created for this event auto-links itself as the
+    // event's official layout (eventos.events.layout_id). If the event
+    // already has one linked, this is an alternate/draft version — leave it
+    // unlinked so the manual "Vincular" button in eventos-eventos-frontend
+    // stays the way to promote it (multi-version workflow, same pattern as
+    // Ventas quotes v1/v2). Never blocks the save itself if it fails.
+    if (eventId) {
+      try {
+        const currentLayoutId = await this.getEventLayoutId(eventId)
+        if (!currentLayoutId) {
+          await this.linkEventLayout(eventId, data.id)
+        }
+      } catch (linkError) {
+        console.error('[layoutService] auto-link to event failed:', linkError)
+      }
+    }
+
     return data.id
+  },
+
+  async getEventLayoutId(eventId: string): Promise<string | null> {
+    const { data, error } = await supabase
+      .schema('eventos')
+      .from('events')
+      .select('layout_id')
+      .eq('id', eventId)
+      .maybeSingle()
+    if (error) throw error
+    return data?.layout_id ?? null
+  },
+
+  async linkEventLayout(eventId: string, layoutId: string): Promise<void> {
+    const { error } = await supabase
+      .schema('eventos')
+      .from('events')
+      .update({ layout_id: layoutId })
+      .eq('id', eventId)
+    if (error) throw error
   },
 
   async getForDuplicate(id: string): Promise<{ org_id: string; name: string } & LayoutData> {

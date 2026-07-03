@@ -47,3 +47,14 @@
 - Office testing de todo lo de hoy con el equipo real (fuera de Playwright+mocks)
 - Evaluar como batches futuros, si se necesitan: curvas bezier reales para Polígono, cotas formales tipo AutoCAD
 - Revisar/cerrar RISK-0015 en `docs/KNOWN_RISKS.md` — quedó obsoleto desde que existe persistencia real vía Supabase
+
+### Sesión 2026-07-03
+**Completado:**
+- Fix: auto-vinculación del primer layout creado para un evento. El botón "Vincular" manual y el tab Layout con la lista "Layouts creados para este evento" NO viven en este repo — viven en `eventos-eventos-frontend` (`src/pages/EventoDetalle.tsx` `LayoutTab`, `src/services/eventService.ts`). Ese repo hace `supabase.schema('eventos').from('events').update({layout_id})` directo desde el cliente, sin RPC — mismo proyecto Supabase que este repo (`rn-layout-engine-v2`, `zwrekwltmipmdbautnwd.supabase.co`), confirmado por `VITE_SUPABASE_URL` idéntico en ambos `.env`
+- `layoutService.save()` (rama insert) ahora, tras crear el layout, consulta `eventos.events.layout_id` para el `event_id` recién guardado; si es `NULL` (primer layout del evento), dispara `UPDATE eventos.events SET layout_id = [nuevo id]` automáticamente vía el mismo mecanismo `.schema('eventos')`; si ya tiene valor (evento con layout oficial + boceto/alternativa nueva), NO auto-vincula — el botón "Vincular" manual en `eventos-eventos-frontend` sigue intacto para ese caso (versionado tipo quotes v1/v2 de Ventas)
+- Nuevos métodos `layoutService.getEventLayoutId()` / `layoutService.linkEventLayout()`, ambos cross-schema vía `.schema('eventos')`
+- Verificado end-to-end en navegador real (dev server + Playwright con mocks de red HTTP, no del cliente JS): ambos escenarios (auto-link cuando `layout_id` es null, no-auto-link cuando ya tiene valor) confirmados por las llamadas de red reales (`Accept-Profile`/`Content-Profile: eventos`)
+
+**Próximo paso:**
+- Validar con datos reales en producción (evento real en `eventos-eventos-frontend`, no solo mocks) — ver NEXT PRIORITIES #1b en `docs/SYSTEM_STATE.md`
+- Mismos pendientes de sesiones anteriores (migración de duplicación sin ejecutar, office testing general)
