@@ -41,27 +41,38 @@
 frontend/
 ├── index.html              — Vite SPA entry point
 ├── vite.config.ts          — Build config (react plugin, tailwindcss plugin, @/ alias)
+├── vercel.json             — SPA rewrites (moved here from repo root 2026-07-01)
 ├── tsconfig.json
 ├── src/
-│   ├── main.tsx            — React root mount
-│   ├── App.tsx             — Application shell + LangProvider + EN/ES toggle
+│   ├── main.tsx            — React root mount (StrictMode)
+│   ├── App.tsx             — Auth guard + org-membership check + dashboard/editor router (path-based, no SPA router lib)
 │   ├── index.css           — Global styles
 │   ├── context/
 │   │   └── LangContext.tsx     — EN/ES language context, string catalog, useLang() hook
 │   ├── components/
+│   │   ├── LayoutDashboard.tsx     — Flat list of layouts by org_id; new/open/duplicate/delete
+│   │   ├── SinAcceso.tsx           — Shown when an authenticated user has no organization_members row
 │   │   ├── LayoutEditor.tsx        — Column layout: DrawingToolbar → panels row → FooterLegend
-│   │   ├── DrawingToolbar.tsx      — Tool selector + undo/redo + export button (translated)
+│   │   ├── DrawingToolbar.tsx      — Tool selector + Medir sub-mode toggle + undo/redo + export (translated)
 │   │   ├── FooterLegend.tsx        — CAD-style title block; branding: EventOS Layout / powered by / {company}
 │   │   ├── canvas/
-│   │   │   └── LayoutCanvas.tsx    — Konva Stage; exposes exportPNG via forwardRef
+│   │   │   └── LayoutCanvas.tsx    — Konva Stage; exposes exportPNG/exportPDF via forwardRef
 │   │   └── panels/
 │   │       ├── AssetLibraryPanel.tsx   — 40 assets across 7 categories (incl. Shapes); EN/ES asset names
-│   │       ├── PropertiesPanel.tsx     — Element + drawing properties + delete/duplicate
+│   │       ├── CustomAssetsPanel.tsx   — User-saved custom assets (create from selection / delete)
+│   │       ├── PropertiesPanel.tsx     — Element + drawing properties + delete/duplicate/z-order
 │   │       └── LegendPanel.tsx         — Category color legend
 │   ├── hooks/
-│   │   └── useCanvasState.ts       — Canvas + drawing + metadata state + undo/redo (50-step history)
+│   │   ├── useCanvasState.ts       — Canvas + drawing + tool + metadata state + undo/redo (50-step history)
+│   │   ├── useLayoutPersistence.ts — save/load/list/newLayout against Supabase, per org_id
+│   │   └── useCustomAssets.ts      — CRUD for the "Mis Assets" panel, per user
+│   ├── lib/
+│   │   ├── supabase.ts             — Supabase client + checkOrgMembership()
+│   │   ├── layoutService.ts        — CRUD + duplicate/fork for the `layouts` table
+│   │   ├── assetService.ts         — CRUD for user-saved custom assets
+│   │   └── drawingMath.ts          — Framework-agnostic geometry: length/angle/snap (Línea, Polígono), polygonAreaMeters (Shoelace), elementAreaMeters
 │   └── types/
-│       └── layout.ts               — LayoutElement, DrawingPrimitive, LayoutMeta, etc.
+│       └── layout.ts               — LayoutElement (incl. shape:'polygon' + points), DrawingPrimitive, DrawingTool, LayoutMeta, etc.
 ```
 
 ---
@@ -70,14 +81,15 @@ frontend/
 
 | Branch | Tip commit | State | Notes |
 |---|---|---|---|
-| `main` | `42c0a25` | **Committed locally, pending push** — SESSION-0015 + SESSION-0016 | UX Pass v1 + v2: 15 features + undo/redo + i18n + guides. Push triggers auto-deploy. |
+| `main` | `1fd8c50` | **Pushed to origin, deployed** — SESSION-0018 (9 commits today, 2026-07-02: PDF export fixes → duplicar/guardar como copia → Selección/Mano+marquee+multi-select → operaciones en bloque → z-order+texto+flip → snap numérico en líneas → Polígono+Medir → fix Distancia/Área) | `git rev-list --left-right --count origin/main...main` → `0 0`, confirmed clean |
 | `feat/vite-migration` | `cb48499` | Legacy — merged, preserved for reference | Behind main. Safe to delete after office testing. |
 
-**Merge status:** Complete. `feat/vite-migration` merged into `main` 2026-05-23. `main` is now canonical production branch. Auto-deploy confirmed healthy — push to `main` → `rn-layout-engine.vercel.app` updates automatically.
+**Merge status:** Complete. `feat/vite-migration` merged into `main` 2026-05-23. `main` is now canonical production branch. Auto-deploy confirmed healthy — push to `main` → `rn-layout-engine.vercel.app` updates automatically (confirmed again today: 9/9 pushes each triggered a "Ready" production deployment, verified via `vercel ls`/`vercel inspect`).
 
 ---
 
-# VALIDATED BEHAVIORS (local, 2026-05-23)
+# VALIDATED BEHAVIORS
+(baseline local, 2026-05-23 — rows dated 2026-07-02 were added/updated across today's 9 commits, see BRANCH STATE)
 
 | Behavior | Status |
 |---|---|
@@ -146,16 +158,16 @@ frontend/
 
 # DEPLOYMENT
 
-**Status:** LIVE — auto-deployed 2026-05-23, iPhone Safari confirmed, pipeline healthy
+**Status:** LIVE — auto-deployed 2026-07-02 (SESSION-0018, last of 9 deploys today), iPhone Safari confirmed 2026-05-23, pipeline healthy
 
 | Property | Value |
 |---|---|
 | Provider | Vercel |
 | **Canonical production URL** | **https://rn-layout-engine.vercel.app** |
 | Canonical Vercel project | `javier-bambaren-d-s-projects/rn-layout-engine` |
-| Current production deployment | `dpl_YysFxVbt3wdEYVGGqW3FpV3QKXAY` (auto-deployed from `main`) |
+| Current production deployment | `dpl_9kYAjgrYtUvvNsGPvYer8766BNpE` — commit `1fd8c50`, status **Ready**, confirmed via `vercel inspect` |
 | Production branch | `main` |
-| Auto-deploy | **Active** — push to `main` triggers production deploy |
+| Auto-deploy | **Active** — push to `main` triggers production deploy (9/9 pushes today landed as Ready deployments) |
 | Deployment Protection | Enabled — per-hash URLs require auth; alias URL does not |
 | Legacy Vercel project (do not use) | https://frontend-eta-five-50.vercel.app — temporary debug artifact, manual-deploy only, pending deletion |
 
@@ -184,9 +196,10 @@ See DEPLOYMENT.md rollback table for commit-level safety ratings.
 
 # NEXT PRIORITIES
 
-0. **⚠️ Ejecutar migración SQL pendiente** — `supabase/migrations/20260702000000_layout_duplication.sql` (agrega `parent_layout_id` + `version_number` a `layouts`). Sin esta migración, "Duplicar" y "Guardar como copia" fallarán en producción. No se ejecutó automáticamente — no hay acceso de service-role/CLI desde este entorno de agente.
-1. **Push to main** — `git push origin main` → auto-deploy fires → verify on desktop + iPhone Safari (includes SESSION-0015 + SESSION-0016)
-2. **Office testing** — validate UX Pass v1 + v2 features with real team, exported plans, interaction stability
-3. **Layout persistence** (RISK-0015) — localStorage save/load is next engineering priority after office testing
-4. **Delete or archive `frontend` Vercel project** — debugging artifact. See RISK-0020.
-5. **Remaining feature candidates:** Touch drawing support (RISK-0017), background image upload, "fit all" zoom
+0. **⚠️ Ejecutar migración SQL pendiente** — `supabase/migrations/20260702000000_layout_duplication.sql` (agrega `parent_layout_id` + `version_number` a `layouts`). Sin esta migración, "Duplicar" y "Guardar como copia" fallarán en producción. Sigue sin ejecutarse — no hay acceso de service-role/CLI desde este entorno de agente. **Sigue siendo el bloqueante #1 antes de que Duplicar/Guardar como copia funcionen en producción real.**
+1. **Office testing** — validar en el día a día real del equipo: exportar planos, duplicar/forkear layouts, dibujar polígonos de terreno irregular, medir distancias/áreas — todo lo construido hoy (SESSION-0018) sigue sin probarse con datos y usuarios reales fuera de Playwright+mocks.
+2. **Curvas bezier reales para Polígono** — explícitamente fuera de alcance del batch de hoy (solo segmentos rectos); evaluar como batch futuro si el caso de uso lo pide.
+3. **Cotas formales tipo AutoCAD** (líneas de dimensión persistentes con flechas, distinto de la medición efímera de hoy) — explícitamente diferido como "batch futuro, evaluado aparte" en el spec de Medir de hoy.
+4. **Cerrar o actualizar RISK-0015** en `docs/KNOWN_RISKS.md` — fue escrito cuando no existía ninguna persistencia ("localStorage" como remedio propuesto); hoy la persistencia real ya existe vía Supabase (`useLayoutPersistence` + `layoutService`, con duplicar/guardar como copia incluidos) — el riesgo tal como está redactado ya no aplica.
+5. **Delete or archive `frontend` Vercel project** — debugging artifact. See RISK-0020.
+6. **Remaining feature candidates:** Touch drawing support (RISK-0017), background image upload, "fit all" zoom
