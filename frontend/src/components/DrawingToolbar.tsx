@@ -22,11 +22,13 @@ interface DrawingToolbarProps {
 }
 
 const TOOL_DEFS: { tool: DrawingTool; icon: string; shortcut: string }[] = [
-  { tool: 'pointer', icon: '↖', shortcut: 'S' },
-  { tool: 'hand',    icon: '✋', shortcut: 'H' },
-  { tool: 'line',    icon: '—', shortcut: 'L' },
-  { tool: 'arrow',   icon: '→', shortcut: 'A' },
-  { tool: 'text',    icon: 'T', shortcut: 'T' },
+  { tool: 'pointer',  icon: '↖', shortcut: 'S' },
+  { tool: 'hand',     icon: '✋', shortcut: 'H' },
+  { tool: 'line',     icon: '—', shortcut: 'L' },
+  { tool: 'arrow',    icon: '→', shortcut: 'A' },
+  { tool: 'polygon',  icon: '⬠', shortcut: 'P' },
+  { tool: 'text',     icon: 'T', shortcut: 'T' },
+  { tool: 'measure',  icon: '📐', shortcut: 'M' },
 ]
 
 export default function DrawingToolbar({
@@ -53,6 +55,16 @@ export default function DrawingToolbar({
     line: t.toolLine,
     arrow: t.toolArrow,
     text: t.toolText,
+    polygon: t.toolPolygon,
+    measure: t.toolMeasure,
+  }
+
+  const toolHints: Partial<Record<DrawingTool, string>> = {
+    line: t.toolHint,
+    arrow: t.toolHint,
+    text: t.toolHint,
+    polygon: t.toolHintPolygon,
+    measure: t.toolHintMeasure,
   }
 
   return (
@@ -133,7 +145,7 @@ export default function DrawingToolbar({
 
       {activeTool !== 'pointer' && activeTool !== 'hand' && effectiveTool === activeTool && (
         <span className="hidden md:block text-[9px] text-slate-600 font-mono select-none">
-          {t.toolHint}
+          {toolHints[activeTool] ?? t.toolHint}
         </span>
       )}
 

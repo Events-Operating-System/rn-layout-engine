@@ -30,7 +30,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
     elements, selectedId, selectedIds, selectedElement,
     selectedDrawingId, selectedDrawing,
     viewport, selectElement, toggleSelectElement, selectElements, selectDrawing,
-    updateElement, updateElements, updateViewport, addElement,
+    updateElement, updateElements, updateViewport, addElement, addPolygon,
     deleteElement, deleteElements, duplicateElement, duplicateElements,
     bringToFront, sendToBack, activeTool, setTool,
     drawings, addDrawing, deleteDrawing, updateDrawing,
@@ -208,6 +208,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
       else if (e.key === 'l') setTool('line')
       else if (e.key === 'a') setTool('arrow')
       else if (e.key === 't') setTool('text')
+      else if (e.key === 'p') setTool('polygon')
+      else if (e.key === 'm') setTool('measure')
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -307,6 +309,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
             onUpdateElement={updateElement}
             onUpdateElements={updateElements}
             onUpdateViewport={updateViewport}
+            onAddPolygon={addPolygon}
             onDeleteElement={deleteElement}
             onDeleteElements={deleteElements}
             activeTool={effectiveTool}

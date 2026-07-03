@@ -1,6 +1,8 @@
-// Reusable geometry for drag-to-draw tools (line/arrow today; polygon and
-// a standalone measurement tool are planned to reuse this same module —
-// keep it framework-agnostic, no React/Konva imports here).
+// Reusable geometry for drag-to-draw tools (line/arrow, polygon, and the
+// measurement tool all share this module — keep it framework-agnostic, no
+// React/Konva imports here; only type-only imports are allowed).
+
+import type { ElementShape } from '@/types/layout'
 
 export interface Point {
   x: number
@@ -44,4 +46,35 @@ export function applyAngleSnap(angleDeg: number, shiftHeld: boolean): number {
   return shiftHeld
     ? snapAngleDegrees(angleDeg, ANGLE_SNAP_FORCED_STEP_DEG, null)
     : snapAngleDegrees(angleDeg, ANGLE_SNAP_STEP_DEG, ANGLE_SNAP_TOLERANCE_DEG)
+}
+
+// Shoelace formula — area of a simple polygon (convex or concave, incl.
+// L-shapes) from a flat [x0,y0,x1,y1,...] point list. Works unchanged
+// whether the points are absolute world coords or offsets relative to a
+// bounding box, since area is translation-invariant.
+export function polygonAreaMeters(points: number[]): number {
+  const n = points.length / 2
+  if (n < 3) return 0
+  let sum = 0
+  for (let i = 0; i < n; i++) {
+    const x1 = points[i * 2]
+    const y1 = points[i * 2 + 1]
+    const j = (i + 1) % n
+    const x2 = points[j * 2]
+    const y2 = points[j * 2 + 1]
+    sum += x1 * y2 - x2 * y1
+  }
+  return Math.abs(sum) / 2
+}
+
+// Real (not bounding-box) area for a placed element, in m² — used by both
+// the measurement tool and the Properties panel so the two never disagree.
+export function elementAreaMeters(el: { shape?: ElementShape; width: number; height: number; points?: number[] }): number {
+  if (el.shape === 'polygon' && el.points && el.points.length >= 6) {
+    return polygonAreaMeters(el.points)
+  }
+  if (el.shape === 'circle' || el.shape === 'oval') {
+    return Math.PI * (el.width / 2) * (el.height / 2)
+  }
+  return el.width * el.height
 }

@@ -1,7 +1,7 @@
 import type { LayoutElement, DrawingPrimitive } from '@/types/layout'
 import { useLang, getCategoryLabel } from '@/context/LangContext'
 import { PIXELS_PER_METER } from '@/components/canvas/LayoutCanvas'
-import { lengthMeters, angleDegrees, pointFromLengthAngle } from '@/lib/drawingMath'
+import { lengthMeters, angleDegrees, pointFromLengthAngle, elementAreaMeters } from '@/lib/drawingMath'
 
 interface PropertiesPanelProps {
   element: LayoutElement | null
@@ -160,16 +160,26 @@ function ElementProperties({
       </Section>
 
       <Section label={t.sDimensions}>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label={t.fWidth}>
-            <NumberInput value={element.width} step={0.5} min={0.5} onChange={v => onUpdate(element.id, { width: v })} />
-          </Field>
-          <Field label={t.fHeight}>
-            <NumberInput value={element.height} step={0.5} min={0.5} onChange={v => onUpdate(element.id, { height: v })} />
-          </Field>
-        </div>
+        {element.shape === 'polygon' ? (
+          // Width/height are just the polygon's bounding box — editing them
+          // as plain numbers would desync `points` (the actual shape) from
+          // them. Resize by dragging the Transformer handles instead, which
+          // rescales `points` to match (see LayoutCanvas onTransformEnd).
+          <p className="text-xs text-slate-300">
+            {Math.round(element.width * 10) / 10}m × {Math.round(element.height * 10) / 10}m
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <Field label={t.fWidth}>
+              <NumberInput value={element.width} step={0.5} min={0.5} onChange={v => onUpdate(element.id, { width: v })} />
+            </Field>
+            <Field label={t.fHeight}>
+              <NumberInput value={element.height} step={0.5} min={0.5} onChange={v => onUpdate(element.id, { height: v })} />
+            </Field>
+          </div>
+        )}
         <p className="text-[10px] text-slate-600 mt-1">
-          {t.area}: {Math.round(element.width * element.height * 10) / 10} m²
+          {t.area}: {Math.round(elementAreaMeters(element) * 100) / 100} m²
         </p>
       </Section>
 

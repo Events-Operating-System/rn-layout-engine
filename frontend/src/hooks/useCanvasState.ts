@@ -307,6 +307,32 @@ export function useCanvasState() {
     if (tool !== 'pointer' && tool !== 'hand') setSelectedIds(new Set())
   }, [])
 
+  // Free-form polygon tool (batch: polygon + measurement). `points` are
+  // already computed relative to (x,y) in meters — see LayoutElement.points
+  // — so this is a straight append, same shape as addDrawing.
+  const addPolygon = useCallback((polygon: { x: number; y: number; width: number; height: number; points: number[] }) => {
+    pushHistory()
+    const id = `el-${Date.now()}`
+    const newEl: LayoutElement = {
+      id,
+      name: 'Polígono',
+      category: 'primitive',
+      x: polygon.x,
+      y: polygon.y,
+      width: polygon.width,
+      height: polygon.height,
+      rotation: 0,
+      color: CATEGORY_COLORS.primitive,
+      locked: false,
+      notes: '',
+      shape: 'polygon',
+      points: polygon.points,
+    }
+    setElements(prev => [...prev, newEl])
+    setSelectedIds(new Set([id]))
+    setSelectedDrawingId(null)
+  }, [pushHistory])
+
   const addDrawing = useCallback((primitive: Omit<DrawingPrimitive, 'id'>) => {
     pushHistory()
     const id = `drw-${Date.now()}`
@@ -357,6 +383,7 @@ export function useCanvasState() {
     updateElements,
     updateViewport,
     addElement,
+    addPolygon,
     deleteElement,
     deleteElements,
     duplicateElement,

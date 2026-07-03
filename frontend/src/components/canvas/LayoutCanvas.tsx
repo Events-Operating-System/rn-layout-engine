@@ -3,7 +3,7 @@ import { Stage, Layer, Line, Arrow, Rect, Circle, Ellipse, Text, Group, Shape, T
 import type Konva from 'konva'
 import type { LayoutElement, CanvasViewport, DrawingPrimitive, DrawingTool, LayoutMeta } from '@/types/layout'
 import { FOOTER_HEIGHT_PX } from '@/components/FooterLegend'
-import { lengthMeters, angleDegrees, applyAngleSnap, pointFromLengthAngle } from '@/lib/drawingMath'
+import { lengthMeters, angleDegrees, applyAngleSnap, pointFromLengthAngle, elementAreaMeters, type Point } from '@/lib/drawingMath'
 import jsPDF from 'jspdf'
 
 export const PIXELS_PER_METER = 20
@@ -42,6 +42,7 @@ interface LayoutCanvasProps {
   activeTool: DrawingTool
   drawings: DrawingPrimitive[]
   onAddDrawing: (primitive: Omit<DrawingPrimitive, 'id'>) => void
+  onAddPolygon: (polygon: { x: number; y: number; width: number; height: number; points: number[] }) => void
   layoutMeta: LayoutMeta
   selectedDrawingId: string | null
   onSelectDrawing: (id: string | null) => void
@@ -93,6 +94,21 @@ function computeAlignmentGuides(
   return { xs: Array.from(xSet), ys: Array.from(ySet) }
 }
 
+// Walks up from a clicked Konva node to find the nearest ancestor (or
+// itself) carrying an `id` — that's how AssetShape's outer Group is
+// identified (`id={element.id}`), regardless of how many nested Groups/
+// Shapes sit between the actual hit target and it (flip Group, tree's
+// inner circles, polygon's Line, etc).
+function findElementId(node: Konva.Node): string | null {
+  let cur: Konva.Node | null = node
+  while (cur && cur.getClassName() !== 'Stage') {
+    const id = cur.id()
+    if (id) return id
+    cur = cur.getParent()
+  }
+  return null
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
@@ -101,7 +117,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       elements, selectedId, selectedIds, viewport,
       onSelect, onToggleSelect, onSelectMultiple, onUpdateElement, onUpdateElements, onUpdateViewport,
       onDeleteElement, onDeleteElements,
-      activeTool, drawings, onAddDrawing, layoutMeta,
+      activeTool, drawings, onAddDrawing, onAddPolygon, layoutMeta,
       selectedDrawingId, onSelectDrawing, onDeleteDrawing, onUpdateDrawing,
       onPushHistory,
     }: LayoutCanvasProps,
@@ -149,6 +165,46 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       screenX: number; screenY: number; lengthM: number; angleDeg: number; snapped: boolean
     } | null>(null)
     const [alignGuides, setAlignGuides] = useState<{ xs: number[]; ys: number[] }>({ xs: [], ys: [] })
+
+    // ── Polygon tool refs + state ─────────────────────────────────────────────
+    // Committed vertices (world-px) for the polygon currently being drawn —
+    // ref is the source of truth read inside event handlers, state drives
+    // the live preview render.
+    const polygonPointsRef = useRef<Point[]>([])
+    const [polygonPoints, setPolygonPoints] = useState<Point[]>([])
+    const [polygonPreviewEnd, setPolygonPreviewEnd] = useState<Point | null>(null)
+    // Manual double-click-to-close detection (time + world-px distance from
+    // the previous polygon click) — deliberately NOT Konva's native
+    // onDblClick/`_dblclick` synthesis, which fires based on "same target
+    // node" rather than actual cursor distance: clicking twice in quick
+    // succession anywhere on the same large background shape (e.g. an
+    // existing asset the polygon is being drawn over) was being
+    // misdetected as a double-click and silently discarding the
+    // in-progress polygon after almost every other vertex.
+    const lastPolygonClickRef = useRef<{ x: number; y: number; time: number } | null>(null)
+
+    // ── Measurement tool refs + state (ephemeral — never touches elements/
+    // drawings, so it never persists) ─────────────────────────────────────────
+    const measureStartRef = useRef<Point | null>(null)
+    const [measurePreviewEnd, setMeasurePreviewEnd] = useState<Point | null>(null)
+    const [measurement, setMeasurement] = useState<
+      | { type: 'distance'; lengthM: number; angleDeg: number; screenX: number; screenY: number }
+      | { type: 'area'; areaM2: number; elementName: string; screenX: number; screenY: number }
+      | null
+    >(null)
+
+    // Switching tools discards any in-progress polygon and any ephemeral
+    // measurement result — neither should survive past the tool that made it.
+    useEffect(() => {
+      polygonPointsRef.current = []
+      setPolygonPoints([])
+      setPolygonPreviewEnd(null)
+      lastPolygonClickRef.current = null
+      measureStartRef.current = null
+      setMeasurePreviewEnd(null)
+      setMeasurement(null)
+      setDrawingReadout(null)
+    }, [activeTool])
 
     // ── Container resize ──────────────────────────────────────────────────────
 
@@ -371,6 +427,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         const isTree = el.shape === 'tree'
         const isCircle = el.shape === 'circle'
         const isOval = el.shape === 'oval'
+        const isPolygon = el.shape === 'polygon'
     
         // Color: árbol=verde, color custom respetado, resto blanco
         const DEFAULT_COLORS = ['#6366f1','#0891b2','#f59e0b','#ef4444','#22c55e','#a855f7','#16a34a']
@@ -406,6 +463,18 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2)
           ctx.fill()
           ctx.stroke()
+        } else if (isPolygon && el.points && el.points.length >= 6) {
+          // el.points are meter offsets relative to (x,y) — same convention
+          // as w/h above, so *PPM gives the same local pixel space already
+          // established by the translate/rotate/flip block.
+          ctx.beginPath()
+          ctx.moveTo(el.points[0] * PPM, el.points[1] * PPM)
+          for (let i = 2; i < el.points.length; i += 2) {
+            ctx.lineTo(el.points[i] * PPM, el.points[i + 1] * PPM)
+          }
+          ctx.closePath()
+          ctx.fill()
+          ctx.stroke()
         } else {
           ctx.beginPath()
           ctx.rect(0, 0, w, h)
@@ -413,8 +482,9 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           ctx.stroke()
         }
 
-        // Label
-        if (w > 20 && h > 12) {
+        // Label — bounding-box dims would be misleading over an irregular
+        // polygon (e.g. an L-shape), so it's skipped there too.
+        if (w > 20 && h > 12 && !isPolygon) {
           ctx.fillStyle = isTree ? '#ffffff' : '#1a1a1a'
           const fontSize = Math.min(11, Math.max(7, Math.min(w, h) / 4))
           ctx.font = `600 ${fontSize}px ui-monospace, monospace`
@@ -534,11 +604,124 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       [onUpdateViewport],
     )
 
+    // ── Polygon tool: finalize (close) the shape being drawn ─────────────────
+    // Converts the committed world-px vertices into the LayoutElement.points
+    // convention (meters, relative to the bounding box's top-left corner —
+    // see types/layout.ts) and hands off to useCanvasState.addPolygon. Fewer
+    // than 3 vertices means there's nothing to close — just discard.
+
+    const finalizePolygon = useCallback((pts: Point[]) => {
+      if (pts.length >= 3) {
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+        for (const p of pts) {
+          minX = Math.min(minX, p.x); minY = Math.min(minY, p.y)
+          maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y)
+        }
+        const relPointsMeters: number[] = []
+        for (const p of pts) {
+          relPointsMeters.push((p.x - minX) / PIXELS_PER_METER, (p.y - minY) / PIXELS_PER_METER)
+        }
+        onAddPolygon({
+          x: minX / PIXELS_PER_METER,
+          y: minY / PIXELS_PER_METER,
+          width: (maxX - minX) / PIXELS_PER_METER,
+          height: (maxY - minY) / PIXELS_PER_METER,
+          points: relPointsMeters,
+        })
+      }
+      polygonPointsRef.current = []
+      setPolygonPoints([])
+      setPolygonPreviewEnd(null)
+      setDrawingReadout(null)
+      lastPolygonClickRef.current = null
+    }, [onAddPolygon])
+
     // ── Mouse down — pan OR drawing start ────────────────────────────────────
 
     const handleStageMouseDown = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
       const stage = stageRef.current
       if (!stage) return
+
+      if (activeTool === 'polygon') {
+        const pos = stage.getRelativePointerPosition()
+        if (!pos) return
+        const pts = polygonPointsRef.current
+        const now = Date.now()
+        const prevClick = lastPolygonClickRef.current
+
+        // Manual double-click-to-close: a second mousedown within 400ms and
+        // 6px of the previous one, anywhere along the polygon (not just on
+        // the first vertex) — see lastPolygonClickRef's comment for why
+        // this can't be Konva's native onDblClick.
+        if (
+          pts.length >= 2 &&
+          prevClick && now - prevClick.time < 400 &&
+          Math.hypot(pos.x - prevClick.x, pos.y - prevClick.y) < 6
+        ) {
+          // The first of these two clicks already committed a vertex at
+          // ~this same spot — drop it so we don't close on a degenerate
+          // zero-length edge.
+          finalizePolygon(pts.slice(0, -1))
+          return
+        }
+        lastPolygonClickRef.current = { x: pos.x, y: pos.y, time: now }
+
+        if (pts.length === 0) {
+          polygonPointsRef.current = [pos]
+          setPolygonPoints([pos])
+          return
+        }
+        const first = pts[0]
+        const closeThresholdPx = 10 / viewport.scale
+        if (pts.length >= 3 && Math.hypot(pos.x - first.x, pos.y - first.y) <= closeThresholdPx) {
+          finalizePolygon(pts)
+          return
+        }
+        const last = pts[pts.length - 1]
+        const rawAngle = angleDegrees(last.x, last.y, pos.x, pos.y)
+        const snappedAngle = applyAngleSnap(rawAngle, e.evt.shiftKey)
+        const lengthM = lengthMeters(last.x, last.y, pos.x, pos.y, PIXELS_PER_METER)
+        const newPoint = pointFromLengthAngle(last, lengthM, snappedAngle, PIXELS_PER_METER)
+        const newPts = [...pts, newPoint]
+        polygonPointsRef.current = newPts
+        setPolygonPoints(newPts)
+        return
+      }
+
+      if (activeTool === 'measure') {
+        const pos = stage.getRelativePointerPosition()
+        if (!pos) return
+        const box = containerRef.current?.getBoundingClientRect()
+        const screenX = box ? e.evt.clientX - box.left : 0
+        const screenY = box ? e.evt.clientY - box.top : 0
+
+        if (e.target !== e.target.getStage()) {
+          const elId = findElementId(e.target)
+          const el = elId ? elements.find(x => x.id === elId) : null
+          if (el) {
+            measureStartRef.current = null
+            setMeasurePreviewEnd(null)
+            setDrawingReadout(null)
+            setMeasurement({ type: 'area', areaM2: elementAreaMeters(el), elementName: el.name, screenX, screenY })
+            return
+          }
+        }
+
+        if (measureStartRef.current === null) {
+          measureStartRef.current = pos
+          setMeasurement(null)
+          return
+        }
+
+        const origin = measureStartRef.current
+        const lengthM = lengthMeters(origin.x, origin.y, pos.x, pos.y, PIXELS_PER_METER)
+        const angleDeg = angleDegrees(origin.x, origin.y, pos.x, pos.y)
+        setMeasurement({ type: 'distance', lengthM, angleDeg, screenX, screenY })
+        measureStartRef.current = null
+        setMeasurePreviewEnd(null)
+        setDrawingReadout(null)
+        return
+      }
 
       if (activeTool === 'text') {
         const pos = stage.getRelativePointerPosition()
@@ -587,13 +770,56 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       if (!pos) return
       marqueeOrigin.current = pos
       marqueeMoved.current = false
-    }, [activeTool, onAddDrawing])
+    }, [activeTool, onAddDrawing, viewport.scale, finalizePolygon, elements])
 
     // ── Mouse move ────────────────────────────────────────────────────────────
 
     const handleMouseMove = useCallback((e: Konva.KonvaEventObject<MouseEvent>) => {
       const stage = stageRef.current
       if (!stage) return
+
+      if (activeTool === 'polygon' && polygonPointsRef.current.length > 0) {
+        const pos = stage.getRelativePointerPosition()
+        if (pos) {
+          const pts = polygonPointsRef.current
+          const last = pts[pts.length - 1]
+          const rawAngle = angleDegrees(last.x, last.y, pos.x, pos.y)
+          const snappedAngle = applyAngleSnap(rawAngle, e.evt.shiftKey)
+          const lengthM = lengthMeters(last.x, last.y, pos.x, pos.y, PIXELS_PER_METER)
+          const endPoint = pointFromLengthAngle(last, lengthM, snappedAngle, PIXELS_PER_METER)
+          setPolygonPreviewEnd(endPoint)
+
+          const box = containerRef.current?.getBoundingClientRect()
+          setDrawingReadout({
+            screenX: box ? e.evt.clientX - box.left : 0,
+            screenY: box ? e.evt.clientY - box.top : 0,
+            lengthM,
+            angleDeg: snappedAngle,
+            snapped: snappedAngle !== rawAngle,
+          })
+        }
+        return
+      }
+
+      if (activeTool === 'measure' && measureStartRef.current !== null) {
+        const pos = stage.getRelativePointerPosition()
+        if (pos) {
+          const origin = measureStartRef.current
+          const lengthM = lengthMeters(origin.x, origin.y, pos.x, pos.y, PIXELS_PER_METER)
+          const angleDeg = angleDegrees(origin.x, origin.y, pos.x, pos.y)
+          setMeasurePreviewEnd(pos)
+
+          const box = containerRef.current?.getBoundingClientRect()
+          setDrawingReadout({
+            screenX: box ? e.evt.clientX - box.left : 0,
+            screenY: box ? e.evt.clientY - box.top : 0,
+            lengthM,
+            angleDeg,
+            snapped: false,
+          })
+        }
+        return
+      }
 
       if (drawingStartRef.current !== null) {
         const pos = stage.getRelativePointerPosition()
@@ -658,7 +884,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           y: Math.round((pos.y / PIXELS_PER_METER) * 10) / 10,
         })
       }
-    }, [])
+    }, [activeTool])
 
     // ── Touch start — single-finger pan or two-finger pinch ──────────────────
 
@@ -900,7 +1126,17 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 }}
                 onTransformEnd={(x, y, w, h, rotation) => {
                   onPushHistory()
-                  onUpdateElement(el.id, { x, y, width: w, height: h, rotation })
+                  const updates: Partial<LayoutElement> = { x, y, width: w, height: h, rotation }
+                  // Polygon vertices are stored as raw meter offsets (not
+                  // normalized to width/height), so a resize has to rescale
+                  // them explicitly or the shape would snap back to its
+                  // original size once the Transformer's scale resets to 1.
+                  if (el.shape === 'polygon' && el.points && el.points.length >= 6) {
+                    const scaleX = el.width !== 0 ? w / el.width : 1
+                    const scaleY = el.height !== 0 ? h / el.height : 1
+                    updates.points = el.points.map((v, i) => (i % 2 === 0 ? v * scaleX : v * scaleY))
+                  }
+                  onUpdateElement(el.id, updates)
                 }}
               />
             ))}
@@ -930,6 +1166,61 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 fill="rgba(99,102,241,0.15)"
                 stroke="#6366f1"
                 strokeWidth={1 / viewport.scale}
+                listening={false}
+              />
+            )}
+
+            {/* Polygon tool — committed vertices so far + dashed live
+                segment to the (snapped) cursor position; first vertex is
+                highlighted larger to signal "click here to close" */}
+            {polygonPoints.length > 0 && (
+              <>
+                <Line
+                  points={polygonPoints.flatMap(p => [p.x, p.y])}
+                  stroke={DRAW_COLOR}
+                  strokeWidth={DRAW_STROKE}
+                  lineJoin="round"
+                  listening={false}
+                />
+                {polygonPreviewEnd && (
+                  <Line
+                    points={[
+                      polygonPoints[polygonPoints.length - 1].x,
+                      polygonPoints[polygonPoints.length - 1].y,
+                      polygonPreviewEnd.x,
+                      polygonPreviewEnd.y,
+                    ]}
+                    stroke={DRAW_COLOR}
+                    strokeWidth={DRAW_STROKE}
+                    dash={[6, 4]}
+                    opacity={0.7}
+                    listening={false}
+                  />
+                )}
+                {polygonPoints.map((p, i) => (
+                  <Circle
+                    key={i}
+                    x={p.x}
+                    y={p.y}
+                    radius={(i === 0 ? 5 : 3) / viewport.scale}
+                    fill={i === 0 ? '#22d3ee' : DRAW_COLOR}
+                    listening={false}
+                  />
+                ))}
+              </>
+            )}
+
+            {/* Measurement tool — dashed line between the two clicked
+                points while waiting for the second click */}
+            {activeTool === 'measure' && measureStartRef.current && measurePreviewEnd && (
+              <Line
+                points={[
+                  measureStartRef.current.x, measureStartRef.current.y,
+                  measurePreviewEnd.x, measurePreviewEnd.y,
+                ]}
+                stroke="#22d3ee"
+                strokeWidth={1.5}
+                dash={[6, 4]}
                 listening={false}
               />
             )}
@@ -973,6 +1264,20 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
             style={{ left: drawingReadout.screenX + 14, top: drawingReadout.screenY + 14 }}
           >
             {drawingReadout.lengthM.toFixed(2)}m · {Math.round(drawingReadout.angleDeg)}°
+          </div>
+        )}
+
+        {/* Measurement result — persists until the tool changes or another
+            click replaces it; never written to elements/drawings, so it
+            never pollutes the saved layout */}
+        {measurement && (
+          <div
+            className="absolute font-mono text-[10px] px-2 py-1 rounded border pointer-events-none whitespace-nowrap text-cyan-300 bg-cyan-950/80 border-cyan-700/60"
+            style={{ left: measurement.screenX + 14, top: measurement.screenY + 14 }}
+          >
+            {measurement.type === 'distance'
+              ? `${measurement.lengthM.toFixed(2)}m · ${Math.round(measurement.angleDeg)}°`
+              : `${measurement.elementName}: ${measurement.areaM2.toFixed(2)} m²`}
           </div>
         )}
       </div>
@@ -1175,9 +1480,12 @@ function AssetShape({
   const isOval = element.shape === 'oval'
   const isRoundedRect = element.shape === 'rounded-rect'
   const isTree = element.shape === 'tree'
+  const isPolygon = element.shape === 'polygon'
   const radius = Math.min(pw, ph) / 2
   const fontSize = Math.min(13, Math.max(8, Math.min(pw, ph) / 4))
-  const showLabel = !isTree && pw > 30 && ph > 16
+  // Bounding-box dims would be misleading printed over an irregular
+  // polygon (e.g. an L-shape), so it's excluded the same way `tree` is.
+  const showLabel = !isTree && !isPolygon && pw > 30 && ph > 16
 
   const baseOpacity = element.opacity ?? 0.65
 
@@ -1239,6 +1547,8 @@ function AssetShape({
           <Ellipse x={pw / 2} y={ph / 2} radiusX={pw / 2} radiusY={ph / 2} {...shapeStyle} />
         ) : isRoundedRect ? (
           <Rect width={pw} height={ph} cornerRadius={Math.min(pw, ph) * 0.25} {...shapeStyle} />
+        ) : isPolygon ? (
+          <Line points={(element.points ?? []).map(v => v * PIXELS_PER_METER)} closed {...shapeStyle} />
         ) : isTree ? (
           <Group>
             <Circle x={pw / 2} y={ph / 2} radius={radius} {...shapeStyle} />

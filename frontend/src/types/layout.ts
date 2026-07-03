@@ -29,7 +29,7 @@ export const CATEGORY_LABELS: Record<AssetCategory, string> = {
   primitive: 'Shapes',
 }
 
-export type ElementShape = 'rect' | 'circle' | 'oval' | 'rounded-rect' | 'tree'
+export type ElementShape = 'rect' | 'circle' | 'oval' | 'rounded-rect' | 'tree' | 'polygon'
 
 export interface LayoutElement {
   id: string
@@ -37,8 +37,8 @@ export interface LayoutElement {
   category: AssetCategory
   x: number        // meters from canvas origin
   y: number        // meters from canvas origin
-  width: number    // meters
-  height: number   // meters
+  width: number    // meters — for polygon, the bounding-box width of `points`
+  height: number   // meters — for polygon, the bounding-box height of `points`
   rotation: number // degrees
   color: string
   opacity?: number // 0–1, defaults to 0.65
@@ -47,6 +47,13 @@ export interface LayoutElement {
   shape?: ElementShape
   flipX?: boolean  // mirror horizontally in place, defaults to false
   flipY?: boolean  // mirror vertically in place, defaults to false
+  // shape === 'polygon' only: flat [x0,y0,x1,y1,...] vertex offsets in
+  // METERS, relative to (x,y) (the bounding box's top-left corner) — same
+  // convention as width/height, so moving the element only touches x/y and
+  // resizing only rescales these offsets. Kept as plain meter offsets
+  // (not normalized 0..1) so drawingMath.polygonAreaMeters can shoelace
+  // them directly without unit conversion.
+  points?: number[]
 }
 
 export interface CanvasViewport {
@@ -66,7 +73,7 @@ export interface AssetTemplate {
 
 // ── Drawing primitives ────────────────────────────────────────────────────────
 
-export type DrawingTool = 'pointer' | 'hand' | 'line' | 'arrow' | 'text'
+export type DrawingTool = 'pointer' | 'hand' | 'line' | 'arrow' | 'text' | 'polygon' | 'measure'
 
 export interface DrawingPrimitive {
   id: string
