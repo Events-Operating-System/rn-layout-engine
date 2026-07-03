@@ -81,7 +81,7 @@ frontend/
 
 | Branch | Tip commit | State | Notes |
 |---|---|---|---|
-| `main` | `1fd8c50` | **Pushed to origin, deployed** — SESSION-0018 (9 commits today, 2026-07-02: PDF export fixes → duplicar/guardar como copia → Selección/Mano+marquee+multi-select → operaciones en bloque → z-order+texto+flip → snap numérico en líneas → Polígono+Medir → fix Distancia/Área) | `git rev-list --left-right --count origin/main...main` → `0 0`, confirmed clean |
+| `main` | `eeae250` | **Pushed to origin, deployed** — SESSION-0019 (2026-07-03: auto-vinculación del primer layout de un evento). Previo: SESSION-0018 (9 commits, 2026-07-02) | `git rev-list --left-right --count origin/main...main` → `0 0`, confirmed clean |
 | `feat/vite-migration` | `cb48499` | Legacy — merged, preserved for reference | Behind main. Safe to delete after office testing. |
 
 **Merge status:** Complete. `feat/vite-migration` merged into `main` 2026-05-23. `main` is now canonical production branch. Auto-deploy confirmed healthy — push to `main` → `rn-layout-engine.vercel.app` updates automatically (confirmed again today: 9/9 pushes each triggered a "Ready" production deployment, verified via `vercel ls`/`vercel inspect`).
@@ -159,14 +159,14 @@ frontend/
 
 # DEPLOYMENT
 
-**Status:** LIVE — auto-deployed 2026-07-02 (SESSION-0018, last of 9 deploys today), iPhone Safari confirmed 2026-05-23, pipeline healthy
+**Status:** LIVE — auto-deployed 2026-07-03 (SESSION-0019), iPhone Safari confirmed 2026-05-23, pipeline healthy
 
 | Property | Value |
 |---|---|
 | Provider | Vercel |
 | **Canonical production URL** | **https://rn-layout-engine.vercel.app** |
 | Canonical Vercel project | `javier-bambaren-d-s-projects/rn-layout-engine` |
-| Current production deployment | `dpl_9kYAjgrYtUvvNsGPvYer8766BNpE` — commit `1fd8c50`, status **Ready**, confirmed via `vercel inspect` |
+| Current production deployment | `dpl_GTFzjqveK7tJKwQDdq4iTmzeAJvR` — commit `eeae250`, status **Ready**, confirmed via `vercel inspect` |
 | Production branch | `main` |
 | Auto-deploy | **Active** — push to `main` triggers production deploy (9/9 pushes today landed as Ready deployments) |
 | Deployment Protection | Enabled — per-hash URLs require auth; alias URL does not |
