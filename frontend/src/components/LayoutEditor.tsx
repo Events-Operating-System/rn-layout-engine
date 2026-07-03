@@ -32,7 +32,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
     viewport, selectElement, toggleSelectElement, selectElements, selectDrawing,
     updateElement, updateElements, updateViewport, addElement, addPolygon,
     deleteElement, deleteElements, duplicateElement, duplicateElements,
-    bringToFront, sendToBack, activeTool, setTool,
+    bringToFront, sendToBack, activeTool, setTool, measureMode, setMeasureMode,
     drawings, addDrawing, deleteDrawing, updateDrawing,
     clearDrawings, layoutMeta, updateMeta,
     pushHistory, undo, redo, canUndo, canRedo,
@@ -230,6 +230,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
         activeTool={activeTool}
         effectiveTool={effectiveTool}
         onSetTool={setTool}
+        measureMode={measureMode}
+        onSetMeasureMode={setMeasureMode}
         onClearDrawings={clearDrawings}
         onExport={() => canvasRef.current?.exportPNG()}
         onExportPDF={() => canvasRef.current?.exportPDF()}
@@ -313,6 +315,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
             onDeleteElement={deleteElement}
             onDeleteElements={deleteElements}
             activeTool={effectiveTool}
+            measureMode={measureMode}
             drawings={drawings}
             onAddDrawing={addDrawing}
             layoutMeta={layoutMeta}

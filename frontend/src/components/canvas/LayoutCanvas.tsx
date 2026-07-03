@@ -40,6 +40,9 @@ interface LayoutCanvasProps {
   onDeleteElement: (id: string) => void
   onDeleteElements: (ids: string[]) => void
   activeTool: DrawingTool
+  // Measure tool sub-mode — explicit, never inferred. Distancia never
+  // hit-tests elements (exact click position always wins); Área only does.
+  measureMode: 'distance' | 'area'
   drawings: DrawingPrimitive[]
   onAddDrawing: (primitive: Omit<DrawingPrimitive, 'id'>) => void
   onAddPolygon: (polygon: { x: number; y: number; width: number; height: number; points: number[] }) => void
@@ -117,7 +120,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       elements, selectedId, selectedIds, viewport,
       onSelect, onToggleSelect, onSelectMultiple, onUpdateElement, onUpdateElements, onUpdateViewport,
       onDeleteElement, onDeleteElements,
-      activeTool, drawings, onAddDrawing, onAddPolygon, layoutMeta,
+      activeTool, measureMode, drawings, onAddDrawing, onAddPolygon, layoutMeta,
       selectedDrawingId, onSelectDrawing, onDeleteDrawing, onUpdateDrawing,
       onPushHistory,
     }: LayoutCanvasProps,
@@ -194,7 +197,10 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     >(null)
 
     // Switching tools discards any in-progress polygon and any ephemeral
-    // measurement result — neither should survive past the tool that made it.
+    // measurement result — neither should survive past the tool that made
+    // it. Switching the Measure sub-mode (Distancia ↔ Área) must clear the
+    // same ephemeral state — a half-placed distance point or a stale area
+    // readout shouldn't survive a mode change.
     useEffect(() => {
       polygonPointsRef.current = []
       setPolygonPoints([])
@@ -204,7 +210,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       setMeasurePreviewEnd(null)
       setMeasurement(null)
       setDrawingReadout(null)
-    }, [activeTool])
+    }, [activeTool, measureMode])
 
     // ── Container resize ──────────────────────────────────────────────────────
 
@@ -695,18 +701,24 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         const screenX = box ? e.evt.clientX - box.left : 0
         const screenY = box ? e.evt.clientY - box.top : 0
 
-        if (e.target !== e.target.getStage()) {
-          const elId = findElementId(e.target)
-          const el = elId ? elements.find(x => x.id === elId) : null
-          if (el) {
-            measureStartRef.current = null
-            setMeasurePreviewEnd(null)
-            setDrawingReadout(null)
-            setMeasurement({ type: 'area', areaM2: elementAreaMeters(el), elementName: el.name, screenX, screenY })
-            return
+        if (measureMode === 'area') {
+          // Área only ever reacts to hitting an element — clicking empty
+          // space (or anything without an element id, e.g. a drawing) does
+          // nothing, per spec: there's no area to measure there.
+          if (e.target !== e.target.getStage()) {
+            const elId = findElementId(e.target)
+            const el = elId ? elements.find(x => x.id === elId) : null
+            if (el) {
+              setMeasurement({ type: 'area', areaM2: elementAreaMeters(el), elementName: el.name, screenX, screenY })
+            }
           }
+          return
         }
 
+        // Distancia — elements never capture the click; `pos` is the exact
+        // pointer position regardless of what (if anything) is underneath,
+        // so measuring between two points that fall on/inside elements
+        // (e.g. a pool edge and a tree) works the same as on empty canvas.
         if (measureStartRef.current === null) {
           measureStartRef.current = pos
           setMeasurement(null)
@@ -770,7 +782,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       if (!pos) return
       marqueeOrigin.current = pos
       marqueeMoved.current = false
-    }, [activeTool, onAddDrawing, viewport.scale, finalizePolygon, elements])
+    }, [activeTool, measureMode, onAddDrawing, viewport.scale, finalizePolygon, elements])
 
     // ── Mouse move ────────────────────────────────────────────────────────────
 

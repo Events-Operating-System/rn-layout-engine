@@ -89,6 +89,9 @@ export function useCanvasState() {
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null)
   const [viewport, setViewport] = useState<CanvasViewport>({ x: 40, y: 40, scale: 1 })
   const [activeTool, setActiveTool] = useState<DrawingTool>('pointer')
+  // Measure tool sub-mode — explicit, never inferred from click count/timing
+  // (see LayoutCanvas: Distancia never hit-tests elements, Área only does).
+  const [measureMode, setMeasureMode] = useState<'distance' | 'area'>('distance')
   const [drawings, setDrawings] = useState<DrawingPrimitive[]>([])
   const [layoutMeta, setLayoutMeta] = useState<LayoutMeta>(DEFAULT_LAYOUT_META)
 
@@ -305,6 +308,9 @@ export function useCanvasState() {
     // Hand is a viewport-navigation aid, not an editing tool — switching to
     // it (or back) preserves whatever was selected, matching Figma.
     if (tool !== 'pointer' && tool !== 'hand') setSelectedIds(new Set())
+    // Activating Measure always resets its sub-mode to Distancia — the
+    // user picks Área explicitly each time, it's never remembered/inferred.
+    if (tool === 'measure') setMeasureMode('distance')
   }, [])
 
   // Free-form polygon tool (batch: polygon + measurement). `points` are
@@ -392,6 +398,8 @@ export function useCanvasState() {
     sendToBack,
     activeTool,
     setTool,
+    measureMode,
+    setMeasureMode,
     drawings,
     addDrawing,
     deleteDrawing,

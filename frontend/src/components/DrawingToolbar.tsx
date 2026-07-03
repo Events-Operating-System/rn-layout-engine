@@ -19,6 +19,10 @@ interface DrawingToolbarProps {
   onRedo: () => void
   canUndo: boolean
   canRedo: boolean
+  // Measure tool sub-mode — explicit toggle, shown only while Medir is the
+  // active tool. Never inferred from click count/timing (see LayoutCanvas).
+  measureMode: 'distance' | 'area'
+  onSetMeasureMode: (mode: 'distance' | 'area') => void
 }
 
 const TOOL_DEFS: { tool: DrawingTool; icon: string; shortcut: string }[] = [
@@ -46,6 +50,8 @@ export default function DrawingToolbar({
   onRedo,
   canUndo,
   canRedo,
+  measureMode,
+  onSetMeasureMode,
 }: DrawingToolbarProps) {
   const { t } = useLang()
 
@@ -64,7 +70,7 @@ export default function DrawingToolbar({
     arrow: t.toolHint,
     text: t.toolHint,
     polygon: t.toolHintPolygon,
-    measure: t.toolHintMeasure,
+    measure: measureMode === 'area' ? t.toolHintMeasureArea : t.toolHintMeasureDistance,
   }
 
   return (
@@ -114,6 +120,39 @@ export default function DrawingToolbar({
           </button>
         ))}
       </div>
+
+      {/* Measure sub-mode — explicit, mutually exclusive; only visible while
+          Medir is the active tool. Distancia never hit-tests elements (the
+          click position is used exactly as-is); Área only hit-tests. */}
+      {activeTool === 'measure' && (
+        <>
+          <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
+          <div className="flex items-center gap-0.5 bg-slate-800/60 rounded p-0.5">
+            <button
+              onClick={() => onSetMeasureMode('distance')}
+              title={t.measureModeDistance}
+              className={`h-7 px-2 flex items-center justify-center rounded text-[10px] font-mono transition-colors ${
+                measureMode === 'distance'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/60'
+              }`}
+            >
+              {t.measureModeDistance}
+            </button>
+            <button
+              onClick={() => onSetMeasureMode('area')}
+              title={t.measureModeArea}
+              className={`h-7 px-2 flex items-center justify-center rounded text-[10px] font-mono transition-colors ${
+                measureMode === 'area'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/60'
+              }`}
+            >
+              {t.measureModeArea}
+            </button>
+          </div>
+        </>
+      )}
 
       <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
 
