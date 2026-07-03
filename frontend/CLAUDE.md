@@ -2,6 +2,12 @@
 
 ---
 
+## Known Bugs (not part of active work — do not fix without explicit instruction)
+
+- **`get_event_summary` RPC — "Could not find the function public.get_event_summary(p_event_id) in the schema cache"**. Reported from the browser console in `eventos-eventos-frontend` (not this repo, but same Supabase project — relevant here because it's the same schema-cache/cross-schema surface area as the layout auto-link feature). The function `get_event_summary(event_id)` was created in `eventos.get_event_summary()` (per `CLAUDE.md`/session log in `eventos-eventos-frontend`, added ad-hoc via Supabase Studio, never committed as a tracked migration — see `eventos-eventos-frontend/src/services/eventSummaryService.ts:6`, `.rpc('get_event_summary', { p_event_id: eventId })` with no `.schema('eventos')` chained before the `.rpc()` call). Supabase's PostgREST resolves unqualified `.rpc()` calls against the `public` schema (or whatever schema is set via `.schema()`) — since the call doesn't chain `.schema('eventos')`, PostgREST looks for `public.get_event_summary` and doesn't find it, hence the schema-cache error. Likely fix (not applied): either call it as `supabase.schema('eventos').rpc('get_event_summary', ...)`, or move/duplicate the function into `public`. Flagged 2026-07-03 during the layout auto-link investigation; not touched in that batch.
+
+---
+
 ## Session Log
 
 ### Sesión 2026-06-29
@@ -58,3 +64,18 @@
 **Próximo paso:**
 - Validar con datos reales en producción (evento real en `eventos-eventos-frontend`, no solo mocks) — ver NEXT PRIORITIES #1b en `docs/SYSTEM_STATE.md`
 - Mismos pendientes de sesiones anteriores (migración de duplicación sin ejecutar, office testing general)
+
+### Sesión 2026-07-03 (continuación) — SESSION-0020: diagnóstico del auto-link roto en producción
+**Contexto:** el fix de SESSION-0019 (`eeae250`/`d4f4464`) no funcionó en producción — se crearon 2 layouts nuevos para un evento sin layout previo y ninguno se auto-vinculó, incluido el primero (que según el diseño debía auto-vincularse).
+
+**Completado (solo diagnóstico, sin aplicar fix todavía):**
+- Descartado por evidencia directa: el deploy de producción SÍ incluye el código del fix (`curl` al bundle JS servido en `rn-layout-engine.vercel.app`, confirmado string `auto-link` y dos llamadas `.schema("eventos")` presentes)
+- Descartado (parcialmente, sin JWT de usuario real): acceso al schema `eventos` vía Data API funciona a nivel de esquema/columna — `GET eventos.events?select=id,layout_id` con la anon key devuelve `200 []` (respuesta válida, no error de "schema/columna no encontrada"), lo que sugiere que el schema cache de PostgREST sí reconoce `eventos.events.layout_id`. No descarta RLS bloqueando para un usuario autenticado real, solo descarta que el problema sea "schema no expuesto" o "columna no cacheada"
+- Instrumentado `layoutService.ts` con logging temporal `[auto-link]` (prefijo consistente): loguea el disparo del intento (event_id + nuevo layout_id), el valor de `eventos.events.layout_id` devuelto por `getEventLayoutId`, y el resultado del UPDATE — `linkEventLayout` ahora encadena `.select('id, layout_id').maybeSingle()` (antes no seleccionaba nada) específicamente para poder distinguir un UPDATE que sí afectó una fila de uno bloqueado silenciosamente por RLS (0 filas, sin error — comportamiento normal de Postgres/PostgREST, no un bug de Supabase)
+- Hallazgo secundario, NO confirmado como causa raíz de este bug específico (los layouts sí llegaron con `event_id` seteado, así que el usuario ya estaba autenticado cuando guardó): `App.tsx` `handleLogin()` llama `supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })` — `window.location.origin` descarta el query string. Si un usuario NO autenticado llega a `/?event_id=X` y hace login recién ahí, vuelve a `/` sin `event_id` tras el OAuth roundtrip. Vale la pena revisarlo aparte, pero no es la causa de este reporte (los `event_id` de ambos layouts sí llegaron a `layouts.event_id`, confirmado porque aparecen en la lista del tab Layout)
+- Documentado bug aparte no relacionado: `get_event_summary` (ver sección "Known Bugs" arriba)
+
+**Pendiente — bloqueado por falta de credenciales de usuario real:**
+- El agente no tiene login real (Google OAuth), ni service-role key, ni Supabase CLI vinculado en este entorno — no puede reproducir el flujo completo end-to-end contra producción por su cuenta, solo diagnosticar por inspección de código + bundle + llamadas anónimas de solo lectura
+- Falta capturar los logs `[auto-link]` reales de un guardado real (requiere que un usuario autenticado con membresía de org real reproduzca: crear evento de prueba sin layout → "Crear layout" → "Nuevo layout" → "Guardar" → copiar consola)
+- Hipótesis principal a confirmar con esos logs: el UPDATE a `eventos.events` se ejecuta sin lanzar error pero afecta 0 filas (bloqueado silenciosamente por la policy RLS `members can access org events`, que depende de que `auth.uid()` del usuario esté en `organization_members` con el mismo `org_id` que el evento) — Postgres/PostgREST no distinguen "0 filas por RLS" de "0 filas porque no existía la fila"; ambos devuelven éxito sin error si no se encadena `.select()`, que es exactamente lo que el código original (SESSION-0019) no hacía
