@@ -65,30 +65,21 @@ export const layoutService = {
     // unlinked so the manual "Vincular" button in eventos-eventos-frontend
     // stays the way to promote it (multi-version workflow, same pattern as
     // Ventas quotes v1/v2). Never blocks the save itself if it fails.
-    //
-    // TEMP DIAGNOSTIC LOGGING (SESSION-0020) — the auto-link was silently
-    // not happening in production. Remove the console.log/console.error
-    // calls in this block (and the .select() added to linkEventLayout)
-    // once the root cause is confirmed and fixed; keep the actual logic.
     if (eventId) {
-      console.log(`[auto-link] intento disparado — event_id=${eventId} nuevo layout_id=${data.id}`)
       try {
         const currentLayoutId = await this.getEventLayoutId(eventId)
-        console.log(`[auto-link] eventos.events.layout_id actual para event_id=${eventId}:`, currentLayoutId)
         if (!currentLayoutId) {
           const linkedRow = await this.linkEventLayout(eventId, data.id)
-          console.log(`[auto-link] UPDATE ejecutado sin error — filas devueltas:`, linkedRow)
+          // linkEventLayout selects the row back on purpose: a write RLS
+          // silently blocks returns success with 0 rows, not an error, so
+          // this is the only way to catch that failure mode.
           if (!linkedRow) {
-            console.warn(`[auto-link] UPDATE no reportó error PERO no devolvió ninguna fila — probable bloqueo silencioso por RLS/permisos (0 filas afectadas) para event_id=${eventId}`)
+            console.warn(`[auto-link] UPDATE a eventos.events no devolvió fila para event_id=${eventId} — posible bloqueo por RLS/permisos`)
           }
-        } else {
-          console.log(`[auto-link] event_id=${eventId} ya tiene layout_id=${currentLayoutId} — se omite auto-link (comportamiento esperado, no es el bug)`)
         }
       } catch (linkError) {
-        console.error('[auto-link] excepción durante el intento de auto-link:', linkError)
+        console.error('[layoutService] auto-link to event failed:', linkError)
       }
-    } else {
-      console.log('[auto-link] no se intenta — este guardado no trae eventId')
     }
 
     return data.id
@@ -101,16 +92,10 @@ export const layoutService = {
       .select('layout_id')
       .eq('id', eventId)
       .maybeSingle()
-    if (error) {
-      console.error(`[auto-link] getEventLayoutId error para event_id=${eventId}:`, error)
-      throw error
-    }
+    if (error) throw error
     return data?.layout_id ?? null
   },
 
-  // TEMP DIAGNOSTIC: chains .select() (normally omitted) so the caller can
-  // tell a real update (row returned) apart from an RLS-blocked no-op
-  // (0 rows, no error) — Postgres/PostgREST report the latter as success.
   async linkEventLayout(eventId: string, layoutId: string): Promise<{ id: string; layout_id: string } | null> {
     const { data, error } = await supabase
       .schema('eventos')
@@ -119,10 +104,7 @@ export const layoutService = {
       .eq('id', eventId)
       .select('id, layout_id')
       .maybeSingle()
-    if (error) {
-      console.error(`[auto-link] linkEventLayout error para event_id=${eventId}, layout_id=${layoutId}:`, error)
-      throw error
-    }
+    if (error) throw error
     return data
   },
 
