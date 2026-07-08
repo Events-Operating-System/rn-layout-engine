@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { SavedLayout } from '@/lib/layoutService'
 
 interface Props {
@@ -25,6 +25,18 @@ export default function LayoutDashboard({
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
+
+  // index.html sets <body class="overflow-hidden"> so the Editor's Konva
+  // canvas can own the exact viewport with no native page scroll/pinch. This
+  // dashboard is a normal scrolling page, not a canvas — its grid can grow
+  // taller than the viewport (min-h-screen below), so it needs page scroll
+  // back for as long as it's mounted. Restored on unmount for the Editor.
+  useEffect(() => {
+    document.body.classList.remove('overflow-hidden')
+    return () => {
+      document.body.classList.add('overflow-hidden')
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col">
