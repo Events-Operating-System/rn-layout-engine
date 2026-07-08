@@ -4,6 +4,7 @@
 ---
 
 # LAST UPDATED
+2026-07-08 — Corrected: deploy is MANUAL (`vercel --prod`), not auto-deploy on push. See "DEPLOYMENT WORKFLOW" below.
 2026-05-23 — Pipeline repair: removed invalid rootDirectory from vercel.json, auto-deploy confirmed healthy on main
 
 ---
@@ -29,15 +30,13 @@ Two Vercel projects were created during development. Both currently serve the co
 | Project name | `rn-layout-engine` |
 | Root directory | `frontend` |
 | Framework | Vite |
-| GitHub connection | **Connected** — `Events-Operating-System/rn-layout-engine` |
-| Production branch | `main` |
+| GitHub connection | Repo is listed as connected in the Vercel dashboard, but does **not** actually trigger deploys on push (verified 2026-07-08, see below) |
+| Production branch | `main` (in name only — pushing here does not deploy) |
 | Deployment protection | Enabled — raw deployment URLs require auth; aliases bypass |
 | Production URL | https://rn-layout-engine.vercel.app |
-| Current production deployment | `dpl_YysFxVbt3wdEYVGGqW3FpV3QKXAY` (`5h6qjdlbm-...`) |
+| Current production deployment | `dpl_FfDwNr8hcYTvF5BSW4B9S7LXUb5P` (manual `vercel --prod`, 2026-07-08) |
 
-Auto-deploy behavior:
-- Push to `main` (production branch) → production deploy → `rn-layout-engine.vercel.app` updated automatically
-- Push to other branches → preview deploy → temporary URL
+**Deploy is MANUAL, not automatic — corrected 2026-07-08.** Every prior "push to `main` auto-deploys" claim in this doc was wrong. Evidence: `gh api repos/Events-Operating-System/rn-layout-engine/commits/<sha>/check-runs` and `.../status` return `total_count: 0` for every commit checked, including ones from weeks earlier that were already confirmed live in production — meaning those "production" updates were always pushed manually via `vercel --prod` CLI, never by a GitHub webhook. Contrast with `eventos-identity-frontend`, where the same check on a real commit returns a genuine Vercel `"state":"success"` status — that project's Git integration does fire. Whatever's misconfigured on the Vercel↔GitHub side for `rn-layout-engine` specifically, don't assume a `git push` alone updates production here. See "DEPLOYMENT WORKFLOW" below for the actual (manual) steps.
 
 ## `frontend` — DEPRECATED (debugging artifact, do not use)
 
@@ -123,29 +122,39 @@ Root cause: iOS Safari enforces a ~16 MB per-page canvas memory budget. Exceedin
 
 # DEPLOYMENT WORKFLOW
 
-## Auto-deploy (current method — no action needed)
+## Manual deploy (current, only method — a git push alone does NOT deploy)
 
-Every push to `main` triggers a production deploy automatically on the `rn-layout-engine` Vercel project.
+`git push origin main` updates GitHub but does not update production — confirmed 2026-07-08 (see GitHub connection note above). After pushing, you must also run a manual deploy:
 
 ```bash
 git add <files>
 git commit -m "message"
-git push origin main
-# Vercel builds and deploys automatically — rn-layout-engine.vercel.app updates
+git push origin main   # updates GitHub only, does NOT deploy
+
+# from the repo root (not frontend/ — see linking note below):
+cd /path/to/rn-layout-engine
+vercel --prod
+# → builds, deploys, and re-aliases https://rn-layout-engine.vercel.app automatically
 ```
 
-## Emergency manual deploy
-
-If auto-deploy is unavailable and the `rn-layout-engine` project must be updated manually:
+**Linking:** don't hand-create `frontend/.vercel/project.json` — that old per-directory link format pointed at the deprecated `frontend` project and was the source of a previous "do not run vercel --prod from frontend/" warning in this doc. Instead, link the repo root once with the repo-aware format, which correctly targets the `frontend` subdirectory for the build while keeping the link file at the repo root (gitignored, not committed):
 
 ```bash
-cd frontend/
-
-# Requires being linked to rn-layout-engine project (currently links to `frontend` project)
-# Better: use Vercel dashboard "Redeploy" on a known-good deployment
+cd /path/to/rn-layout-engine
+vercel link --yes --project prj_3FI1KiHhe03aL3YuzpdSjDCGteVY
+# creates .vercel/repo.json at repo root with "directory": "frontend" — correct project, correct build context
+vercel --prod   # run from repo root after linking
 ```
 
-Do NOT run `vercel --prod` from `frontend/` — the `.vercel/project.json` inside `frontend/` links to the deprecated `frontend` project, not `rn-layout-engine`.
+Verify a deploy actually landed (don't trust the CLI output alone — confirm against the live site):
+
+```bash
+curl -sI https://rn-layout-engine.vercel.app/ | grep -i last-modified   # should match deploy time, x-vercel-cache should read MISS right after
+```
+
+## Emergency: Vercel dashboard
+
+If the CLI is unavailable, use the Vercel dashboard "Redeploy" on a known-good deployment, or promote an existing one to production directly (`vercel.com/javier-bambaren-d-s-projects/rn-layout-engine` → deployment → "..." → "Promote to Production").
 
 ---
 
