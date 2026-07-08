@@ -128,14 +128,27 @@ type View = 'dashboard' | 'editor'
 const IDENTITY_URL = import.meta.env.VITE_IDENTITY_URL
   ?? 'https://eventos-identity-frontend.vercel.app'
 
+// The path can arrive as either `/editor/:id` or `/editor/:id/callback` —
+// the latter happens when this URL was the target of an Identity OAuth
+// handoff (see eventos-identity-frontend Login.tsx), which appends
+// `/callback` to the deep link so the session lands on this app's own
+// origin. Both forms must resolve to the same layout id.
 function getLayoutIdFromPath(): string | null {
-  const match = window.location.pathname.match(/^\/editor\/([^/]+)\/?$/)
+  const match = window.location.pathname.match(/^\/editor\/([^/]+?)(?:\/callback)?\/?$/)
   return match ? decodeURIComponent(match[1]) : null
 }
+
+// supabase-js's initial getSession() call has no internal timeout: if the
+// implicit-grant callback's underlying network fetch stalls, the promise
+// never settles and the app is stuck on the loading screen forever with no
+// visible error. Race it against a hard timeout so a stalled session check
+// fails loudly instead of silently.
+const SESSION_CHECK_TIMEOUT_MS = 10000
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [checking, setChecking] = useState(true)
+  const [sessionCheckFailed, setSessionCheckFailed] = useState(false)
   const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [directLayoutId] = useState<string | null>(() => getLayoutIdFromPath())
   const [view, setView] = useState<View>(() => (directLayoutId ? 'editor' : 'dashboard'))
@@ -148,7 +161,16 @@ export default function App() {
   const { fetchLayouts, layouts, newLayout } = persistence
 
   useEffect(() => {
+    let timedOut = false
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true
+      setSessionCheckFailed(true)
+      setChecking(false)
+    }, SESSION_CHECK_TIMEOUT_MS)
+
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      window.clearTimeout(timeoutId)
+      if (timedOut) return
       const currentUser = session?.user ?? null
       setUser(currentUser)
       if (currentUser) {
@@ -158,6 +180,8 @@ export default function App() {
       setChecking(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      window.clearTimeout(timeoutId)
+      setSessionCheckFailed(false)
       const currentUser = session?.user ?? null
       setUser(currentUser)
       if (currentUser) {
@@ -166,8 +190,12 @@ export default function App() {
       } else {
         setHasAccess(null)
       }
+      setChecking(false)
     })
-    return () => subscription.unsubscribe()
+    return () => {
+      window.clearTimeout(timeoutId)
+      subscription.unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
@@ -178,10 +206,19 @@ export default function App() {
   }, [user])
 
   useEffect(() => {
-    if (!checking && !user && directLayoutId) {
+    if (!checking && !user && directLayoutId && !sessionCheckFailed) {
       window.location.replace(`${IDENTITY_URL}?redirect=${window.location.href}`)
     }
-  }, [checking, user, directLayoutId])
+  }, [checking, user, directLayoutId, sessionCheckFailed])
+
+  // Once a session is confirmed, drop the `/callback` segment from the
+  // address bar so it doesn't stick around (see getLayoutIdFromPath above).
+  useEffect(() => {
+    if (user && window.location.pathname.endsWith('/callback')) {
+      const cleanPath = window.location.pathname.replace(/\/callback\/?$/, '') || '/'
+      window.history.replaceState(null, '', cleanPath + window.location.search)
+    }
+  }, [user])
 
   const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut()
@@ -242,6 +279,18 @@ export default function App() {
   if (checking) return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950">
       <div className="text-white text-sm opacity-50">Cargando...</div>
+    </div>
+  )
+
+  if (sessionCheckFailed && !user) return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-950">
+      <div className="text-white text-sm opacity-70">No se pudo verificar tu sesión.</div>
+      <button
+        onClick={() => window.location.reload()}
+        className="px-4 py-2 rounded-lg border border-slate-700/60 text-slate-300 text-sm hover:bg-slate-800 transition-colors"
+      >
+        Reintentar
+      </button>
     </div>
   )
 
