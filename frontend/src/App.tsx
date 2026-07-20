@@ -138,12 +138,35 @@ function getLayoutIdFromPath(): string | null {
   return match ? decodeURIComponent(match[1]) : null
 }
 
-// supabase-js's initial getSession() call has no internal timeout: if the
-// implicit-grant callback's underlying network fetch stalls, the promise
-// never settles and the app is stuck on the loading screen forever with no
-// visible error. Race it against a hard timeout so a stalled session check
-// fails loudly instead of silently.
-const SESSION_CHECK_TIMEOUT_MS = 10000
+// supabase-js network calls have no internal timeout: if the underlying
+// fetch stalls, the promise never settles and the app is stuck on the
+// loading screen forever with no visible error. This bit us once already
+// (2026-07-08, getSession() specifically) and resurfaced in the very next
+// link of the same chain (checkOrgMembership()'s getUser() + org_members
+// query) — so instead of timing out each call individually, the entire
+// auth-init sequence (session + org membership, whatever it grows to
+// tomorrow) is wrapped in ONE timeout. Any future step added to
+// resolveAuthState() below is covered automatically, no new timeout to
+// remember to add.
+const AUTH_INIT_TIMEOUT_MS = 10000
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error('auth-init-timeout')), ms)
+    promise.then(
+      (value) => { window.clearTimeout(timeoutId); resolve(value) },
+      (err) => { window.clearTimeout(timeoutId); reject(err) },
+    )
+  })
+}
+
+async function resolveAuthState(): Promise<{ user: User | null; hasAccess: boolean | null }> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const currentUser = session?.user ?? null
+  if (!currentUser) return { user: null, hasAccess: null }
+  const hasAccess = await checkOrgMembership()
+  return { user: currentUser, hasAccess }
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
@@ -161,39 +184,42 @@ export default function App() {
   const { fetchLayouts, layouts, newLayout } = persistence
 
   useEffect(() => {
-    let timedOut = false
-    const timeoutId = window.setTimeout(() => {
-      timedOut = true
-      setSessionCheckFailed(true)
-      setChecking(false)
-    }, SESSION_CHECK_TIMEOUT_MS)
+    let cancelled = false
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      window.clearTimeout(timeoutId)
-      if (timedOut) return
-      const currentUser = session?.user ?? null
-      setUser(currentUser)
-      if (currentUser) {
-        const access = await checkOrgMembership()
-        setHasAccess(access)
-      }
-      setChecking(false)
-    })
+    withTimeout(resolveAuthState(), AUTH_INIT_TIMEOUT_MS)
+      .then(({ user: resolvedUser, hasAccess: resolvedAccess }) => {
+        if (cancelled) return
+        setUser(resolvedUser)
+        setHasAccess(resolvedAccess)
+        setChecking(false)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setSessionCheckFailed(true)
+        setChecking(false)
+      })
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      window.clearTimeout(timeoutId)
+      if (cancelled) return
       setSessionCheckFailed(false)
       const currentUser = session?.user ?? null
       setUser(currentUser)
       if (currentUser) {
-        const access = await checkOrgMembership()
-        setHasAccess(access)
+        try {
+          const access = await withTimeout(checkOrgMembership(), AUTH_INIT_TIMEOUT_MS)
+          if (cancelled) return
+          setHasAccess(access)
+        } catch {
+          if (cancelled) return
+          setSessionCheckFailed(true)
+        }
       } else {
         setHasAccess(null)
       }
       setChecking(false)
     })
     return () => {
-      window.clearTimeout(timeoutId)
+      cancelled = true
       subscription.unsubscribe()
     }
   }, [])
