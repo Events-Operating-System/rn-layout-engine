@@ -85,6 +85,17 @@ export const layoutService = {
     return data.id
   },
 
+  async getEventName(eventId: string): Promise<string | null> {
+    const { data, error } = await supabase
+      .schema('eventos')
+      .from('events')
+      .select('name')
+      .eq('id', eventId)
+      .maybeSingle()
+    if (error) throw error
+    return data?.name ?? null
+  },
+
   async getEventLayoutId(eventId: string): Promise<string | null> {
     const { data, error } = await supabase
       .schema('eventos')

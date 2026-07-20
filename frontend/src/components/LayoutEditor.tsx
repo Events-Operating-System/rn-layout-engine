@@ -88,6 +88,22 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
     })
   }, [layoutIdToLoad, userId])
 
+  // Layout nuevo creado desde la ficha de un evento en Eventos (?event_id=
+  // en la URL, sin layoutIdToLoad): hereda el nombre del evento como título
+  // inicial en vez de quedarse en "Sin título". Solo aplica a la creación —
+  // si se está cargando un layout existente, el nombre guardado (arriba)
+  // manda siempre. Sigue editable después, no se bloquea.
+  useEffect(() => {
+    if (!eventId || layoutIdToLoad) return
+    layoutService.getEventName(eventId)
+      .then(name => {
+        if (!name) return
+        setInputName(name)
+        updateMeta({ cliente: name })
+      })
+      .catch(err => console.error('[LayoutEditor] getEventName error:', err))
+  }, [eventId, layoutIdToLoad])
+
   useEffect(() => {
     if (layoutMeta.cliente !== undefined && layoutMeta.cliente !== inputName) {
       setInputName(layoutMeta.cliente)
