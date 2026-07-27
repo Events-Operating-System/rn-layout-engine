@@ -4,7 +4,8 @@
 ---
 
 # LAST UPDATED
-2026-07-08 — Corrected: deploy is MANUAL (`vercel --prod`), not auto-deploy on push. See "DEPLOYMENT WORKFLOW" below.
+2026-07-27 — Corrected again: deploy IS automatic on push to `main` — the GitHub↔Vercel webhook that was broken on 2026-07-08 is firing again. Confirmed on commit `d82cc6c`: `gh api repos/.../commits/d82cc6c/status` returns Vercel `"state":"success"` ("Deployment has completed"), and the live site's `last-modified` matches the deploy window minutes after `git push`, with `x-vercel-cache: MISS` right after. See "DEPLOYMENT WORKFLOW" below — manual `vercel --prod` is no longer the only path, keep it only as a fallback.
+2026-07-08 — Corrected: deploy is MANUAL (`vercel --prod`), not auto-deploy on push. See "DEPLOYMENT WORKFLOW" below. **Superseded 2026-07-27 — see above.**
 2026-05-23 — Pipeline repair: removed invalid rootDirectory from vercel.json, auto-deploy confirmed healthy on main
 
 ---
@@ -30,13 +31,20 @@ Two Vercel projects were created during development. Both currently serve the co
 | Project name | `rn-layout-engine` |
 | Root directory | `frontend` |
 | Framework | Vite |
-| GitHub connection | Repo is listed as connected in the Vercel dashboard, but does **not** actually trigger deploys on push (verified 2026-07-08, see below) |
-| Production branch | `main` (in name only — pushing here does not deploy) |
+| GitHub connection | Connected and firing — auto-deploys on push to `main` (re-confirmed 2026-07-27, see below) |
+| Production branch | `main` — pushing here deploys automatically |
 | Deployment protection | Enabled — raw deployment URLs require auth; aliases bypass |
 | Production URL | https://rn-layout-engine.vercel.app |
-| Current production deployment | `dpl_FfDwNr8hcYTvF5BSW4B9S7LXUb5P` (manual `vercel --prod`, 2026-07-08) |
+| Current production deployment | auto-deployed from `d82cc6c` (git push, 2026-07-27) |
 
-**Deploy is MANUAL, not automatic — corrected 2026-07-08.** Every prior "push to `main` auto-deploys" claim in this doc was wrong. Evidence: `gh api repos/Events-Operating-System/rn-layout-engine/commits/<sha>/check-runs` and `.../status` return `total_count: 0` for every commit checked, including ones from weeks earlier that were already confirmed live in production — meaning those "production" updates were always pushed manually via `vercel --prod` CLI, never by a GitHub webhook. Contrast with `eventos-identity-frontend`, where the same check on a real commit returns a genuine Vercel `"state":"success"` status — that project's Git integration does fire. Whatever's misconfigured on the Vercel↔GitHub side for `rn-layout-engine` specifically, don't assume a `git push` alone updates production here. See "DEPLOYMENT WORKFLOW" below for the actual (manual) steps.
+**Deploy is AUTOMATIC on push to `main` — re-corrected 2026-07-27.** Between 2026-07-08 and 2026-07-27 the GitHub↔Vercel webhook for this project was broken (see the now-superseded note below), so every "production" update in that window had to be pushed manually via `vercel --prod`. That's fixed now — evidence from commit `d82cc6c`: `gh api repos/Events-Operating-System/rn-layout-engine/commits/d82cc6c/status` returns a real Vercel `"state":"success"` ("Deployment has completed"), and `curl -sI https://rn-layout-engine.vercel.app/` showed a fresh `last-modified` (minutes after the push) with `x-vercel-cache: MISS`. **Do not assume this can't regress again** — it broke silently once already. Whenever "did the deploy land" matters, re-run the same two checks (`gh api .../status` + `curl -sI` against the live site) rather than trusting either the CLI or "it's supposed to auto-deploy" alone. If you ever see `total_count: 0` on `.../check-runs` for a fresh push again, fall back to manual `vercel --prod` (see "DEPLOYMENT WORKFLOW" below) and update this doc back to MANUAL.
+
+<details>
+<summary>Superseded 2026-07-08 note (kept for history — do not follow, see above)</summary>
+
+Deploy was MANUAL, not automatic, from 2026-07-08 until the fix confirmed 2026-07-27. Evidence at the time: `gh api repos/Events-Operating-System/rn-layout-engine/commits/<sha>/check-runs` and `.../status` returned `total_count: 0` for every commit checked, including ones from weeks earlier that were already confirmed live in production — meaning those "production" updates were pushed manually via `vercel --prod` CLI, never by a GitHub webhook.
+
+</details>
 
 ## `frontend` — DEPRECATED (debugging artifact, do not use)
 
@@ -78,11 +86,10 @@ The `rn-layout-engine` Vercel project has `rootDirectory: frontend` set in its p
 
 | Branch | Environment | URL | Notes |
 |---|---|---|---|
-| `feat/vite-migration` | Production | https://rn-layout-engine.vercel.app | Current production branch |
-| `main` | — | — | Empty — only 2 initial commits, no SESSION work |
+| `main` | Production | https://rn-layout-engine.vercel.app | Current production branch — auto-deploys on push (see DEPLOYMENT WORKFLOW above) |
 | Any other branch | Preview | auto-generated URL | Temporary, may require auth |
 
-**Important:** `main` must remain the intended long-term production branch. After `feat/vite-migration` is merged to `main`, update the `rn-layout-engine` project production branch setting to `main` in the Vercel dashboard.
+`feat/vite-migration` (the branch this table used to point at as "current production branch") was merged to `main` long ago — this row was stale, corrected 2026-07-27.
 
 ---
 
@@ -122,15 +129,29 @@ Root cause: iOS Safari enforces a ~16 MB per-page canvas memory budget. Exceedin
 
 # DEPLOYMENT WORKFLOW
 
-## Manual deploy (current, only method — a git push alone does NOT deploy)
-
-`git push origin main` updates GitHub but does not update production — confirmed 2026-07-08 (see GitHub connection note above). After pushing, you must also run a manual deploy:
+## Automatic deploy (current, primary method — confirmed 2026-07-27)
 
 ```bash
 git add <files>
 git commit -m "message"
-git push origin main   # updates GitHub only, does NOT deploy
+git push origin main   # this alone triggers a production deploy
+```
 
+Vercel picks up the push via its GitHub integration and deploys automatically — no `vercel --prod` needed. Confirm it actually landed (don't just assume — this webhook was silently broken once already, 2026-07-08 to 2026-07-27):
+
+```bash
+gh api repos/Events-Operating-System/rn-layout-engine/commits/<sha>/status
+# expect a Vercel entry with "state":"success" / "Deployment has completed"
+
+curl -sI https://rn-layout-engine.vercel.app/ | grep -i last-modified
+# should match the deploy time, a few minutes after the push
+```
+
+If `gh api .../status` comes back without a Vercel entry (or `check-runs` returns `total_count: 0`) for a fresh push, the webhook has broken again — fall back to the manual deploy below and update this doc back to MANUAL.
+
+## Manual deploy (fallback only — use if auto-deploy stops firing)
+
+```bash
 # from the repo root (not frontend/ — see linking note below):
 cd /path/to/rn-layout-engine
 vercel --prod
