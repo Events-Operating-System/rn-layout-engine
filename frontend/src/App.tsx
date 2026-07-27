@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from 'react'
-import { supabase, checkOrgMembership, type User } from '@/lib/supabase'
+import { supabase, type User } from '@/lib/supabase'
 import LayoutEditor from '@/components/LayoutEditor'
 import LayoutDashboard from '@/components/LayoutDashboard'
-import SinAcceso from '@/components/SinAcceso'
+import OrgStatusGuard from '@/components/OrgStatusGuard'
 import { LangProvider, useLang } from '@/context/LangContext'
 import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
+import { useOrgStatus } from '@/hooks/useOrgStatus'
 import { layoutService } from '@/lib/layoutService'
+import { withTimeout } from '@/lib/withTimeout'
 
 function LoginScreen() {
   const [loading, setLoading] = useState(false)
@@ -140,46 +142,38 @@ function getLayoutIdFromPath(): string | null {
 
 // supabase-js network calls have no internal timeout: if the underlying
 // fetch stalls, the promise never settles and the app is stuck on the
-// loading screen forever with no visible error. This bit us once already
-// (2026-07-08, getSession() specifically) and resurfaced in the very next
-// link of the same chain (checkOrgMembership()'s getUser() + org_members
-// query) — so instead of timing out each call individually, the entire
-// auth-init sequence (session + org membership, whatever it grows to
-// tomorrow) is wrapped in ONE timeout. Any future step added to
-// resolveAuthState() below is covered automatically, no new timeout to
-// remember to add.
+// loading screen forever with no visible error. Bit this repo once already
+// (2026-07-08, getSession() specifically) — withTimeout wraps this and any
+// other auth-adjacent async chain (see useOrgStatus, which wraps its own
+// org-status fetch independently for the same reason).
 const AUTH_INIT_TIMEOUT_MS = 10000
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timeoutId = window.setTimeout(() => reject(new Error('auth-init-timeout')), ms)
-    promise.then(
-      (value) => { window.clearTimeout(timeoutId); resolve(value) },
-      (err) => { window.clearTimeout(timeoutId); reject(err) },
-    )
-  })
-}
-
-async function resolveAuthState(): Promise<{ user: User | null; hasAccess: boolean | null }> {
+async function resolveAuthState(): Promise<{ user: User | null }> {
   const { data: { session } } = await supabase.auth.getSession()
-  const currentUser = session?.user ?? null
-  if (!currentUser) return { user: null, hasAccess: null }
-  const hasAccess = await checkOrgMembership()
-  return { user: currentUser, hasAccess }
+  return { user: session?.user ?? null }
 }
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null)
   const [checking, setChecking] = useState(true)
   const [sessionCheckFailed, setSessionCheckFailed] = useState(false)
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null)
   const [directLayoutId] = useState<string | null>(() => getLayoutIdFromPath())
   const [view, setView] = useState<View>(() => (directLayoutId ? 'editor' : 'dashboard'))
   const [layoutIdToLoad, setLayoutIdToLoad] = useState<string | null>(() => directLayoutId)
   const [dashboardLoading, setDashboardLoading] = useState(false)
   const [eventId] = useState<string | null>(() => new URLSearchParams(window.location.search).get('event_id'))
 
-  const orgId = user?.id ?? ''
+  const { status: orgStatus, refresh: refreshOrgStatus } = useOrgStatus(user)
+
+  // org_id real de la membership activa (organization_members vía
+  // useOrgStatus) — antes de esta sesión este valor era user?.id, el id
+  // del usuario, no el de la organización (mismo bug de "org_id mal
+  // resuelto" cerrado en Inventarios/Agentes, aunque ahí la causa era un
+  // fallback hardcodeado y acá era leer el campo equivocado). Sin efecto
+  // en RLS hasta ahora porque public.layouts nunca usó su columna org_id
+  // para scoping (siempre created_by = auth.uid()) — se corrige igual
+  // porque la columna existe justamente para eso.
+  const orgId = orgStatus.state === 'active' ? orgStatus.orgId : ''
   const persistence = useLayoutPersistence(orgId)
   const { fetchLayouts, layouts, newLayout } = persistence
 
@@ -187,10 +181,9 @@ export default function App() {
     let cancelled = false
 
     withTimeout(resolveAuthState(), AUTH_INIT_TIMEOUT_MS)
-      .then(({ user: resolvedUser, hasAccess: resolvedAccess }) => {
+      .then(({ user: resolvedUser }) => {
         if (cancelled) return
         setUser(resolvedUser)
-        setHasAccess(resolvedAccess)
         setChecking(false)
       })
       .catch(() => {
@@ -199,23 +192,10 @@ export default function App() {
         setChecking(false)
       })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled) return
       setSessionCheckFailed(false)
-      const currentUser = session?.user ?? null
-      setUser(currentUser)
-      if (currentUser) {
-        try {
-          const access = await withTimeout(checkOrgMembership(), AUTH_INIT_TIMEOUT_MS)
-          if (cancelled) return
-          setHasAccess(access)
-        } catch {
-          if (cancelled) return
-          setSessionCheckFailed(true)
-        }
-      } else {
-        setHasAccess(null)
-      }
+      setUser(session?.user ?? null)
       setChecking(false)
     })
     return () => {
@@ -225,11 +205,11 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (user) {
+    if (orgId) {
       setDashboardLoading(true)
       fetchLayouts().finally(() => setDashboardLoading(false))
     }
-  }, [user])
+  }, [orgId])
 
   useEffect(() => {
     if (!checking && !user && directLayoutId && !sessionCheckFailed) {
@@ -329,38 +309,32 @@ export default function App() {
     return <LoginScreen />
   }
 
-  if (hasAccess === null) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950">
-      <div className="text-white text-sm opacity-50">Verificando acceso...</div>
-    </div>
-  )
-
-  if (!hasAccess) return <SinAcceso />
-
-  if (view === 'dashboard') return (
-    <LangProvider>
-      <LayoutDashboard
-        layouts={layouts}
-        loading={dashboardLoading}
-        onOpen={handleOpenLayout}
-        onNew={handleNewLayout}
-        onDelete={handleDeleteLayout}
-        onDuplicate={handleDuplicateLayout}
-        userName={user.email ?? ''}
-        onSignOut={handleSignOut}
-        eventId={eventId}
-      />
-    </LangProvider>
-  )
-
   return (
-    <LangProvider>
-      <AppShell
-        onGoToDashboard={handleGoToDashboard}
-        layoutIdToLoad={layoutIdToLoad}
-        eventId={eventId}
-        onLayoutForked={handleLayoutForked}
-      />
-    </LangProvider>
+    <OrgStatusGuard status={orgStatus} onRefresh={refreshOrgStatus}>
+      {view === 'dashboard' ? (
+        <LangProvider>
+          <LayoutDashboard
+            layouts={layouts}
+            loading={dashboardLoading}
+            onOpen={handleOpenLayout}
+            onNew={handleNewLayout}
+            onDelete={handleDeleteLayout}
+            onDuplicate={handleDuplicateLayout}
+            userName={user.email ?? ''}
+            onSignOut={handleSignOut}
+            eventId={eventId}
+          />
+        </LangProvider>
+      ) : (
+        <LangProvider>
+          <AppShell
+            onGoToDashboard={handleGoToDashboard}
+            layoutIdToLoad={layoutIdToLoad}
+            eventId={eventId}
+            onLayoutForked={handleLayoutForked}
+          />
+        </LangProvider>
+      )}
+    </OrgStatusGuard>
   )
 }
