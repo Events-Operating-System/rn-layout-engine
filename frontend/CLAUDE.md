@@ -103,3 +103,17 @@
 - Confirmar con Javier el resultado de sus pruebas reales de login (Layout Engine + FieldOps/Inventarios) antes de dar el Bug 1 por cerrado del todo
 - Revisar/reconectar el webhook Git↔Vercel de `rn-layout-engine` si se quiere recuperar auto-deploy por push
 - Mismos pendientes de sesiones anteriores (migración de duplicación sin ejecutar, office testing general)
+
+### Sesión 2026-08-10 — SESSION-0022
+
+**Completado:**
+- Corregido bug de datos: `public.layouts.org_id` estaba mal poblado en el 100% de las filas existentes (43/43) — igual a `created_by` en vez del id real de la organización, arrastrado desde antes del fix de `App.tsx` del 27 jul (`d82cc6c`). Al menos una fila del 4 ago (una semana después de ese fix, ya confirmado desplegado) seguía con el mismo bug sin que el código actual tenga un camino que lo explique — probable bundle cacheado viejo o acceso vía el proyecto Vercel deprecado (`frontend-eta-five-50.vercel.app`), sin confirmar aún
+- Migración `20260810183024_layouts_fix_org_id_and_scope_by_org.sql`: backfill de los 43 `org_id` desde la membership activa real de cada creador; RLS reemplazada de ownership por creador (`created_by = auth.uid()`) a membership por organización (decisión de producto: los planos son compartidos por org, no privados por creador); trigger `layouts_set_org_id()` que resuelve `org_id` del lado del servidor en cada insert/update, ignorando lo que mande el cliente
+- Revisión de seguridad de esa migración encontró una vulnerabilidad real: al reemplazar la policy vieja se perdió sin querer el `WITH CHECK (created_by = auth.uid())` que tenía — cualquier miembro de una org podía spoofear `created_by` a cualquier otro usuario real vía INSERT o UPDATE directo. Confirmado explotable en producción antes del fix (impersonación real de usuario vía `set local request.jwt.claim.sub`)
+- Migración `20260810185339_layouts_fix_created_by_spoofing.sql`: mismo criterio que `org_id` — `created_by` se pisa siempre con `auth.uid()` en INSERT y queda inmutable (`OLD.created_by`) en UPDATE, sin importar qué mande el cliente
+- Ambas migraciones aplicadas directo contra producción vía `supabase db query --linked -f` (no `db push`, mismo criterio que `20260727193938` — ledger `schema_migrations` compartido entre repos) y verificadas empíricamente con impersonación real de tres usuarios de JBD Producciones: backfill sin mismatches (0 filas), RLS probada con jbambaren/clauz/tzuloaga viendo el mismo set de 43 layouts, trigger de `org_id` y gate de `approval_status` (org suspendida bloqueada) confirmados, y el ataque de spoofing de `created_by` re-testeado y bloqueado tras el fix, sin regresiones
+- Ambos commits pusheados a `main`; deploy automático de Vercel confirmado `"state":"success"` vía `gh api .../status` y sitio en vivo con `last-modified` fresco (`x-vercel-cache: MISS`) — pese a ser solo migraciones SQL sin tocar `frontend/`
+
+**Próximo paso:**
+- Confirmar con claudialauzeli (org "Claudia Producciones") si accedió por `rn-layout-engine.vercel.app` (URL canónica) o por la deprecada `frontend-eta-five-50.vercel.app`, para descartar el proyecto viejo como causa de la fila corrupta del 4 ago
+- Mismos pendientes de sesiones anteriores (migración de duplicación sin ejecutar, office testing general)
