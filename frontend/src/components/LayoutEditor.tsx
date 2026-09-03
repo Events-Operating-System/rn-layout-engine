@@ -430,33 +430,39 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         canRedo={canRedo}
       />
 
-      <div className="flex-none h-9 bg-slate-900 border-b border-slate-700/60 flex items-center px-4 gap-3">
+      <div className="flex-none h-9 bg-slate-900 border-b border-slate-700/60 flex items-center px-3 sm:px-4 gap-2 sm:gap-3">
         <input
           value={inputName}
           onChange={e => {
             setInputName(e.target.value)
             updateMeta({ cliente: e.target.value })
           }}
-          className="bg-slate-800 text-sm text-slate-100 font-medium outline-none border border-slate-600 focus:border-indigo-500 rounded px-3 py-1 w-64 placeholder:text-slate-500 transition-colors"
+          className="bg-slate-800 text-sm text-slate-100 font-medium outline-none border border-slate-600 focus:border-indigo-500 rounded px-3 py-1 flex-1 min-w-0 sm:flex-none sm:w-64 placeholder:text-slate-500 transition-colors"
           placeholder="Nombre del cliente / evento"
         />
-        <div className="flex-1" />
-        {saveStatus === 'saving' && <span className="text-[10px] text-indigo-400 animate-pulse">Guardando...</span>}
-        {saveStatus === 'saved' && <span className="text-[10px] text-green-500">✓ Guardado</span>}
+        <div className="hidden sm:block flex-1" />
+        {saveStatus === 'saving' && <span className="flex-none text-[10px] text-indigo-400 animate-pulse whitespace-nowrap">Guardando...</span>}
+        {saveStatus === 'saved' && <span className="flex-none text-[10px] text-green-500 whitespace-nowrap">✓ Guardado</span>}
         {saveStatus === 'idle' && draftStatus === 'pending' && (
-          <span className="text-[10px] text-slate-500">Autoguardando…</span>
+          <span className="flex-none text-[10px] text-slate-500 whitespace-nowrap">Autoguardando…</span>
         )}
         {saveStatus === 'idle' && draftStatus === 'saved' && (
-          <span className="text-[10px] text-slate-500">Borrador guardado</span>
+          <span className="flex-none text-[10px] text-slate-500 whitespace-nowrap">Borrador guardado</span>
         )}
         {saveStatus === 'idle' && draftStatus === 'error' && (
-          <span className="text-[10px] text-amber-500">Sin conexión — cambios en memoria</span>
+          <>
+            <span className="flex-none text-[10px] text-amber-500 whitespace-nowrap hidden sm:inline">Sin conexión — cambios en memoria</span>
+            <span className="flex-none text-[10px] text-amber-500 whitespace-nowrap sm:hidden" title="Sin conexión — cambios en memoria">⚠ sin guardar</span>
+          </>
         )}
+        {/* Acciones secundarias — ocultas < sm para que "Guardar" nunca
+            quede fuera de pantalla en móvil. Duplicar sigue disponible
+            desde las tarjetas del dashboard. */}
         <button
           onClick={handleSaveAsCopy}
           disabled={!userId || savingAsCopy}
           title="Crea una copia independiente a partir del estado actual del canvas — el original no se modifica"
-          className="h-7 px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 disabled:opacity-40 transition-colors"
+          className="hidden sm:block flex-none h-7 px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 disabled:opacity-40 transition-colors"
         >
           {savingAsCopy ? 'Guardando copia...' : 'Guardar como copia'}
         </button>
@@ -464,14 +470,14 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
           onClick={handleDuplicate}
           disabled={!layoutId || duplicating}
           title={layoutId ? 'Duplica el layout (última versión guardada)' : 'Guarda el layout antes de duplicarlo'}
-          className="h-7 px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 disabled:opacity-40 transition-colors"
+          className="hidden sm:block flex-none h-7 px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 disabled:opacity-40 transition-colors"
         >
           {duplicating ? 'Duplicando...' : 'Duplicar'}
         </button>
         <button
           onClick={handleSave}
           disabled={!userId || saveStatus === 'saving'}
-          className="h-7 px-4 rounded text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-colors"
+          className="flex-none h-7 px-4 rounded text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-colors"
         >
           Guardar
         </button>

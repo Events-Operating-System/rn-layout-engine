@@ -66,22 +66,22 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutFor
 
   return (
     <div className="h-full flex flex-col bg-slate-950 text-slate-200 overflow-hidden">
-      <header className="h-10 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-4 gap-3">
+      <header className="h-10 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-3 sm:px-4 gap-2 sm:gap-3">
         <button
           onClick={onGoToDashboard}
-          className="flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors"
+          className="flex items-center gap-1.5 text-slate-500 hover:text-slate-300 transition-colors flex-none"
           title="Volver a layouts"
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M8 1L3 6l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-none">
           <div className="w-2 h-2 rounded-full bg-indigo-500" />
-          <span className="text-xs font-semibold text-slate-200 tracking-wide">RN Layout Engine</span>
+          <span className="text-xs font-semibold text-slate-200 tracking-wide whitespace-nowrap">RN Layout Engine</span>
         </div>
-        <span className="text-slate-700">|</span>
-        <div className="ml-auto flex items-center gap-3">
+        <span className="hidden sm:inline text-slate-700">|</span>
+        <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-none">
           <a
             href="https://eventos-identity-frontend.vercel.app/dashboard"
             className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
@@ -94,11 +94,11 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutFor
           <span className="text-slate-700">|</span>
           <button
             onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
-            className="text-[10px] font-mono text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-2 py-0.5 rounded border border-slate-700/60 transition-colors tracking-wider"
+            className="text-[10px] font-mono text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-2 py-0.5 rounded border border-slate-700/60 transition-colors tracking-wider flex-none"
           >
             {lang === 'en' ? 'ES' : 'EN'}
           </button>
-          <span className="text-[9px] bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded border border-indigo-900 font-medium tracking-wider uppercase">MVP</span>
+          <span className="hidden sm:inline text-[9px] bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded border border-indigo-900 font-medium tracking-wider uppercase">MVP</span>
           <span className="hidden sm:block text-[9px] text-slate-600">Reality Near · Events Operating System</span>
         </div>
       </header>

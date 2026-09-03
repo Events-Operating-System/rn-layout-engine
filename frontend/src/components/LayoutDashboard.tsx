@@ -46,14 +46,14 @@ export default function LayoutDashboard({
           Creando layout para evento <span className="font-mono text-indigo-200">{eventId}</span>
         </div>
       )}
-      <header className="h-14 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-6 gap-4">
-        <div className="flex items-center gap-2">
+      <header className="h-14 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-4 sm:px-6 gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 flex-none">
           <div className="w-2 h-2 rounded-full bg-indigo-500" />
-          <span className="text-sm font-semibold tracking-wide">EventOS Layout</span>
+          <span className="text-sm font-semibold tracking-wide whitespace-nowrap">EventOS Layout</span>
         </div>
-        <span className="text-slate-700">|</span>
-        <span className="text-xs text-slate-500">Mis Layouts</span>
-        <div className="ml-auto flex items-center gap-4">
+        <span className="hidden sm:inline text-slate-700">|</span>
+        <span className="hidden sm:inline text-xs text-slate-500">Mis Layouts</span>
+        <div className="ml-auto flex items-center gap-2 sm:gap-4 flex-none">
           <a
             href="https://eventos-identity-frontend.vercel.app/dashboard"
             className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-300 transition-colors"
@@ -67,7 +67,7 @@ export default function LayoutDashboard({
           <span className="text-xs text-slate-500 hidden sm:block">{userName}</span>
           <button
             onClick={onSignOut}
-            className="text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-3 py-1.5 rounded border border-slate-700/60 transition-colors"
+            className="text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-3 py-1.5 rounded border border-slate-700/60 transition-colors whitespace-nowrap"
           >
             Cerrar sesión
           </button>
