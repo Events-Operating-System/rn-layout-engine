@@ -216,6 +216,9 @@ export function useCanvasState() {
         locked: false,
         notes: '',
         shape: template.shape,
+        // Restored for custom polygon assets (see AssetTemplate.points);
+        // undefined for every built-in template.
+        ...(template.shape === 'polygon' && template.points ? { points: template.points } : {}),
       }
       return [...prev, newEl]
     })

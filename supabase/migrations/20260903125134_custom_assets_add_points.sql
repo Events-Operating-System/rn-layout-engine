@@ -1,0 +1,43 @@
+-- ============================================================
+-- RN Layout Engine — Guardar la geometría de los polígonos en "Mis Assets"
+--
+-- Contexto (confirmado con datos de prod, 2026-09-03):
+--   - "Guardar como asset" sobre un polígono descartaba element.points
+--     (no existe columna donde ponerlos). Al re-agregar el asset volvía
+--     como un rectángulo plano del bounding box, inservible.
+--   - Las dimensiones de un polígono se guardaban sin redondear
+--     (fila real: default_width = 6.456115992357627,
+--     default_height = 1.2188781133481938). El badge de la lista de
+--     assets renderiza `{default_width}×{default_height}` textual, sin
+--     redondear, y se lee como un "nombre corrupto". El name de esa fila
+--     en realidad es "Bar", dato limpio — era un error de lectura de UI.
+--
+-- Este batch (solo la parte de schema):
+--   - Columna points jsonb nullable. El frontend la puebla SOLO cuando
+--     shape = 'polygon', con el mismo formato que LayoutElement.points
+--     (flat [x0,y0,x1,y1,...], offsets en METROS relativos al bounding
+--     box), redondeado a 2 decimales. Para cualquier otro shape queda
+--     NULL.
+--   - El redondeo de default_width/default_height a 2 decimales y el
+--     .trim() del nombre son cambios de frontend (assetService /
+--     LayoutEditor), no de schema.
+--
+-- La tabla public.custom_assets se creó ad hoc en Studio y no tiene
+-- migración previa en el repo. RLS actual: una única policy FOR ALL con
+-- created_by = auth.uid() (USING + WITH CHECK), sin trigger que fije
+-- created_by server-side. Agregar una columna nullable NO requiere tocar
+-- esa policy — evalúa la fila entera, sin lista de columnas (mismo
+-- razonamiento que 20260702000000 para layouts).
+--
+-- NOTA (fuera de alcance de este batch): custom_assets sigue con
+-- ownership por usuario (created_by = auth.uid()) y sin trigger de
+-- created_by — arrastra la misma vulnerabilidad de spoofing que layouts
+-- tenía antes de 20260810185339. No se toca acá.
+--
+-- Aplicar vía `supabase db query --linked -f` seguido de
+-- `supabase migration repair --status applied 20260903125134`
+-- (NUNCA `db push`) — ledger schema_migrations compartido entre repos.
+-- ============================================================
+
+alter table public.custom_assets
+  add column if not exists points jsonb;

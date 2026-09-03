@@ -69,6 +69,11 @@ export interface AssetTemplate {
   defaultHeight: number
   shape?: ElementShape
   defaultColor?: string
+  // shape === 'polygon' only: same convention as LayoutElement.points
+  // (flat [x0,y0,x1,y1,...] meter offsets relative to the bounding box).
+  // Set when re-adding a custom polygon asset so its real shape is
+  // restored instead of a plain bounding-box rectangle.
+  points?: number[]
 }
 
 // ── Drawing primitives ────────────────────────────────────────────────────────

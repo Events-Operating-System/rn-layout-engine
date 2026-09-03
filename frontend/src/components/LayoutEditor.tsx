@@ -12,7 +12,9 @@ import { useCustomAssets } from '@/hooks/useCustomAssets'
 import { supabase } from '@/lib/supabase'
 import { layoutService, type LayoutData } from '@/lib/layoutService'
 import { draftService, type LayoutDraft } from '@/lib/draftService'
-import type { AssetTemplate } from '@/types/layout'
+import type { AssetTemplate, LayoutElement } from '@/types/layout'
+
+const round2 = (n: number) => Math.round(n * 100) / 100
 
 interface Props {
   layoutIdToLoad?: string | null
@@ -34,6 +36,9 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   // cargado dispare un draft.
   const [bootstrapped, setBootstrapped] = useState(false)
   const [recovery, setRecovery] = useState<LayoutDraft | null>(null)
+  // "Guardar como asset": elemento en espera de nombre + nombre tipeado.
+  const [assetDraft, setAssetDraft] = useState<LayoutElement | null>(null)
+  const [assetName, setAssetName] = useState('')
 
   const {
     elements, selectedId, selectedIds, selectedElement,
@@ -256,17 +261,33 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     }
   }, [userId, layoutId, onLayoutForked])
 
-  const handleSaveAsAsset = useCallback(async (element: typeof selectedElement) => {
-    if (!element) return
+  // "Guardar como asset" ahora abre un modal para el nombre en vez de
+  // usar element.name directo. Un polígono recién dibujado se llama
+  // 'Polígono' (literal) — se ofrece vacío para forzar un nombre real.
+  const handleRequestSaveAsAsset = useCallback((element: LayoutElement) => {
+    setAssetDraft(element)
+    setAssetName(element.name === 'Polígono' ? '' : element.name)
+  }, [])
+
+  const handleConfirmSaveAsAsset = useCallback(async () => {
+    if (!assetDraft) return
+    const name = assetName.trim()
+    if (!name) return
+    const isPolygon = assetDraft.shape === 'polygon'
     await createAsset({
-      name: element.name,
-      category: element.category,
-      default_width: element.width,
-      default_height: element.height,
-      default_color: element.color,
-      shape: element.shape,
+      name,
+      category: assetDraft.category,
+      default_width: round2(assetDraft.width),
+      default_height: round2(assetDraft.height),
+      default_color: assetDraft.color,
+      shape: assetDraft.shape,
+      // Solo los polígonos guardan su geometría; el resto de las formas
+      // se reconstruyen de width/height. Redondeado a 2 decimales (1cm).
+      points: isPolygon && assetDraft.points ? assetDraft.points.map(round2) : undefined,
     })
-  }, [createAsset])
+    setAssetDraft(null)
+    setAssetName('')
+  }, [assetDraft, assetName, createAsset])
 
   const handleRecoverDraft = useCallback(() => {
     if (!recovery) return
@@ -411,7 +432,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onAddElement={handleAddElement}
             customAssets={customAssets}
             selectedElement={selectedElement}
-            onSaveAsAsset={handleSaveAsAsset}
+            onSaveAsAsset={handleRequestSaveAsAsset}
             onDeleteAsset={deleteAsset}
           />
         </div>
@@ -473,6 +494,47 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
       </div>
 
       <FooterLegend meta={layoutMeta} onUpdate={updateMeta} />
+
+      {assetDraft && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-sm font-semibold text-slate-100 mb-2">Guardar como asset</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Nombre con el que aparecerá en “Mis Assets”.
+            </p>
+            <input
+              autoFocus
+              value={assetName}
+              onChange={e => setAssetName(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') void handleConfirmSaveAsAsset()
+                if (e.key === 'Escape') { setAssetDraft(null); setAssetName('') }
+              }}
+              placeholder="Ej: Escenario principal"
+              className="w-full bg-slate-800 border border-slate-600 focus:border-indigo-500 rounded px-3 py-2 text-sm text-slate-100 outline-none"
+            />
+            <p className="text-[10px] text-slate-500 mt-2 mb-5">
+              {round2(assetDraft.width)}m × {round2(assetDraft.height)}m
+              {assetDraft.shape === 'polygon' && ' · incluye la forma del polígono'}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setAssetDraft(null); setAssetName('') }}
+                className="flex-1 py-2 rounded-lg border border-slate-700 text-xs text-slate-400 hover:bg-slate-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => void handleConfirmSaveAsAsset()}
+                disabled={!assetName.trim()}
+                className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs text-white font-semibold transition-colors disabled:opacity-40"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

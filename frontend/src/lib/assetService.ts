@@ -8,6 +8,10 @@ export interface CustomAsset {
   default_height: number
   default_color?: string
   shape?: string
+  // shape === 'polygon' only: flat [x0,y0,x1,y1,...] meter offsets
+  // relative to the bounding box (same as LayoutElement.points). NULL for
+  // every other shape.
+  points?: number[] | null
   created_at: string
 }
 
@@ -18,6 +22,7 @@ export interface NewCustomAsset {
   default_height: number
   default_color?: string
   shape?: string
+  points?: number[] | null
 }
 
 export const assetService = {

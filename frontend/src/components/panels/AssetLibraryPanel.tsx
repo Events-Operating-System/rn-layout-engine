@@ -78,6 +78,7 @@ export default function AssetLibraryPanel({
       defaultHeight: asset.default_height,
       defaultColor: asset.default_color,
       shape: asset.shape as AssetTemplate['shape'],
+      points: asset.shape === 'polygon' && asset.points ? asset.points : undefined,
     })
   }
 
