@@ -36,7 +36,10 @@ export function useLayoutPersistence(orgId: string, eventId?: string | null) {
     }
   }, [orgId, layoutId, fetchLayouts])
 
-  const load = useCallback(async (id: string): Promise<LayoutData> => {
+  // Returns the layout content plus the row's updated_at (from the list
+  // fetch it already does) so the caller can compare it against any
+  // autosave draft for the recovery banner.
+  const load = useCallback(async (id: string): Promise<LayoutData & { updatedAt: string | null }> => {
     setLoading(true)
     try {
       const data = await layoutService.load(id)
@@ -45,7 +48,7 @@ export function useLayoutPersistence(orgId: string, eventId?: string | null) {
       setLayouts(list)
       const layout = list.find(l => l.id === id)
       if (layout) setLayoutName(layout.name)
-      return data
+      return { ...data, updatedAt: layout?.updated_at ?? null }
     } finally {
       setLoading(false)
     }

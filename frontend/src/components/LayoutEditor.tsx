@@ -1,23 +1,27 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import AssetLibraryPanel from '@/components/panels/AssetLibraryPanel'
 import PropertiesPanel from '@/components/panels/PropertiesPanel'
 import DrawingToolbar from '@/components/DrawingToolbar'
 import FooterLegend from '@/components/FooterLegend'
+import RecoveryBanner from '@/components/RecoveryBanner'
 import LayoutCanvas, { type LayoutCanvasHandle } from '@/components/canvas/LayoutCanvas'
 import { useCanvasState } from '@/hooks/useCanvasState'
 import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
+import { useLayoutAutosave } from '@/hooks/useLayoutAutosave'
 import { useCustomAssets } from '@/hooks/useCustomAssets'
 import { supabase } from '@/lib/supabase'
-import { layoutService } from '@/lib/layoutService'
+import { layoutService, type LayoutData } from '@/lib/layoutService'
+import { draftService, type LayoutDraft } from '@/lib/draftService'
 import type { AssetTemplate } from '@/types/layout'
 
 interface Props {
   layoutIdToLoad?: string | null
   eventId?: string | null
+  orgId?: string
   onLayoutForked?: (newId: string) => void
 }
 
-export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }: Props) {
+export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLayoutForked }: Props) {
   const canvasRef = useRef<LayoutCanvasHandle>(null)
   const [mobilePanel, setMobilePanel] = useState<'library' | 'properties' | null>(null)
   const [userId, setUserId] = useState<string>('')
@@ -25,6 +29,11 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
   const [duplicating, setDuplicating] = useState(false)
   const [savingAsCopy, setSavingAsCopy] = useState(false)
   const [inputName, setInputName] = useState('Sin título')
+  // Autosave: false hasta que el layout terminó de cargar (o hasta que
+  // sabemos que es uno nuevo). Evita que aplicar el contenido recién
+  // cargado dispare un draft.
+  const [bootstrapped, setBootstrapped] = useState(false)
+  const [recovery, setRecovery] = useState<LayoutDraft | null>(null)
 
   const {
     elements, selectedId, selectedIds, selectedElement,
@@ -76,8 +85,17 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
   const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
 
   useEffect(() => {
-    if (!layoutIdToLoad || !userId) return
-    load(layoutIdToLoad).then(data => {
+    if (!layoutIdToLoad) {
+      // Layout nuevo: no hay nada que restaurar. El autosave igual queda
+      // inactivo hasta el primer "Guardar" manual (no hay fila layouts a
+      // la que asociar el draft — gap conocido).
+      setBootstrapped(true)
+      return
+    }
+    if (!userId) return
+    setBootstrapped(false)
+    setRecovery(null)
+    load(layoutIdToLoad).then(async data => {
       if (data.elements) setElements(data.elements)
       if (data.drawings) setDrawings(data.drawings)
       if (data.viewport) setViewport(data.viewport)
@@ -85,6 +103,27 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
         setLayoutMeta(data.meta)
         if (data.meta.cliente) setInputName(data.meta.cliente)
       }
+      // Recuperación: ¿hay un draft de autosave más nuevo que la fila real?
+      try {
+        const draft = await draftService.get(layoutIdToLoad)
+        if (draft) {
+          const rowTs = data.updatedAt ? new Date(data.updatedAt).getTime() : 0
+          const draftTs = new Date(draft.updated_at).getTime()
+          const sameContent =
+            JSON.stringify(draft.elements ?? []) === JSON.stringify(data.elements ?? []) &&
+            JSON.stringify(draft.drawings ?? []) === JSON.stringify(data.drawings ?? [])
+          if (draftTs > rowTs && !sameContent) {
+            setRecovery(draft)
+          } else {
+            // Draft más viejo que el último guardado, o idéntico a él:
+            // ruido, se limpia en silencio.
+            void draftService.clear(layoutIdToLoad).catch(() => {})
+          }
+        }
+      } catch {
+        /* la recuperación es best-effort — nunca bloquea abrir el layout */
+      }
+      setBootstrapped(true)
     })
   }, [layoutIdToLoad, userId])
 
@@ -122,23 +161,50 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
   layoutMetaRef.current = layoutMeta
   inputNameRef.current = inputName
 
+  // Snapshot siempre-actual para el autosave. El nombre vive en
+  // meta.cliente (igual que en handleSave). El viewport va en el payload
+  // pero NO en dirtyKey — pan/zoom no debe disparar autosave.
+  const snapshotRef = useRef<LayoutData>({ elements, drawings, meta: layoutMeta, viewport })
+  snapshotRef.current = {
+    elements,
+    drawings,
+    meta: { ...layoutMeta, cliente: inputName },
+    viewport,
+  }
+
+  const dirtyKey = useMemo(
+    () => ({ elements, drawings, meta: layoutMeta, name: inputName }),
+    [elements, drawings, layoutMeta, inputName],
+  )
+
+  const { draftStatus, markSaved: markDraftSaved } = useLayoutAutosave({
+    layoutId,
+    orgId,
+    snapshotRef,
+    dirtyKey,
+    enabled: !!layoutId && !!orgId && bootstrapped && saveStatus !== 'saving',
+  })
+
   const handleSave = useCallback(async () => {
     if (!userId) return
     setSaveStatus('saving')
     const currentName = inputNameRef.current
     const currentMeta = { ...layoutMetaRef.current, cliente: currentName }
-    await save(
-      {
-        elements: elementsRef.current,
-        drawings: drawingsRef.current,
-        meta: currentMeta,
-        viewport: viewportRef.current,
-      },
-      currentName
-    )
+    const payload = {
+      elements: elementsRef.current,
+      drawings: drawingsRef.current,
+      meta: currentMeta,
+      viewport: viewportRef.current,
+    }
+    await save(payload, currentName)
+    // El "Guardar" manual es la única vía que pisa la fila real: el draft
+    // de autosave ya no aplica.
+    if (layoutId) void draftService.clear(layoutId).catch(() => {})
+    markDraftSaved(payload)
+    setRecovery(null)
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
-  }, [userId, save])
+  }, [userId, save, layoutId, markDraftSaved])
 
   // "Duplicar" — forks the layout's last SAVED content (re-reads from DB,
   // ignores any unsaved edits currently on the canvas). Original untouched.
@@ -201,6 +267,25 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
       shape: element.shape,
     })
   }, [createAsset])
+
+  const handleRecoverDraft = useCallback(() => {
+    if (!recovery) return
+    // Una sola entrada de undo: deja volver al contenido recién cargado.
+    pushHistory()
+    if (recovery.elements) setElements(recovery.elements)
+    if (recovery.drawings) setDrawings(recovery.drawings)
+    if (recovery.viewport) setViewport(recovery.viewport)
+    if (recovery.meta) {
+      setLayoutMeta(recovery.meta)
+      if (recovery.meta.cliente) setInputName(recovery.meta.cliente)
+    }
+    setRecovery(null)
+  }, [recovery, pushHistory, setElements, setDrawings, setViewport, setLayoutMeta])
+
+  const handleDiscardDraft = useCallback(() => {
+    if (layoutId) void draftService.clear(layoutId).catch(() => {})
+    setRecovery(null)
+  }, [layoutId])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -274,6 +359,15 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
         <div className="flex-1" />
         {saveStatus === 'saving' && <span className="text-[10px] text-indigo-400 animate-pulse">Guardando...</span>}
         {saveStatus === 'saved' && <span className="text-[10px] text-green-500">✓ Guardado</span>}
+        {saveStatus === 'idle' && draftStatus === 'pending' && (
+          <span className="text-[10px] text-slate-500">Autoguardando…</span>
+        )}
+        {saveStatus === 'idle' && draftStatus === 'saved' && (
+          <span className="text-[10px] text-slate-500">Borrador guardado</span>
+        )}
+        {saveStatus === 'idle' && draftStatus === 'error' && (
+          <span className="text-[10px] text-amber-500">Sin conexión — cambios en memoria</span>
+        )}
         <button
           onClick={handleSaveAsCopy}
           disabled={!userId || savingAsCopy}
@@ -298,6 +392,14 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, onLayoutForked }
           Guardar
         </button>
       </div>
+
+      {recovery && (
+        <RecoveryBanner
+          updatedAt={recovery.updated_at}
+          onRecover={handleRecoverDraft}
+          onDiscard={handleDiscardDraft}
+        />
+      )}
 
       <div className="flex-1 flex overflow-hidden relative">
         <div className={

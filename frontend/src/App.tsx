@@ -48,10 +48,11 @@ interface AppShellProps {
   onGoToDashboard: () => void
   layoutIdToLoad: string | null
   eventId: string | null
+  orgId: string
   onLayoutForked: (newId: string) => void
 }
 
-function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, onLayoutForked }: AppShellProps) {
+function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutForked }: AppShellProps) {
   const { lang, setLang, t } = useLang()
 
   const items = [
@@ -102,7 +103,7 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, onLayoutForked }: 
         </div>
       </header>
 
-      <LayoutEditor layoutIdToLoad={layoutIdToLoad} eventId={eventId} onLayoutForked={onLayoutForked} />
+      <LayoutEditor layoutIdToLoad={layoutIdToLoad} eventId={eventId} orgId={orgId} onLayoutForked={onLayoutForked} />
 
       <footer className="h-10 flex-none bg-slate-900 border-t border-slate-700/60 flex items-center px-4 gap-6 overflow-hidden">
         <div className="flex items-center gap-4">
@@ -331,6 +332,7 @@ export default function App() {
             onGoToDashboard={handleGoToDashboard}
             layoutIdToLoad={layoutIdToLoad}
             eventId={eventId}
+            orgId={orgId}
             onLayoutForked={handleLayoutForked}
           />
         </LangProvider>
