@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SavedLayout } from '@/lib/layoutService'
 import { useLang, type Lang } from '@/context/LangContext'
+import LangToggle from '@/components/LangToggle'
 
 interface Props {
   layouts: SavedLayout[]
@@ -14,8 +15,10 @@ interface Props {
   eventId?: string | null
 }
 
+const DATE_LOCALE: Record<Lang, string> = { es: 'es-PE', en: 'en-US', pt: 'pt-BR' }
+
 function formatDate(iso: string, lang: Lang) {
-  return new Date(iso).toLocaleDateString(lang === 'es' ? 'es-PE' : 'en-US', {
+  return new Date(iso).toLocaleDateString(DATE_LOCALE[lang], {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   })
@@ -73,6 +76,7 @@ export default function LayoutDashboard({
             EventOS
           </a>
           <span className="text-slate-700">|</span>
+          <LangToggle className="flex-none" />
           <span className="text-xs text-slate-500 hidden sm:block">{userName}</span>
           <button
             onClick={onSignOut}

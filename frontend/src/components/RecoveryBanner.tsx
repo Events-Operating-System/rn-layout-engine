@@ -9,8 +9,10 @@ interface Props {
   onDiscard: () => void
 }
 
+const DATE_LOCALE: Record<Lang, string> = { es: 'es-PE', en: 'en-US', pt: 'pt-BR' }
+
 function formatWhen(iso: string, lang: Lang) {
-  return new Date(iso).toLocaleString(lang === 'es' ? 'es-PE' : 'en-US', {
+  return new Date(iso).toLocaleString(DATE_LOCALE[lang], {
     day: '2-digit', month: 'short',
     hour: '2-digit', minute: '2-digit',
   })

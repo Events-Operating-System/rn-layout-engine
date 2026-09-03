@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, type React
 import type { AssetCategory } from '@/types/layout'
 import { supabase } from '@/lib/supabase'
 
-export type Lang = 'en' | 'es'
+export type Lang = 'en' | 'es' | 'pt'
 
 const strings = {
   en: {
@@ -277,6 +277,142 @@ const strings = {
     orgNameRequired: 'Ingresá un nombre para tu organización.',
     createOrgFailed: 'No se pudo crear la organización. Intentá de nuevo.',
   },
+  pt: {
+    exportPlan: 'Exportar Planta',
+    clearAnnotations: 'Limpar anotações',
+    toolPointer: 'Seleção',
+    toolHand: 'Mão (Pan)',
+    toolLine: 'Linha',
+    toolArrow: 'Seta',
+    toolText: 'Anotação de texto',
+    toolPolygon: 'Polígono',
+    toolMeasure: 'Medir',
+    toolHint: 'Clique e arraste para desenhar · S para selecionar',
+    toolHintPolygon: 'Clique para posicionar vértices · clique no primeiro vértice ou dê dois cliques para fechar',
+    toolHintMeasureDistance: 'Clique em dois pontos (elementos são ignorados) para medir a distância exata',
+    toolHintMeasureArea: 'Clique em uma forma para ver sua área · clicar no vazio não faz nada',
+    measureModeDistance: 'Distância',
+    measureModeArea: 'Área',
+    libraryTitle: 'Biblioteca',
+    libraryHint: 'Clique para posicionar no canvas',
+    propertiesTitle: 'Propriedades',
+    selectHint: 'Selecione um elemento para ver e editar suas propriedades.',
+    sIdentity: 'Identidade',
+    sPosition: 'Posição (m)',
+    sDimensions: 'Dimensões (m)',
+    sRotation: 'Rotação',
+    sColor: 'Cor',
+    sOpacity: 'Opacidade',
+    sNotes: 'Notas',
+    sState: 'Estado',
+    sDrawing: 'Desenho',
+    sStrokeWidth: 'Espessura do traço',
+    sFontSize: 'Tamanho da fonte',
+    sOrder: 'Ordem',
+    sFlip: 'Espelhar',
+    sMeasurement: 'Medição',
+    fName: 'Nome',
+    fCategory: 'Categoria',
+    fX: 'X', fY: 'Y',
+    fWidth: 'Largura', fHeight: 'Altura',
+    fDegrees: 'Graus',
+    fLength: 'Comprimento (m)', fAngleDeg: 'Ângulo (°)',
+    fType: 'Tipo', fText: 'Texto', fPx: 'px',
+    lockElement: 'Bloquear elemento',
+    deleteElement: 'Excluir elemento',
+    deleteDrawing: 'Excluir desenho',
+    duplicate: 'Duplicar',
+    bringToFront: 'Trazer para frente',
+    sendToBack: 'Enviar para trás',
+    flipHorizontal: 'Espelhar horizontal',
+    flipVertical: 'Espelhar vertical',
+    elementsSelected: 'elementos selecionados',
+    notesPlaceholder: 'Notas operacionais...',
+    area: 'Área',
+    catStage: 'Palco', catStructure: 'Estrutura', catSeating: 'Assentos',
+    catBarrier: 'Barreira', catUtility: 'Utilidades', catCirculation: 'Circulação',
+    catPrimitive: 'Formas',
+    hintZoom: 'Scroll → Zoom', hintPan: 'Arrastar canvas → Pan',
+    hintSelect: 'Clicar elemento → Selecionar', hintMove: 'Arrastar → Mover',
+    // ── Editor: barra de salvamento ────────────────────────────────────
+    layoutNamePlaceholder: 'Nome do cliente / evento',
+    saving: 'Salvando…',
+    saved: '✓ Salvo',
+    autosaving: 'Salvando automaticamente…',
+    draftSaved: 'Rascunho salvo',
+    offlineChanges: 'Sem conexão — alterações na memória',
+    offlineChangesShort: '⚠ não salvo',
+    saveBtn: 'Salvar',
+    saveAsCopy: 'Salvar como cópia',
+    savingCopy: 'Salvando cópia…',
+    duplicating: 'Duplicando…',
+    saveAsCopyTitle: 'Cria uma cópia independente a partir do estado atual do canvas — o original não é modificado',
+    duplicateTitleReady: 'Duplica o layout (última versão salva)',
+    duplicateTitleUnsaved: 'Salve o layout antes de duplicá-lo',
+    // ── Editor: modal "Salvar como asset" ─────────────────────────────
+    saveAsAssetTitle: 'Salvar como asset',
+    saveGroupAsAssetTitle: 'Salvar grupo como asset',
+    assetNameHint: 'Nome com o qual aparecerá em “Meus Assets”.',
+    assetNamePlaceholder: 'Ex: Palco principal',
+    assetDimsPolygonNote: ' · inclui a forma do polígono',
+    assetPiecesUnit: 'peças',
+    cancel: 'Cancelar',
+    // ── Editor: banner de recuperação ────────────────────────────────
+    recoveryText: 'Há alterações não salvas de {when} que nunca foram salvas neste layout.',
+    recover: 'Recuperar',
+    discard: 'Descartar',
+    // ── Editor: seleção múltipla (painel de propriedades) ────────────
+    sAsset: 'Asset',
+    rotateGroupDeg: 'Girar grupo (°)',
+    apply: 'Aplicar',
+    // ── Dashboard ────────────────────────────────────────────────────
+    dashTitle: 'Layouts',
+    dashSubtitle: 'Meus Layouts',
+    creatingLayoutForEvent: 'Criando layout para o evento',
+    signOut: 'Sair',
+    layoutsNoneYet: 'Nenhum layout salvo ainda',
+    layoutsCountOne: '{n} layout',
+    layoutsCountMany: '{n} layouts',
+    layoutsCountFiltered: '{n} de {total}',
+    newLayout: 'Novo layout',
+    loadingLayouts: 'Carregando layouts…',
+    noLayoutsTitle: 'Você ainda não tem layouts salvos.',
+    createFirstLayout: 'Criar seu primeiro layout',
+    searchLayoutsPlaceholder: 'Buscar por nome',
+    searchNoMatch: 'Nenhum layout corresponde a “{q}”.',
+    clearSearch: 'Limpar busca',
+    duplicateLayoutTitle: 'Duplicar layout',
+    deleteLayoutTitle: 'Excluir layout',
+    deleteLayoutConfirmTitle: 'Excluir layout?',
+    deleteLayoutConfirmText: 'Esta ação arquivará o layout. Não pode ser desfeita.',
+    deleteBtn: 'Excluir',
+    // ── Auth / carregamento / erros ──────────────────────────────────
+    loading: 'Carregando…',
+    redirecting: 'Redirecionando…',
+    sessionCheckFailedMsg: 'Não foi possível verificar sua sessão.',
+    retry: 'Tentar de novo',
+    appName: 'EventOS Layout',
+    poweredBy: 'Desenvolvido pela Reality Near',
+    loginWithGoogle: 'Continuar com o Google',
+    connecting: 'Conectando…',
+    // ── Guard de status da organização ──────────────────────────────
+    verifyingAccess: 'Verificando acesso…',
+    orgStatusError: 'Não foi possível verificar o status da sua organização.',
+    orgPendingTitle: 'Aprovação pendente',
+    orgPendingBody: 'A organização {org} está aguardando aprovação da plataforma.',
+    orgRejectedTitle: 'Organização rejeitada',
+    orgRejectedBody: 'A organização {org} foi rejeitada pela plataforma.',
+    orgSuspendedTitle: 'Organização suspensa',
+    orgSuspendedBody: 'Sua organização {org} está suspensa. Entre em contato com o administrador.',
+    // ── Criar organização ──────────────────────────────────────────
+    createOrgTitle: 'Criar sua organização',
+    createOrgSubtitle: 'Você ainda não faz parte de nenhuma organização no EventOS.',
+    orgNameLabel: 'Nome da sua organização',
+    creating: 'Criando…',
+    createOrgBtn: 'Criar organização',
+    orgNameRequired: 'Informe um nome para sua organização.',
+    createOrgFailed: 'Não foi possível criar a organização. Tente de novo.',
+  },
 } as const
 
 export type Strings = { [K in keyof (typeof strings)['en']]: string }
@@ -337,8 +473,51 @@ const ASSET_NAME_ES: Record<string, string> = {
   'Square': 'Cuadrado',
 }
 
+const ASSET_NAME_PT: Record<string, string> = {
+  'Main Stage': 'Palco Principal',
+  'Secondary Stage': 'Palco Secundário',
+  'Dance Floor': 'Pista de Dança',
+  'LED Wall': 'Painel de LED',
+  'Screen': 'Tela',
+  'DJ Booth PRO': 'Cabine de DJ PRO',
+  'DJ Booth': 'Cabine de DJ',
+  'Podium': 'Púlpito',
+  'Tent 10×10': 'Tenda 10×10',
+  'Tent 20×20': 'Tenda 20×20',
+  'Tent 20×40': 'Tenda 20×40',
+  'Marquee': 'Tenda Marquise',
+  'Bar': 'Bar',
+  'Buffet': 'Buffet',
+  'Lounge': 'Área Lounge',
+  'Backstage': 'Backstage',
+  'Round Table 8': 'Mesa Redonda 8',
+  'Round Table 10': 'Mesa Redonda 10',
+  'Head Table': 'Mesa Principal',
+  'Rect Table': 'Mesa Retangular',
+  'Chair Row Block': 'Bloco de Cadeiras',
+  'Bleacher Block': 'Arquibancada',
+  'Crowd Barrier': 'Grade de Contenção',
+  'Fence': 'Cerca',
+  'Fence Panel': 'Painel de Cerca',
+  'Kitchen': 'Cozinha',
+  'Restrooms': 'Banheiros',
+  'Generator': 'Gerador',
+  'First Aid': 'Primeiros Socorros',
+  'Entrance': 'Entrada',
+  'Entrance Gate': 'Portão de Entrada',
+  'Exit Gate': 'Portão de Saída',
+  'Emergency Exit': 'Saída de Emergência',
+  'Rectangle': 'Retângulo',
+  'Circle': 'Círculo',
+  'Oval': 'Oval',
+  'Rounded Box': 'Caixa Arredondada',
+  'Tree': 'Árvore',
+  'Square': 'Quadrado',
+}
+
 export function getAssetName(lang: Lang, name: string): string {
   if (lang === 'es') return ASSET_NAME_ES[name] ?? name
+  if (lang === 'pt') return ASSET_NAME_PT[name] ?? name
   return name
 }
 
@@ -354,12 +533,14 @@ const LangContext = createContext<LangContextValue>({
   t: strings.es,
 })
 
-// Acepta 'es' / 'es-PE' / 'en-US' / etc. Cualquier cosa no reconocida -> null.
+// Acepta 'es' / 'es-PE' / 'en-US' / 'pt-BR' / etc. Cualquier cosa no
+// reconocida -> null.
 function normalizeLocale(raw: string | null | undefined): Lang | null {
   if (!raw) return null
   const s = raw.toLowerCase()
   if (s.startsWith('es')) return 'es'
   if (s.startsWith('en')) return 'en'
+  if (s.startsWith('pt')) return 'pt'
   return null
 }
 

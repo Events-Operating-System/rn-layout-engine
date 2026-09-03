@@ -3,6 +3,7 @@ import { supabase, type User } from '@/lib/supabase'
 import LayoutEditor from '@/components/LayoutEditor'
 import LayoutDashboard from '@/components/LayoutDashboard'
 import OrgStatusGuard from '@/components/OrgStatusGuard'
+import LangToggle from '@/components/LangToggle'
 import { LangProvider, useLang } from '@/context/LangContext'
 import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
 import { useOrgStatus } from '@/hooks/useOrgStatus'
@@ -91,7 +92,7 @@ interface AppShellProps {
 }
 
 function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutForked }: AppShellProps) {
-  const { lang, setLang, t } = useLang()
+  const { t } = useLang()
 
   const items = [
     { label: t.catStage,       color: '#6366f1' },
@@ -130,12 +131,7 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutFor
             EventOS
           </a>
           <span className="text-slate-700">|</span>
-          <button
-            onClick={() => setLang(lang === 'en' ? 'es' : 'en')}
-            className="text-[10px] font-mono text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-2 py-0.5 rounded border border-slate-700/60 transition-colors tracking-wider flex-none"
-          >
-            {lang === 'en' ? 'ES' : 'EN'}
-          </button>
+          <LangToggle className="flex-none" />
           <span className="hidden sm:inline text-[9px] bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded border border-indigo-900 font-medium tracking-wider uppercase">MVP</span>
           <span className="hidden sm:block text-[9px] text-slate-600">Reality Near · Events Operating System</span>
         </div>
