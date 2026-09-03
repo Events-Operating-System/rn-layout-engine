@@ -25,6 +25,13 @@ export default function LayoutDashboard({
 }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+
+  // Filtro client-side por nombre — la lista carga entera de una sola
+  // consulta (layoutService.list, sin paginación), así que no hace falta
+  // ir al backend ni debounce.
+  const q = query.trim().toLowerCase()
+  const filtered = q ? layouts.filter(l => l.name.toLowerCase().includes(q)) : layouts
 
   // index.html sets <body class="overflow-hidden"> so the Editor's Konva
   // canvas can own the exact viewport with no native page scroll/pinch. This
@@ -75,22 +82,45 @@ export default function LayoutDashboard({
       </header>
 
       <main className="flex-1 px-6 py-8 max-w-5xl mx-auto w-full">
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
           <div>
             <h1 className="text-xl font-bold text-slate-100">Layouts</h1>
             <p className="text-xs text-slate-500 mt-0.5">
-              {layouts.length === 0 ? 'Ningún layout guardado aún' : `${layouts.length} layout${layouts.length !== 1 ? 's' : ''}`}
+              {layouts.length === 0
+                ? 'Ningún layout guardado aún'
+                : q
+                  ? `${filtered.length} de ${layouts.length}`
+                  : `${layouts.length} layout${layouts.length !== 1 ? 's' : ''}`}
             </p>
           </div>
-          <button
-            onClick={onNew}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-            </svg>
-            Nuevo layout
-          </button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="relative flex-1 sm:flex-none sm:w-56">
+              <svg
+                width="14" height="14" viewBox="0 0 14 14" fill="none"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-600 pointer-events-none"
+              >
+                <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M9.5 9.5L13 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              <input
+                type="text"
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') setQuery('') }}
+                placeholder="Buscar por nombre"
+                className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none transition-colors"
+              />
+            </div>
+            <button
+              onClick={onNew}
+              className="flex-none flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+              </svg>
+              Nuevo layout
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -108,9 +138,20 @@ export default function LayoutDashboard({
               Crear tu primer layout
             </button>
           </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-3">
+            <div className="text-4xl opacity-15">🔍</div>
+            <p className="text-slate-500 text-sm">Ningún layout coincide con «{query.trim()}».</p>
+            <button
+              onClick={() => setQuery('')}
+              className="text-indigo-400 hover:text-indigo-300 text-sm underline underline-offset-4 transition-colors"
+            >
+              Limpiar búsqueda
+            </button>
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {layouts.map(layout => (
+            {filtered.map(layout => (
               <div
                 key={layout.id}
                 className="group bg-slate-900 border border-slate-700/60 rounded-xl p-5 hover:border-indigo-500/50 transition-all cursor-pointer relative"
