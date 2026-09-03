@@ -5,6 +5,7 @@ import DrawingToolbar from '@/components/DrawingToolbar'
 import FooterLegend from '@/components/FooterLegend'
 import RecoveryBanner from '@/components/RecoveryBanner'
 import LayoutCanvas, { type LayoutCanvasHandle } from '@/components/canvas/LayoutCanvas'
+import { useLang } from '@/context/LangContext'
 import { useCanvasState } from '@/hooks/useCanvasState'
 import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
 import { useLayoutAutosave } from '@/hooks/useLayoutAutosave'
@@ -60,6 +61,7 @@ interface Props {
 }
 
 export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLayoutForked }: Props) {
+  const { t } = useLang()
   const canvasRef = useRef<LayoutCanvasHandle>(null)
   const [mobilePanel, setMobilePanel] = useState<'library' | 'properties' | null>(null)
   const [userId, setUserId] = useState<string>('')
@@ -438,21 +440,21 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             updateMeta({ cliente: e.target.value })
           }}
           className="bg-slate-800 text-sm text-slate-100 font-medium outline-none border border-slate-600 focus:border-indigo-500 rounded px-3 py-1 flex-1 min-w-0 sm:flex-none sm:w-64 placeholder:text-slate-500 transition-colors"
-          placeholder="Nombre del cliente / evento"
+          placeholder={t.layoutNamePlaceholder}
         />
         <div className="hidden sm:block flex-1" />
-        {saveStatus === 'saving' && <span className="flex-none text-[10px] text-indigo-400 animate-pulse whitespace-nowrap">Guardando...</span>}
-        {saveStatus === 'saved' && <span className="flex-none text-[10px] text-green-500 whitespace-nowrap">✓ Guardado</span>}
+        {saveStatus === 'saving' && <span className="flex-none text-[10px] text-indigo-400 animate-pulse whitespace-nowrap">{t.saving}</span>}
+        {saveStatus === 'saved' && <span className="flex-none text-[10px] text-green-500 whitespace-nowrap">{t.saved}</span>}
         {saveStatus === 'idle' && draftStatus === 'pending' && (
-          <span className="flex-none text-[10px] text-slate-500 whitespace-nowrap">Autoguardando…</span>
+          <span className="flex-none text-[10px] text-slate-500 whitespace-nowrap">{t.autosaving}</span>
         )}
         {saveStatus === 'idle' && draftStatus === 'saved' && (
-          <span className="flex-none text-[10px] text-slate-500 whitespace-nowrap">Borrador guardado</span>
+          <span className="flex-none text-[10px] text-slate-500 whitespace-nowrap">{t.draftSaved}</span>
         )}
         {saveStatus === 'idle' && draftStatus === 'error' && (
           <>
-            <span className="flex-none text-[10px] text-amber-500 whitespace-nowrap hidden sm:inline">Sin conexión — cambios en memoria</span>
-            <span className="flex-none text-[10px] text-amber-500 whitespace-nowrap sm:hidden" title="Sin conexión — cambios en memoria">⚠ sin guardar</span>
+            <span className="flex-none text-[10px] text-amber-500 whitespace-nowrap hidden sm:inline">{t.offlineChanges}</span>
+            <span className="flex-none text-[10px] text-amber-500 whitespace-nowrap sm:hidden" title={t.offlineChanges}>{t.offlineChangesShort}</span>
           </>
         )}
         {/* Acciones secundarias — ocultas < sm para que "Guardar" nunca
@@ -461,25 +463,25 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         <button
           onClick={handleSaveAsCopy}
           disabled={!userId || savingAsCopy}
-          title="Crea una copia independiente a partir del estado actual del canvas — el original no se modifica"
+          title={t.saveAsCopyTitle}
           className="hidden sm:block flex-none h-7 px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 disabled:opacity-40 transition-colors"
         >
-          {savingAsCopy ? 'Guardando copia...' : 'Guardar como copia'}
+          {savingAsCopy ? t.savingCopy : t.saveAsCopy}
         </button>
         <button
           onClick={handleDuplicate}
           disabled={!layoutId || duplicating}
-          title={layoutId ? 'Duplica el layout (última versión guardada)' : 'Guarda el layout antes de duplicarlo'}
+          title={layoutId ? t.duplicateTitleReady : t.duplicateTitleUnsaved}
           className="hidden sm:block flex-none h-7 px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 disabled:opacity-40 transition-colors"
         >
-          {duplicating ? 'Duplicando...' : 'Duplicar'}
+          {duplicating ? t.duplicating : t.duplicate}
         </button>
         <button
           onClick={handleSave}
           disabled={!userId || saveStatus === 'saving'}
           className="flex-none h-7 px-4 rounded text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-colors"
         >
-          Guardar
+          {t.saveBtn}
         </button>
       </div>
 
@@ -571,10 +573,10 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm">
             <h3 className="text-sm font-semibold text-slate-100 mb-2">
-              {assetTarget.kind === 'group' ? 'Guardar grupo como asset' : 'Guardar como asset'}
+              {assetTarget.kind === 'group' ? t.saveGroupAsAssetTitle : t.saveAsAssetTitle}
             </h3>
             <p className="text-xs text-slate-400 mb-4">
-              Nombre con el que aparecerá en “Mis Assets”.
+              {t.assetNameHint}
             </p>
             <input
               autoFocus
@@ -584,14 +586,14 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
                 if (e.key === 'Enter') void handleConfirmSaveAsAsset()
                 if (e.key === 'Escape') { setAssetTarget(null); setAssetName('') }
               }}
-              placeholder="Ej: Escenario principal"
+              placeholder={t.assetNamePlaceholder}
               className="w-full bg-slate-800 border border-slate-600 focus:border-indigo-500 rounded px-3 py-2 text-sm text-slate-100 outline-none"
             />
             <p className="text-[10px] text-slate-500 mt-2 mb-5">
               {assetTarget.kind === 'group'
-                ? `${assetTarget.count} piezas · ${assetTarget.width}m × ${assetTarget.height}m`
+                ? `${assetTarget.count} ${t.assetPiecesUnit} · ${assetTarget.width}m × ${assetTarget.height}m`
                 : `${round2(assetTarget.element.width)}m × ${round2(assetTarget.element.height)}m${
-                    assetTarget.element.shape === 'polygon' ? ' · incluye la forma del polígono' : ''
+                    assetTarget.element.shape === 'polygon' ? t.assetDimsPolygonNote : ''
                   }`}
             </p>
             <div className="flex gap-3">
@@ -599,14 +601,14 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
                 onClick={() => { setAssetTarget(null); setAssetName('') }}
                 className="flex-1 py-2 rounded-lg border border-slate-700 text-xs text-slate-400 hover:bg-slate-800 transition-colors"
               >
-                Cancelar
+                {t.cancel}
               </button>
               <button
                 onClick={() => void handleConfirmSaveAsAsset()}
                 disabled={!assetName.trim()}
                 className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs text-white font-semibold transition-colors disabled:opacity-40"
               >
-                Guardar
+                {t.saveBtn}
               </button>
             </div>
           </div>

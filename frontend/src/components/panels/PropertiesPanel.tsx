@@ -116,15 +116,15 @@ function MultiSelectProperties({
           </button>
         </div>
       </Section>
-      <Section label="Rotar grupo (°)">
+      <Section label={t.rotateGroupDeg}>
         <GroupRotate onRotate={onRotate} />
       </Section>
-      <Section label="Asset">
+      <Section label={t.sAsset}>
         <button
           onClick={onSaveAsAsset}
           className="w-full h-7 rounded text-[10px] text-indigo-300 hover:text-indigo-200 hover:bg-indigo-950/40 border border-indigo-900/50 transition-colors font-mono uppercase tracking-wider"
         >
-          Guardar grupo como asset
+          {t.saveGroupAsAssetTitle}
         </button>
       </Section>
     </div>
@@ -136,6 +136,7 @@ function MultiSelectProperties({
 // reset to 0. Orbits the combined bounding-box centre — see
 // useCanvasState.rotateElements.
 function GroupRotate({ onRotate }: { onRotate: (deltaDeg: number) => void }) {
+  const { t } = useLang()
   const [delta, setDelta] = useState(0)
   const apply = () => {
     if (delta) onRotate(delta)
@@ -155,7 +156,7 @@ function GroupRotate({ onRotate }: { onRotate: (deltaDeg: number) => void }) {
         onClick={apply}
         className="flex-none h-7 px-3 rounded text-[10px] text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border border-slate-600 transition-colors font-mono uppercase tracking-wider"
       >
-        Aplicar
+        {t.apply}
       </button>
     </div>
   )
