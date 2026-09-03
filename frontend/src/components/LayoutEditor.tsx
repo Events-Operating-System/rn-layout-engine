@@ -496,8 +496,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
       <div className="flex-1 flex overflow-hidden relative">
         <div className={
           mobilePanel === 'library'
-            ? 'absolute inset-y-0 left-0 z-20 shadow-2xl flex flex-none md:static md:shadow-none'
-            : 'hidden md:flex md:flex-none'
+            ? 'absolute inset-y-0 left-0 z-20 shadow-2xl flex flex-none lg:static lg:shadow-none'
+            : 'hidden lg:flex lg:flex-none'
         }>
           <AssetLibraryPanel
             onAddElement={handleAddElement}
@@ -540,8 +540,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
 
         <div className={
           mobilePanel === 'properties'
-            ? 'absolute inset-y-0 right-0 z-20 shadow-2xl flex flex-none md:static md:shadow-none'
-            : 'hidden md:flex md:flex-none'
+            ? 'absolute inset-y-0 right-0 z-20 shadow-2xl flex flex-none lg:static lg:shadow-none'
+            : 'hidden lg:flex lg:flex-none'
         }>
           <PropertiesPanel
             element={selectedElement}
@@ -561,7 +561,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
 
         {mobilePanel !== null && (
           <div
-            className="absolute inset-0 z-10 md:hidden bg-black/40"
+            className="absolute inset-0 z-10 lg:hidden bg-black/40"
             onClick={() => setMobilePanel(null)}
           />
         )}

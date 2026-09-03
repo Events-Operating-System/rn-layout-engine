@@ -76,8 +76,9 @@ export default function DrawingToolbar({
   return (
     <div className="flex-none h-9 bg-slate-900 border-b border-slate-700/60 flex items-center px-3 gap-2">
 
-      {/* Mobile panel toggles */}
-      <div className="flex items-center gap-0.5 md:hidden">
+      {/* Panel toggles — shown until lg (1024px), where Library/Properties
+          become static side panels (see LayoutEditor). */}
+      <div className="flex items-center gap-0.5 lg:hidden">
         <button
           onClick={onToggleLibrary}
           title={t.libraryTitle}
@@ -183,7 +184,7 @@ export default function DrawingToolbar({
       </span>
 
       {activeTool !== 'pointer' && activeTool !== 'hand' && effectiveTool === activeTool && (
-        <span className="hidden md:block text-[9px] text-slate-600 font-mono select-none">
+        <span className="hidden lg:block text-[9px] text-slate-600 font-mono select-none">
           {toolHints[activeTool] ?? t.toolHint}
         </span>
       )}
