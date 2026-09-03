@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { LayoutElement, DrawingPrimitive } from '@/types/layout'
 import { useLang, getCategoryLabel } from '@/context/LangContext'
 import { PIXELS_PER_METER } from '@/components/canvas/LayoutCanvas'
@@ -15,6 +16,7 @@ interface PropertiesPanelProps {
   onBringToFront: (ids: string[]) => void
   onSendToBack: (ids: string[]) => void
   onSaveGroupAsAsset: () => void
+  onRotateGroup: (ids: string[], deltaDeg: number) => void
 }
 
 const COLOR_PRESETS = [
@@ -32,7 +34,7 @@ const COLOR_PRESETS = [
 export default function PropertiesPanel({
   element, onUpdate, onDeleteElement, onDuplicateElement,
   selectedDrawing, onUpdateDrawing, onDeleteDrawing,
-  selectedIds, onBringToFront, onSendToBack, onSaveGroupAsAsset,
+  selectedIds, onBringToFront, onSendToBack, onSaveGroupAsAsset, onRotateGroup,
 }: PropertiesPanelProps) {
   const { t } = useLang()
   const isMultiSelect = element === null && selectedDrawing === null && selectedIds.size > 1
@@ -73,6 +75,7 @@ export default function PropertiesPanel({
           onBringToFront={() => onBringToFront([...selectedIds])}
           onSendToBack={() => onSendToBack([...selectedIds])}
           onSaveAsAsset={onSaveGroupAsAsset}
+          onRotate={(deltaDeg) => onRotateGroup([...selectedIds], deltaDeg)}
         />
       )}
     </aside>
@@ -83,12 +86,13 @@ export default function PropertiesPanel({
 // to a heterogeneous group) ─────────────────────────────────────────────────
 
 function MultiSelectProperties({
-  count, onBringToFront, onSendToBack, onSaveAsAsset,
+  count, onBringToFront, onSendToBack, onSaveAsAsset, onRotate,
 }: {
   count: number
   onBringToFront: () => void
   onSendToBack: () => void
   onSaveAsAsset: () => void
+  onRotate: (deltaDeg: number) => void
 }) {
   const { t } = useLang()
   return (
@@ -112,6 +116,9 @@ function MultiSelectProperties({
           </button>
         </div>
       </Section>
+      <Section label="Rotar grupo (°)">
+        <GroupRotate onRotate={onRotate} />
+      </Section>
       <Section label="Asset">
         <button
           onClick={onSaveAsAsset}
@@ -120,6 +127,36 @@ function MultiSelectProperties({
           Guardar grupo como asset
         </button>
       </Section>
+    </div>
+  )
+}
+
+// Delta-rotation control for a multi-selection: the field is a delta (the
+// group has no single rotation), applied on Enter or the button, then
+// reset to 0. Orbits the combined bounding-box centre — see
+// useCanvasState.rotateElements.
+function GroupRotate({ onRotate }: { onRotate: (deltaDeg: number) => void }) {
+  const [delta, setDelta] = useState(0)
+  const apply = () => {
+    if (delta) onRotate(delta)
+    setDelta(0)
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <input
+        type="number"
+        step={15}
+        value={delta}
+        onChange={e => setDelta(parseFloat(e.target.value) || 0)}
+        onKeyDown={e => { if (e.key === 'Enter') apply() }}
+        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-slate-500"
+      />
+      <button
+        onClick={apply}
+        className="flex-none h-7 px-3 rounded text-[10px] text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border border-slate-600 transition-colors font-mono uppercase tracking-wider"
+      >
+        Aplicar
+      </button>
     </div>
   )
 }

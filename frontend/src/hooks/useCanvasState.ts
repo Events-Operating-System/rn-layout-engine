@@ -349,6 +349,48 @@ export function useCanvasState() {
     })
   }, [pushHistory])
 
+  // Rotate a multi-selection as a rigid group by `deltaDeg` degrees around
+  // the centre of its combined axis-aligned bounding box (same plain
+  // min/max bbox the rest of the code uses — individual element rotation
+  // is not factored into the box). Each element's top-left (x,y) — the
+  // system-wide rotation pivot — orbits that centre, AND `deltaDeg` is
+  // added to the element's own rotation so it also turns on itself, not
+  // just orbits. Locked elements are excluded entirely — neither from the
+  // bbox/pivot nor rotated — same rule as the group-drag in LayoutCanvas
+  // (not the z-order buttons, which do touch locked elements). One history
+  // entry, selection unchanged. Custom offset math, same approach as the
+  // group-drag — the Transformer is not involved.
+  const rotateElements = useCallback((ids: string[], deltaDeg: number) => {
+    if (!deltaDeg) return
+    const idSet = new Set(ids)
+    const sel = elementsRef.current.filter(el => idSet.has(el.id) && !el.locked)
+    if (sel.length < 2) return
+    const rotSet = new Set(sel.map(el => el.id))
+    const minX = Math.min(...sel.map(e => e.x))
+    const minY = Math.min(...sel.map(e => e.y))
+    const maxX = Math.max(...sel.map(e => e.x + e.width))
+    const maxY = Math.max(...sel.map(e => e.y + e.height))
+    const cx = (minX + maxX) / 2
+    const cy = (minY + maxY) / 2
+    const rad = (deltaDeg * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
+    pushHistory()
+    setElements(prev => prev.map(el => {
+      if (!rotSet.has(el.id)) return el
+      const relX = el.x - cx
+      const relY = el.y - cy
+      return {
+        ...el,
+        // [cos -sin; sin cos] in the y-down canvas coords => positive
+        // deltaDeg rotates clockwise on screen, matching Konva's rotation.
+        x: Math.round((cx + relX * cos - relY * sin) * 10) / 10,
+        y: Math.round((cy + relX * sin + relY * cos) * 10) / 10,
+        rotation: Math.round((((el.rotation + deltaDeg) % 360) + 360) % 360),
+      }
+    }))
+  }, [pushHistory])
+
   const setTool = useCallback((tool: DrawingTool) => {
     setActiveTool(tool)
     // Hand is a viewport-navigation aid, not an editing tool — switching to
@@ -443,6 +485,7 @@ export function useCanvasState() {
     duplicateElements,
     bringToFront,
     sendToBack,
+    rotateElements,
     activeTool,
     setTool,
     measureMode,

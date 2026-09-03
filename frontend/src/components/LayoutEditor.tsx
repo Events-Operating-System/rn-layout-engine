@@ -83,7 +83,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     viewport, selectElement, toggleSelectElement, selectElements, selectDrawing,
     updateElement, updateElements, updateViewport, addElement, addGroup, addPolygon,
     deleteElement, deleteElements, duplicateElement, duplicateElements,
-    bringToFront, sendToBack, activeTool, setTool, measureMode, setMeasureMode,
+    bringToFront, sendToBack, rotateElements, activeTool, setTool, measureMode, setMeasureMode,
     drawings, addDrawing, deleteDrawing, updateDrawing,
     clearDrawings, layoutMeta, updateMeta,
     pushHistory, undo, redo, canUndo, canRedo,
@@ -547,6 +547,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onBringToFront={bringToFront}
             onSendToBack={sendToBack}
             onSaveGroupAsAsset={handleRequestSaveGroupAsAsset}
+            onRotateGroup={rotateElements}
           />
         </div>
 
