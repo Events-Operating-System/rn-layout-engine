@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import type { OrgStatus } from '@/hooks/useOrgStatus'
+import { useLang } from '@/context/LangContext'
 import NoOrganization from '@/components/org/NoOrganization'
 import PendingApproval from '@/components/org/PendingApproval'
 import RejectedOrg from '@/components/org/RejectedOrg'
@@ -19,20 +20,22 @@ interface OrgStatusGuardProps {
 // ya normalizado a 'rejected' desde useOrgStatus, nunca se renderiza
 // como activo.
 export default function OrgStatusGuard({ status, onRefresh, children }: OrgStatusGuardProps) {
+  const { t } = useLang()
+
   if (status.state === 'loading') return (
     <div className="min-h-screen flex items-center justify-center bg-slate-950">
-      <div className="text-white text-sm opacity-50">Verificando acceso...</div>
+      <div className="text-white text-sm opacity-50">{t.verifyingAccess}</div>
     </div>
   )
 
   if (status.state === 'error') return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-950">
-      <div className="text-white text-sm opacity-70">No se pudo verificar el estado de tu organización.</div>
+      <div className="text-white text-sm opacity-70">{t.orgStatusError}</div>
       <button
         onClick={onRefresh}
         className="px-4 py-2 rounded-lg border border-slate-700/60 text-slate-300 text-sm hover:bg-slate-800 transition-colors"
       >
-        Reintentar
+        {t.retry}
       </button>
     </div>
   )

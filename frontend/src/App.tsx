@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, type ReactNode } from 'react'
 import { supabase, type User } from '@/lib/supabase'
 import LayoutEditor from '@/components/LayoutEditor'
 import LayoutDashboard from '@/components/LayoutDashboard'
@@ -10,6 +10,7 @@ import { layoutService } from '@/lib/layoutService'
 import { withTimeout } from '@/lib/withTimeout'
 
 function LoginScreen() {
+  const { t } = useLang()
   const [loading, setLoading] = useState(false)
 
   async function handleLogin() {
@@ -24,8 +25,8 @@ function LoginScreen() {
     <div className="min-h-screen flex items-center justify-center bg-slate-950">
       <div className="bg-white rounded-2xl p-10 w-full max-w-sm text-center shadow-2xl">
         <div className="text-4xl mb-4">⚡</div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">EventOS Layout</h1>
-        <p className="text-gray-500 text-sm mb-8">Powered by Reality Near</p>
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">{t.appName}</h1>
+        <p className="text-gray-500 text-sm mb-8">{t.poweredBy}</p>
         <button
           onClick={handleLogin}
           disabled={loading}
@@ -37,9 +38,46 @@ function LoginScreen() {
             <path fill="#FBBC05" d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.039l3.007-2.332z"/>
             <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 7.293C4.672 5.166 6.656 3.58 9 3.58z"/>
           </svg>
-          {loading ? 'Conectando...' : 'Continuar con Google'}
+          {loading ? t.connecting : t.loginWithGoogle}
         </button>
       </div>
+    </div>
+  )
+}
+
+// Pantallas de estado previas al guard de organización. Viven bajo el
+// LangProvider (hoisteado por encima de OrgStatusGuard en App) — antes de
+// que resuelvan sesión/org, useLang() cae al bootstrap
+// (localStorage / navigator.language / 'es').
+function CheckingScreen() {
+  const { t } = useLang()
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-950">
+      <div className="text-white text-sm opacity-50">{t.loading}</div>
+    </div>
+  )
+}
+
+function RedirectingScreen() {
+  const { t } = useLang()
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-950">
+      <div className="text-white text-sm opacity-50">{t.redirecting}</div>
+    </div>
+  )
+}
+
+function SessionFailedScreen() {
+  const { t } = useLang()
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-950">
+      <div className="text-white text-sm opacity-70">{t.sessionCheckFailedMsg}</div>
+      <button
+        onClick={() => window.location.reload()}
+        className="px-4 py-2 rounded-lg border border-slate-700/60 text-slate-300 text-sm hover:bg-slate-800 transition-colors"
+      >
+        {t.retry}
+      </button>
     </div>
   )
 }
@@ -288,41 +326,22 @@ export default function App() {
     setView('dashboard')
   }, [fetchLayouts])
 
-  if (checking) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950">
-      <div className="text-white text-sm opacity-50">Cargando...</div>
-    </div>
-  )
-
-  if (sessionCheckFailed && !user) return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-slate-950">
-      <div className="text-white text-sm opacity-70">No se pudo verificar tu sesión.</div>
-      <button
-        onClick={() => window.location.reload()}
-        className="px-4 py-2 rounded-lg border border-slate-700/60 text-slate-300 text-sm hover:bg-slate-800 transition-colors"
-      >
-        Reintentar
-      </button>
-    </div>
-  )
-
-  if (!user) {
-    if (directLayoutId) return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <div className="text-white text-sm opacity-50">Redirigiendo...</div>
-      </div>
-    )
-    return <LoginScreen />
-  }
-
-  return (
-    <OrgStatusGuard status={orgStatus} onRefresh={refreshOrgStatus}>
-      <LangProvider
-        userId={user.id}
-        orgId={orgId || null}
-        memberLocale={memberLocale}
-        orgLocale={orgLocale}
-      >
+  // LangProvider hoisteado por encima de todo (incluidas las pantallas de
+  // auth/loading y el OrgStatusGuard) para que todas tengan `t`. Antes de
+  // que resuelvan sesión/org, sus props son undefined/null y el provider
+  // cae al bootstrap (localStorage / navigator.language / 'es'), que es el
+  // comportamiento correcto ahí. Una vez activa la org, recibe la cascada
+  // real sin remontarse (misma posición en el árbol).
+  let content: ReactNode
+  if (checking) {
+    content = <CheckingScreen />
+  } else if (sessionCheckFailed && !user) {
+    content = <SessionFailedScreen />
+  } else if (!user) {
+    content = directLayoutId ? <RedirectingScreen /> : <LoginScreen />
+  } else {
+    content = (
+      <OrgStatusGuard status={orgStatus} onRefresh={refreshOrgStatus}>
         {view === 'dashboard' ? (
           <LayoutDashboard
             layouts={layouts}
@@ -344,7 +363,18 @@ export default function App() {
             onLayoutForked={handleLayoutForked}
           />
         )}
-      </LangProvider>
-    </OrgStatusGuard>
+      </OrgStatusGuard>
+    )
+  }
+
+  return (
+    <LangProvider
+      userId={user?.id ?? null}
+      orgId={orgId || null}
+      memberLocale={memberLocale}
+      orgLocale={orgLocale}
+    >
+      {content}
+    </LangProvider>
   )
 }
