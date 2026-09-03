@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 import type { AssetCategory } from '@/types/layout'
+import { supabase } from '@/lib/supabase'
 
 export type Lang = 'en' | 'es'
 
@@ -59,7 +60,6 @@ const strings = {
     catStage: 'Stage', catStructure: 'Structure', catSeating: 'Seating',
     catBarrier: 'Barrier', catUtility: 'Utility', catCirculation: 'Circulation',
     catPrimitive: 'Shapes',
-    headerSub: 'Playground',
     hintZoom: 'Scroll → Zoom', hintPan: 'Drag canvas → Pan',
     hintSelect: 'Click element → Select', hintMove: 'Drag element → Move',
   },
@@ -118,7 +118,6 @@ const strings = {
     catStage: 'Escenario', catStructure: 'Estructura', catSeating: 'Asientos',
     catBarrier: 'Barrera', catUtility: 'Utilidad', catCirculation: 'Circulación',
     catPrimitive: 'Formas',
-    headerSub: 'Canvas',
     hintZoom: 'Scroll → Zoom', hintPan: 'Arrastrar canvas → Pan',
     hintSelect: 'Click elemento → Seleccionar', hintMove: 'Arrastrar → Mover',
   },
@@ -194,21 +193,73 @@ interface LangContextValue {
 }
 
 const LangContext = createContext<LangContextValue>({
-  lang: 'en',
+  lang: 'es',
   setLang: () => {},
-  t: strings.en,
+  t: strings.es,
 })
 
-export function LangProvider({ children }: { children: ReactNode }) {
-  const stored = (() => {
-    try { return localStorage.getItem('rn-lang') as Lang | null } catch { return null }
-  })()
-  const [lang, setLangState] = useState<Lang>(stored === 'es' ? 'es' : 'en')
+// Acepta 'es' / 'es-PE' / 'en-US' / etc. Cualquier cosa no reconocida -> null.
+function normalizeLocale(raw: string | null | undefined): Lang | null {
+  if (!raw) return null
+  const s = raw.toLowerCase()
+  if (s.startsWith('es')) return 'es'
+  if (s.startsWith('en')) return 'en'
+  return null
+}
 
-  const setLang = (l: Lang) => {
-    setLangState(l)
-    try { localStorage.setItem('rn-lang', l) } catch {}
-  }
+function readBootstrap(): Lang {
+  let ls: string | null = null
+  try { ls = localStorage.getItem('rn-lang') } catch { /* private mode */ }
+  return (
+    normalizeLocale(ls) ??
+    normalizeLocale(typeof navigator !== 'undefined' ? navigator.language : null) ??
+    'es'
+  )
+}
+
+interface LangProviderProps {
+  children: ReactNode
+  // Cascada de idioma, misma que el resto de los módulos:
+  //   organization_members.locale  ->  organizations.locale
+  //   ->  navigator.language  ->  'es'
+  // localStorage['rn-lang'] es solo un bootstrap para el primer paint
+  // (login / loading), antes de que la org resuelva — no un override
+  // permanente. El toggle del usuario escribe a organization_members.locale
+  // para que el idioma viaje entre dispositivos.
+  userId?: string | null
+  orgId?: string | null
+  memberLocale?: string | null
+  orgLocale?: string | null
+}
+
+export function LangProvider({ children, userId, orgId, memberLocale, orgLocale }: LangProviderProps) {
+  // Valor transitorio hasta que la cascada (DB) esté disponible.
+  const [bootstrap] = useState<Lang>(readBootstrap)
+  // Toggle hecho en esta sesión — gana mientras se persiste a la DB y hasta
+  // el próximo cold load (donde ya vendrá reflejado en memberLocale).
+  const [sessionChoice, setSessionChoice] = useState<Lang | null>(null)
+
+  const cascadeLocale = normalizeLocale(memberLocale) ?? normalizeLocale(orgLocale)
+  const lang: Lang = sessionChoice ?? cascadeLocale ?? bootstrap
+
+  useEffect(() => {
+    document.documentElement.lang = lang
+  }, [lang])
+
+  const setLang = useCallback((l: Lang) => {
+    setSessionChoice(l)
+    try { localStorage.setItem('rn-lang', l) } catch { /* private mode */ }
+    if (userId && orgId) {
+      void supabase
+        .from('organization_members')
+        .update({ locale: l })
+        .eq('user_id', userId)
+        .eq('org_id', orgId)
+        .then(({ error }) => {
+          if (error) console.error('[LangProvider] no se pudo guardar el idioma:', error)
+        })
+    }
+  }, [userId, orgId])
 
   return (
     <LangContext.Provider value={{ lang, setLang, t: strings[lang] }}>

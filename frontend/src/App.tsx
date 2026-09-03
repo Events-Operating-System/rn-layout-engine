@@ -175,6 +175,11 @@ export default function App() {
   // para scoping (siempre created_by = auth.uid()) — se corrige igual
   // porque la columna existe justamente para eso.
   const orgId = orgStatus.state === 'active' ? orgStatus.orgId : ''
+  // Insumos de la cascada de idioma (LangProvider). Solo disponibles con
+  // org activa; en el resto de los estados la cascada cae a
+  // navigator.language / 'es'.
+  const memberLocale = orgStatus.state === 'active' ? orgStatus.memberLocale : null
+  const orgLocale = orgStatus.state === 'active' ? orgStatus.orgLocale : null
   const persistence = useLayoutPersistence(orgId)
   const { fetchLayouts, layouts, newLayout } = persistence
 
@@ -312,8 +317,13 @@ export default function App() {
 
   return (
     <OrgStatusGuard status={orgStatus} onRefresh={refreshOrgStatus}>
-      {view === 'dashboard' ? (
-        <LangProvider>
+      <LangProvider
+        userId={user.id}
+        orgId={orgId || null}
+        memberLocale={memberLocale}
+        orgLocale={orgLocale}
+      >
+        {view === 'dashboard' ? (
           <LayoutDashboard
             layouts={layouts}
             loading={dashboardLoading}
@@ -325,9 +335,7 @@ export default function App() {
             onSignOut={handleSignOut}
             eventId={eventId}
           />
-        </LangProvider>
-      ) : (
-        <LangProvider>
+        ) : (
           <AppShell
             onGoToDashboard={handleGoToDashboard}
             layoutIdToLoad={layoutIdToLoad}
@@ -335,8 +343,8 @@ export default function App() {
             orgId={orgId}
             onLayoutForked={handleLayoutForked}
           />
-        </LangProvider>
-      )}
+        )}
+      </LangProvider>
     </OrgStatusGuard>
   )
 }
