@@ -7,6 +7,16 @@ import { lengthMeters, angleDegrees, applyAngleSnap, pointFromLengthAngle, eleme
 import jsPDF from 'jspdf'
 
 export const PIXELS_PER_METER = 20
+
+// Konva's default 8 resize anchors — restored explicitly on the
+// single-element Transformer because the multi-select path below sets
+// enabledAnchors([]) (rotate-only) and the same Transformer instance is
+// reused for both.
+const RESIZE_ANCHORS = [
+  'top-left', 'top-center', 'top-right',
+  'middle-left', 'middle-right',
+  'bottom-left', 'bottom-center', 'bottom-right',
+]
 const GRID_METERS = 120
 const GRID_TOTAL_PX = GRID_METERS * PIXELS_PER_METER
 const MIN_SCALE = 0.15
@@ -227,21 +237,80 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     // ── Transformer wiring ────────────────────────────────────────────────────
 
     useEffect(() => {
-      if (!transformerRef.current || !stageRef.current) return
-      // Resize/rotate handles only make sense for a single element — with
-      // multiple selected, elements still get a highlight (see AssetShape's
-      // isSelected), just no Transformer (group-transform is a future batch).
+      const tr = transformerRef.current
+      const stage = stageRef.current
+      if (!tr || !stage) return
+
+      // Exactly one element selected: full Transformer (resize + rotate).
       if (selectedId) {
-        const node = stageRef.current.findOne(`#${selectedId}`)
+        const node = stage.findOne(`#${selectedId}`)
         if (node) {
-          transformerRef.current.nodes([node])
-          transformerRef.current.getLayer()?.batchDraw()
+          tr.resizeEnabled(true)
+          tr.rotateEnabled(true)
+          tr.enabledAnchors(RESIZE_ANCHORS)
+          tr.nodes([node])
+          tr.getLayer()?.batchDraw()
           return
         }
       }
-      transformerRef.current.nodes([])
-      transformerRef.current.getLayer()?.batchDraw()
-    }, [selectedId, elements])
+
+      // Multi-selection: rotate-only Transformer on every non-locked node
+      // (same exclusion as rotateElements / the group-drag). Resize is
+      // disabled and enabledAnchors is emptied so scaleX/scaleY stay at 1
+      // — the interactive rotate handle only ever writes x/y/rotation,
+      // never touches the polygon points-rescale path. The numeric "Rotar
+      // grupo (°)" input stays as a parallel path.
+      if (selectedIds.size > 1) {
+        const nodes = [...selectedIds]
+          .filter(id => !elements.find(el => el.id === id)?.locked)
+          .map(id => stage.findOne(`#${id}`))
+          .filter((n): n is Konva.Node => !!n)
+        if (nodes.length > 1) {
+          tr.resizeEnabled(false)
+          tr.rotateEnabled(true)
+          tr.enabledAnchors([])
+          tr.nodes(nodes)
+          tr.getLayer()?.batchDraw()
+          return
+        }
+      }
+
+      tr.nodes([])
+      tr.getLayer()?.batchDraw()
+    }, [selectedId, selectedIds, elements])
+
+    // Commit a group rotation done with the multi-node Transformer. Konva
+    // has already orbited every node around the common pivot and set its
+    // final x/y/rotation, with scaleX/scaleY back at ~1 (resize disabled),
+    // so this just reads them and commits all in ONE history entry — same
+    // shape as the group-drag's onDragEnd. Fires once on the Transformer
+    // itself; the per-AssetShape onTransformEnd is skipped while >1 node is
+    // attached (see below).
+    //
+    // KNOWN DIVERGENCE (accepted, do not try to reconcile): Konva pivots
+    // around the centre of the selection's *rotation-aware* bounding box,
+    // whereas the numeric "Rotar grupo (°)" input
+    // (useCanvasState.rotateElements) uses the plain min/max(x,y,w,h)
+    // centre. Identical when no selected element is already rotated; a
+    // small offset otherwise.
+    const handleGroupTransformEnd = useCallback(() => {
+      const tr = transformerRef.current
+      if (!tr) return
+      const nodes = tr.nodes()
+      if (nodes.length < 2) return
+      onPushHistory()
+      const updates: Record<string, Partial<LayoutElement>> = {}
+      for (const node of nodes) {
+        node.scaleX(1)
+        node.scaleY(1)
+        updates[node.id()] = {
+          x: Math.round((node.x() / PIXELS_PER_METER) * 10) / 10,
+          y: Math.round((node.y() / PIXELS_PER_METER) * 10) / 10,
+          rotation: Math.round((((node.rotation() % 360) + 360) % 360)),
+        }
+      }
+      onUpdateElements(updates)
+    }, [onPushHistory, onUpdateElements])
 
     // ── Keyboard: Delete / Backspace ──────────────────────────────────────────
 
@@ -1137,6 +1206,10 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                   })
                 }}
                 onTransformEnd={(x, y, w, h, rotation) => {
+                  // Group rotate (>1 node on the Transformer) is committed
+                  // once by handleGroupTransformEnd — skip the per-element
+                  // path so it doesn't fire N times with N history entries.
+                  if ((transformerRef.current?.nodes().length ?? 0) > 1) return
                   onPushHistory()
                   const updates: Partial<LayoutElement> = { x, y, width: w, height: h, rotation }
                   // Polygon vertices are stored as raw meter offsets (not
@@ -1248,6 +1321,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
               anchorSize={8}
               anchorCornerRadius={2}
               boundBoxFunc={(_old, newBox) => newBox}
+              onTransformEnd={handleGroupTransformEnd}
             />
           </Layer>
         </Stage>
