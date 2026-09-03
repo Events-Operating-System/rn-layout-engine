@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { SavedLayout } from '@/lib/layoutService'
+import { useLang, type Lang } from '@/context/LangContext'
 
 interface Props {
   layouts: SavedLayout[]
@@ -13,8 +14,8 @@ interface Props {
   eventId?: string | null
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('es-PE', {
+function formatDate(iso: string, lang: Lang) {
+  return new Date(iso).toLocaleDateString(lang === 'es' ? 'es-PE' : 'en-US', {
     day: '2-digit', month: 'short', year: 'numeric',
     hour: '2-digit', minute: '2-digit'
   })
@@ -23,6 +24,7 @@ function formatDate(iso: string) {
 export default function LayoutDashboard({
   layouts, loading, onOpen, onNew, onDelete, onDuplicate, userName, onSignOut, eventId
 }: Props) {
+  const { t, lang } = useLang()
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -50,7 +52,7 @@ export default function LayoutDashboard({
       {eventId && (
         <div className="flex-none bg-indigo-950/60 border-b border-indigo-800/60 px-6 py-2 text-xs text-indigo-300 flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-none" />
-          Creando layout para evento <span className="font-mono text-indigo-200">{eventId}</span>
+          {t.creatingLayoutForEvent} <span className="font-mono text-indigo-200">{eventId}</span>
         </div>
       )}
       <header className="h-14 flex-none bg-slate-900 border-b border-slate-700/60 flex items-center px-4 sm:px-6 gap-2 sm:gap-4">
@@ -59,7 +61,7 @@ export default function LayoutDashboard({
           <span className="text-sm font-semibold tracking-wide whitespace-nowrap">EventOS Layout</span>
         </div>
         <span className="hidden sm:inline text-slate-700">|</span>
-        <span className="hidden sm:inline text-xs text-slate-500">Mis Layouts</span>
+        <span className="hidden sm:inline text-xs text-slate-500">{t.dashSubtitle}</span>
         <div className="ml-auto flex items-center gap-2 sm:gap-4 flex-none">
           <a
             href="https://eventos-identity-frontend.vercel.app/dashboard"
@@ -76,7 +78,7 @@ export default function LayoutDashboard({
             onClick={onSignOut}
             className="text-xs text-slate-500 hover:text-slate-300 hover:bg-slate-800 px-3 py-1.5 rounded border border-slate-700/60 transition-colors whitespace-nowrap"
           >
-            Cerrar sesión
+            {t.signOut}
           </button>
         </div>
       </header>
@@ -84,13 +86,16 @@ export default function LayoutDashboard({
       <main className="flex-1 px-6 py-8 max-w-5xl mx-auto w-full">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
           <div>
-            <h1 className="text-xl font-bold text-slate-100">Layouts</h1>
+            <h1 className="text-xl font-bold text-slate-100">{t.dashTitle}</h1>
             <p className="text-xs text-slate-500 mt-0.5">
               {layouts.length === 0
-                ? 'Ningún layout guardado aún'
+                ? t.layoutsNoneYet
                 : q
-                  ? `${filtered.length} de ${layouts.length}`
-                  : `${layouts.length} layout${layouts.length !== 1 ? 's' : ''}`}
+                  ? t.layoutsCountFiltered
+                      .replace('{n}', String(filtered.length))
+                      .replace('{total}', String(layouts.length))
+                  : (layouts.length === 1 ? t.layoutsCountOne : t.layoutsCountMany)
+                      .replace('{n}', String(layouts.length))}
             </p>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
@@ -107,7 +112,7 @@ export default function LayoutDashboard({
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Escape') setQuery('') }}
-                placeholder="Buscar por nombre"
+                placeholder={t.searchLayoutsPlaceholder}
                 className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none transition-colors"
               />
             </div>
@@ -118,35 +123,35 @@ export default function LayoutDashboard({
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
               </svg>
-              Nuevo layout
+              {t.newLayout}
             </button>
           </div>
         </div>
 
         {loading ? (
           <div className="flex items-center justify-center py-24">
-            <div className="text-sm text-slate-500">Cargando layouts...</div>
+            <div className="text-sm text-slate-500">{t.loadingLayouts}</div>
           </div>
         ) : layouts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <div className="text-5xl opacity-20">🗂</div>
-            <p className="text-slate-500 text-sm">Aún no tienes layouts guardados.</p>
+            <p className="text-slate-500 text-sm">{t.noLayoutsTitle}</p>
             <button
               onClick={onNew}
               className="text-indigo-400 hover:text-indigo-300 text-sm underline underline-offset-4 transition-colors"
             >
-              Crear tu primer layout
+              {t.createFirstLayout}
             </button>
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
             <div className="text-4xl opacity-15">🔍</div>
-            <p className="text-slate-500 text-sm">Ningún layout coincide con «{query.trim()}».</p>
+            <p className="text-slate-500 text-sm">{t.searchNoMatch.replace('{q}', query.trim())}</p>
             <button
               onClick={() => setQuery('')}
               className="text-indigo-400 hover:text-indigo-300 text-sm underline underline-offset-4 transition-colors"
             >
-              Limpiar búsqueda
+              {t.clearSearch}
             </button>
           </div>
         ) : (
@@ -163,7 +168,7 @@ export default function LayoutDashboard({
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-100 truncate">{layout.name}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{formatDate(layout.updated_at)}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{formatDate(layout.updated_at, lang)}</p>
                   </div>
                   <div className="opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 flex-none">
                     <button
@@ -177,7 +182,7 @@ export default function LayoutDashboard({
                           setDuplicatingId(null)
                         }
                       }}
-                      title="Duplicar layout"
+                      title={t.duplicateLayoutTitle}
                       className="text-slate-600 hover:text-indigo-400 transition-colors p-1 rounded disabled:opacity-40"
                     >
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -187,7 +192,7 @@ export default function LayoutDashboard({
                     </button>
                     <button
                       onClick={e => { e.stopPropagation(); setConfirmDelete(layout.id) }}
-                      title="Eliminar layout"
+                      title={t.deleteLayoutTitle}
                       className="text-slate-600 hover:text-red-400 transition-colors p-1 rounded"
                     >
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -205,20 +210,20 @@ export default function LayoutDashboard({
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm">
-            <h3 className="text-sm font-semibold text-slate-100 mb-2">¿Eliminar layout?</h3>
-            <p className="text-xs text-slate-400 mb-6">Esta acción archivará el layout. No se puede deshacer.</p>
+            <h3 className="text-sm font-semibold text-slate-100 mb-2">{t.deleteLayoutConfirmTitle}</h3>
+            <p className="text-xs text-slate-400 mb-6">{t.deleteLayoutConfirmText}</p>
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirmDelete(null)}
                 className="flex-1 py-2 rounded-lg border border-slate-700 text-xs text-slate-400 hover:bg-slate-800 transition-colors"
               >
-                Cancelar
+                {t.cancel}
               </button>
               <button
                 onClick={() => { onDelete(confirmDelete); setConfirmDelete(null) }}
                 className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-xs text-white font-semibold transition-colors"
               >
-                Eliminar
+                {t.deleteBtn}
               </button>
             </div>
           </div>
