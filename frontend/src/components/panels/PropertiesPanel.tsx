@@ -14,6 +14,7 @@ interface PropertiesPanelProps {
   selectedIds: Set<string>
   onBringToFront: (ids: string[]) => void
   onSendToBack: (ids: string[]) => void
+  onSaveGroupAsAsset: () => void
 }
 
 const COLOR_PRESETS = [
@@ -31,7 +32,7 @@ const COLOR_PRESETS = [
 export default function PropertiesPanel({
   element, onUpdate, onDeleteElement, onDuplicateElement,
   selectedDrawing, onUpdateDrawing, onDeleteDrawing,
-  selectedIds, onBringToFront, onSendToBack,
+  selectedIds, onBringToFront, onSendToBack, onSaveGroupAsAsset,
 }: PropertiesPanelProps) {
   const { t } = useLang()
   const isMultiSelect = element === null && selectedDrawing === null && selectedIds.size > 1
@@ -71,6 +72,7 @@ export default function PropertiesPanel({
           count={selectedIds.size}
           onBringToFront={() => onBringToFront([...selectedIds])}
           onSendToBack={() => onSendToBack([...selectedIds])}
+          onSaveAsAsset={onSaveGroupAsAsset}
         />
       )}
     </aside>
@@ -81,11 +83,12 @@ export default function PropertiesPanel({
 // to a heterogeneous group) ─────────────────────────────────────────────────
 
 function MultiSelectProperties({
-  count, onBringToFront, onSendToBack,
+  count, onBringToFront, onSendToBack, onSaveAsAsset,
 }: {
   count: number
   onBringToFront: () => void
   onSendToBack: () => void
+  onSaveAsAsset: () => void
 }) {
   const { t } = useLang()
   return (
@@ -108,6 +111,14 @@ function MultiSelectProperties({
             {t.sendToBack}
           </button>
         </div>
+      </Section>
+      <Section label="Asset">
+        <button
+          onClick={onSaveAsAsset}
+          className="w-full h-7 rounded text-[10px] text-indigo-300 hover:text-indigo-200 hover:bg-indigo-950/40 border border-indigo-900/50 transition-colors font-mono uppercase tracking-wider"
+        >
+          Guardar grupo como asset
+        </button>
       </Section>
     </div>
   )

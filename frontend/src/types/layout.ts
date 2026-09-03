@@ -76,6 +76,29 @@ export interface AssetTemplate {
   points?: number[]
 }
 
+// One piece inside a composite ('group') custom asset. dx/dy are meters
+// from the group's origin (top-left of the combined bounding box). Field
+// meanings match LayoutElement — enough to rebuild a full LayoutElement
+// when the group is placed. `category` is kept because LayoutElement
+// requires it; `name`/`opacity`/`flipX`/`flipY`/`notes` so re-added
+// pieces don't silently lose those.
+export interface GroupChild {
+  name: string
+  category: AssetCategory
+  shape?: ElementShape
+  dx: number
+  dy: number
+  width: number
+  height: number
+  rotation: number
+  color: string
+  opacity?: number
+  flipX?: boolean
+  flipY?: boolean
+  notes?: string
+  points?: number[]
+}
+
 // ── Drawing primitives ────────────────────────────────────────────────────────
 
 export type DrawingTool = 'pointer' | 'hand' | 'line' | 'arrow' | 'text' | 'polygon' | 'measure'

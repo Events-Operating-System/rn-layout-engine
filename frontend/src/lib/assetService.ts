@@ -1,9 +1,14 @@
 import { supabase } from './supabase'
+import type { GroupChild } from '@/types/layout'
 
 export interface CustomAsset {
   id: string
   name: string
   category: string
+  // 'shape' (default): one primitive with fixed dims. 'group': composite,
+  // `children` holds the pieces and default_width/height is the combined
+  // bounding box.
+  kind: 'shape' | 'group'
   default_width: number
   default_height: number
   default_color?: string
@@ -12,17 +17,21 @@ export interface CustomAsset {
   // relative to the bounding box (same as LayoutElement.points). NULL for
   // every other shape.
   points?: number[] | null
+  // kind === 'group' only.
+  children?: GroupChild[] | null
   created_at: string
 }
 
 export interface NewCustomAsset {
   name: string
   category: string
+  kind?: 'shape' | 'group'
   default_width: number
   default_height: number
   default_color?: string
   shape?: string
   points?: number[] | null
+  children?: GroupChild[] | null
 }
 
 export const assetService = {

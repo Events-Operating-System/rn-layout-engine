@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import type { LayoutElement, CanvasViewport, AssetTemplate, DrawingPrimitive, DrawingTool, LayoutMeta } from '@/types/layout'
+import type { LayoutElement, CanvasViewport, AssetTemplate, DrawingPrimitive, DrawingTool, LayoutMeta, GroupChild } from '@/types/layout'
 import { CATEGORY_COLORS, DEFAULT_LAYOUT_META } from '@/types/layout'
 
 const PIXELS_PER_METER = 20
@@ -226,6 +226,49 @@ export function useCanvasState() {
     setSelectedDrawingId(null)
   }, [pushHistory])
 
+  // Placing a composite ('group') custom asset: expand its children into N
+  // fresh independent elements in one setElements pass (single undo entry,
+  // same convention as duplicateElements), then select them all so the
+  // existing group-drag moves them together right away. No persistent
+  // "group" concept — once placed they're ordinary elements. `children`
+  // dx/dy are meters from the group's origin; spawn the origin at the same
+  // viewport-centre point addElement uses.
+  const addGroup = useCallback((children: GroupChild[]) => {
+    pushHistory()
+    const ts = Date.now()
+    const ids = children.map((_, i) => `el-${ts}-${i}`)
+    setElements(prev => {
+      const vp = viewportRef.current
+      const n = prev.length
+      const offset = (n % 5) * 2
+      const centerX = (-vp.x + 600) / (vp.scale * PIXELS_PER_METER)
+      const centerY = (-vp.y + 400) / (vp.scale * PIXELS_PER_METER)
+      const originX = Math.min(100, Math.max(0, Math.round((centerX + offset) * 2) / 2))
+      const originY = Math.min(100, Math.max(0, Math.round((centerY + offset) * 2) / 2))
+      const newEls: LayoutElement[] = children.map((c, i) => ({
+        id: ids[i],
+        name: c.name,
+        category: c.category,
+        x: originX + c.dx,
+        y: originY + c.dy,
+        width: c.width,
+        height: c.height,
+        rotation: c.rotation ?? 0,
+        color: c.color,
+        locked: false,
+        notes: c.notes ?? '',
+        shape: c.shape,
+        ...(c.opacity !== undefined ? { opacity: c.opacity } : {}),
+        ...(c.flipX ? { flipX: true } : {}),
+        ...(c.flipY ? { flipY: true } : {}),
+        ...(c.shape === 'polygon' && c.points ? { points: c.points } : {}),
+      }))
+      return [...prev, ...newEls]
+    })
+    setSelectedIds(new Set(ids))
+    setSelectedDrawingId(null)
+  }, [pushHistory])
+
   const deleteElement = useCallback((id: string) => {
     pushHistory()
     setElements(prev => prev.filter(el => el.id !== id))
@@ -392,6 +435,7 @@ export function useCanvasState() {
     updateElements,
     updateViewport,
     addElement,
+    addGroup,
     addPolygon,
     deleteElement,
     deleteElements,

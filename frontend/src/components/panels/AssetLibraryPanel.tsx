@@ -1,11 +1,12 @@
 import { CATEGORY_COLORS } from '@/types/layout'
-import type { AssetCategory, AssetTemplate } from '@/types/layout'
+import type { AssetCategory, AssetTemplate, GroupChild } from '@/types/layout'
 import { useLang, getCategoryLabel, getAssetName } from '@/context/LangContext'
 import type { CustomAsset } from '@/lib/assetService'
 import type { LayoutElement } from '@/types/layout'
 
 interface AssetLibraryPanelProps {
   onAddElement: (template: AssetTemplate) => void
+  onAddGroup: (children: GroupChild[]) => void
   customAssets: CustomAsset[]
   selectedElement: LayoutElement | null
   onSaveAsAsset: (element: LayoutElement) => void
@@ -66,11 +67,15 @@ const CATEGORY_ORDER: AssetCategory[] = [
 ]
 
 export default function AssetLibraryPanel({
-  onAddElement, customAssets, selectedElement, onSaveAsAsset, onDeleteAsset
+  onAddElement, onAddGroup, customAssets, selectedElement, onSaveAsAsset, onDeleteAsset
 }: AssetLibraryPanelProps) {
   const { t, lang } = useLang()
 
   function handleAddCustomAsset(asset: CustomAsset) {
+    if (asset.kind === 'group' && asset.children?.length) {
+      onAddGroup(asset.children)
+      return
+    }
     onAddElement({
       name: asset.name,
       category: asset.category as AssetCategory,
@@ -162,7 +167,12 @@ export default function AssetLibraryPanel({
                       className="w-2 h-2 rounded-sm flex-none"
                       style={{ backgroundColor: asset.default_color ?? '#6366f1' }}
                     />
-                    <span className="truncate">{asset.name}</span>
+                    <span className="truncate">
+                      {asset.name}
+                      {asset.kind === 'group' && (
+                        <span className="text-slate-500"> ({asset.children?.length ?? 0} piezas)</span>
+                      )}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1 flex-none">
                     <span className="text-slate-600 text-[9px] font-mono">

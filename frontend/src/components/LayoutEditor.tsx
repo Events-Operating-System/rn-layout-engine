@@ -12,9 +12,45 @@ import { useCustomAssets } from '@/hooks/useCustomAssets'
 import { supabase } from '@/lib/supabase'
 import { layoutService, type LayoutData } from '@/lib/layoutService'
 import { draftService, type LayoutDraft } from '@/lib/draftService'
-import type { AssetTemplate, LayoutElement } from '@/types/layout'
+import type { AssetTemplate, LayoutElement, GroupChild } from '@/types/layout'
 
 const round2 = (n: number) => Math.round(n * 100) / 100
+
+// Combined bounding box of a multi-selection + each element's offset from
+// its top-left origin, ready to store as a 'group' custom asset. Same
+// plain min/max bbox as addPolygon (rotation is not factored in — a
+// rotated piece keeps its rotation but the box uses its unrotated rect).
+function buildGroupAsset(els: LayoutElement[]): {
+  width: number
+  height: number
+  children: GroupChild[]
+} {
+  const minX = Math.min(...els.map(e => e.x))
+  const minY = Math.min(...els.map(e => e.y))
+  const maxX = Math.max(...els.map(e => e.x + e.width))
+  const maxY = Math.max(...els.map(e => e.y + e.height))
+  const children: GroupChild[] = els.map(e => ({
+    name: e.name,
+    category: e.category,
+    shape: e.shape,
+    dx: round2(e.x - minX),
+    dy: round2(e.y - minY),
+    width: round2(e.width),
+    height: round2(e.height),
+    rotation: e.rotation,
+    color: e.color,
+    opacity: e.opacity,
+    flipX: e.flipX,
+    flipY: e.flipY,
+    notes: e.notes || undefined,
+    points: e.shape === 'polygon' && e.points ? e.points.map(round2) : undefined,
+  }))
+  return { width: round2(maxX - minX), height: round2(maxY - minY), children }
+}
+
+type AssetSaveTarget =
+  | { kind: 'shape'; element: LayoutElement }
+  | { kind: 'group'; count: number; width: number; height: number; children: GroupChild[] }
 
 interface Props {
   layoutIdToLoad?: string | null
@@ -36,15 +72,16 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   // cargado dispare un draft.
   const [bootstrapped, setBootstrapped] = useState(false)
   const [recovery, setRecovery] = useState<LayoutDraft | null>(null)
-  // "Guardar como asset": elemento en espera de nombre + nombre tipeado.
-  const [assetDraft, setAssetDraft] = useState<LayoutElement | null>(null)
+  // "Guardar como asset": objetivo (una forma o un grupo) en espera de
+  // nombre + nombre tipeado en el modal.
+  const [assetTarget, setAssetTarget] = useState<AssetSaveTarget | null>(null)
   const [assetName, setAssetName] = useState('')
 
   const {
     elements, selectedId, selectedIds, selectedElement,
     selectedDrawingId, selectedDrawing,
     viewport, selectElement, toggleSelectElement, selectElements, selectDrawing,
-    updateElement, updateElements, updateViewport, addElement, addPolygon,
+    updateElement, updateElements, updateViewport, addElement, addGroup, addPolygon,
     deleteElement, deleteElements, duplicateElement, duplicateElements,
     bringToFront, sendToBack, activeTool, setTool, measureMode, setMeasureMode,
     drawings, addDrawing, deleteDrawing, updateDrawing,
@@ -261,33 +298,54 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     }
   }, [userId, layoutId, onLayoutForked])
 
-  // "Guardar como asset" ahora abre un modal para el nombre en vez de
-  // usar element.name directo. Un polígono recién dibujado se llama
-  // 'Polígono' (literal) — se ofrece vacío para forzar un nombre real.
+  // "Guardar como asset" abre un modal para el nombre en vez de usar
+  // element.name directo. Un polígono recién dibujado se llama 'Polígono'
+  // (literal) — se ofrece vacío para forzar un nombre real.
   const handleRequestSaveAsAsset = useCallback((element: LayoutElement) => {
-    setAssetDraft(element)
+    setAssetTarget({ kind: 'shape', element })
     setAssetName(element.name === 'Polígono' ? '' : element.name)
   }, [])
 
+  // Guardar la selección múltiple como un asset compuesto ('group').
+  const handleRequestSaveGroupAsAsset = useCallback(() => {
+    const sel = elements.filter(e => selectedIds.has(e.id))
+    if (sel.length < 2) return
+    const { width, height, children } = buildGroupAsset(sel)
+    setAssetTarget({ kind: 'group', count: sel.length, width, height, children })
+    setAssetName('')
+  }, [elements, selectedIds])
+
   const handleConfirmSaveAsAsset = useCallback(async () => {
-    if (!assetDraft) return
+    if (!assetTarget) return
     const name = assetName.trim()
     if (!name) return
-    const isPolygon = assetDraft.shape === 'polygon'
-    await createAsset({
-      name,
-      category: assetDraft.category,
-      default_width: round2(assetDraft.width),
-      default_height: round2(assetDraft.height),
-      default_color: assetDraft.color,
-      shape: assetDraft.shape,
-      // Solo los polígonos guardan su geometría; el resto de las formas
-      // se reconstruyen de width/height. Redondeado a 2 decimales (1cm).
-      points: isPolygon && assetDraft.points ? assetDraft.points.map(round2) : undefined,
-    })
-    setAssetDraft(null)
+    if (assetTarget.kind === 'shape') {
+      const el = assetTarget.element
+      await createAsset({
+        name,
+        category: el.category,
+        kind: 'shape',
+        default_width: round2(el.width),
+        default_height: round2(el.height),
+        default_color: el.color,
+        shape: el.shape,
+        // Solo los polígonos guardan su geometría; el resto de las formas
+        // se reconstruyen de width/height. Redondeado a 2 decimales (1cm).
+        points: el.shape === 'polygon' && el.points ? el.points.map(round2) : undefined,
+      })
+    } else {
+      await createAsset({
+        name,
+        category: 'group',
+        kind: 'group',
+        default_width: assetTarget.width,
+        default_height: assetTarget.height,
+        children: assetTarget.children,
+      })
+    }
+    setAssetTarget(null)
     setAssetName('')
-  }, [assetDraft, assetName, createAsset])
+  }, [assetTarget, assetName, createAsset])
 
   const handleRecoverDraft = useCallback(() => {
     if (!recovery) return
@@ -343,6 +401,11 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
 
   function handleAddElement(template: AssetTemplate) {
     addElement(template)
+    setMobilePanel(null)
+  }
+
+  function handleAddGroup(children: GroupChild[]) {
+    addGroup(children)
     setMobilePanel(null)
   }
 
@@ -430,6 +493,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         }>
           <AssetLibraryPanel
             onAddElement={handleAddElement}
+            onAddGroup={handleAddGroup}
             customAssets={customAssets}
             selectedElement={selectedElement}
             onSaveAsAsset={handleRequestSaveAsAsset}
@@ -482,6 +546,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             selectedIds={selectedIds}
             onBringToFront={bringToFront}
             onSendToBack={sendToBack}
+            onSaveGroupAsAsset={handleRequestSaveGroupAsAsset}
           />
         </div>
 
@@ -495,10 +560,12 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
 
       <FooterLegend meta={layoutMeta} onUpdate={updateMeta} />
 
-      {assetDraft && (
+      {assetTarget && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm">
-            <h3 className="text-sm font-semibold text-slate-100 mb-2">Guardar como asset</h3>
+            <h3 className="text-sm font-semibold text-slate-100 mb-2">
+              {assetTarget.kind === 'group' ? 'Guardar grupo como asset' : 'Guardar como asset'}
+            </h3>
             <p className="text-xs text-slate-400 mb-4">
               Nombre con el que aparecerá en “Mis Assets”.
             </p>
@@ -508,18 +575,21 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
               onChange={e => setAssetName(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter') void handleConfirmSaveAsAsset()
-                if (e.key === 'Escape') { setAssetDraft(null); setAssetName('') }
+                if (e.key === 'Escape') { setAssetTarget(null); setAssetName('') }
               }}
               placeholder="Ej: Escenario principal"
               className="w-full bg-slate-800 border border-slate-600 focus:border-indigo-500 rounded px-3 py-2 text-sm text-slate-100 outline-none"
             />
             <p className="text-[10px] text-slate-500 mt-2 mb-5">
-              {round2(assetDraft.width)}m × {round2(assetDraft.height)}m
-              {assetDraft.shape === 'polygon' && ' · incluye la forma del polígono'}
+              {assetTarget.kind === 'group'
+                ? `${assetTarget.count} piezas · ${assetTarget.width}m × ${assetTarget.height}m`
+                : `${round2(assetTarget.element.width)}m × ${round2(assetTarget.element.height)}m${
+                    assetTarget.element.shape === 'polygon' ? ' · incluye la forma del polígono' : ''
+                  }`}
             </p>
             <div className="flex gap-3">
               <button
-                onClick={() => { setAssetDraft(null); setAssetName('') }}
+                onClick={() => { setAssetTarget(null); setAssetName('') }}
                 className="flex-1 py-2 rounded-lg border border-slate-700 text-xs text-slate-400 hover:bg-slate-800 transition-colors"
               >
                 Cancelar
