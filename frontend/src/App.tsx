@@ -4,6 +4,7 @@ import LayoutEditor from '@/components/LayoutEditor'
 import LayoutDashboard from '@/components/LayoutDashboard'
 import OrgStatusGuard from '@/components/OrgStatusGuard'
 import LangToggle from '@/components/LangToggle'
+import CallbackScreen from '@/components/CallbackScreen'
 import { LangProvider, useLang } from '@/context/LangContext'
 import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
 import { useOrgStatus } from '@/hooks/useOrgStatus'
@@ -193,6 +194,12 @@ export default function App() {
   const [checking, setChecking] = useState(true)
   const [sessionCheckFailed, setSessionCheckFailed] = useState(false)
   const [directLayoutId] = useState<string | null>(() => getLayoutIdFromPath())
+  // Ruta plana `/callback#code=...`: handoff de un solo uso emitido por
+  // Identity al clickear el tile de este módulo (ver CallbackScreen). Path
+  // fijo por lo que window.location.pathname no cambia durante la vida de
+  // este componente — seguro de leer una sola vez con useState lazy, igual
+  // que directLayoutId.
+  const [isCallbackPath] = useState<boolean>(() => window.location.pathname === '/callback')
   const [view, setView] = useState<View>(() => (directLayoutId ? 'editor' : 'dashboard'))
   const [layoutIdToLoad, setLayoutIdToLoad] = useState<string | null>(() => directLayoutId)
   const [dashboardLoading, setDashboardLoading] = useState(false)
@@ -259,8 +266,12 @@ export default function App() {
 
   // Once a session is confirmed, drop the `/callback` segment from the
   // address bar so it doesn't stick around (see getLayoutIdFromPath above).
+  // Excludes the flat `/callback` path on purpose — CallbackScreen owns
+  // that screen end-to-end (including a possible signOut()+block after
+  // `user` briefly goes truthy) and does its own hard navigation once it
+  // decides the outcome.
   useEffect(() => {
-    if (user && window.location.pathname.endsWith('/callback')) {
+    if (user && window.location.pathname !== '/callback' && window.location.pathname.endsWith('/callback')) {
       const cleanPath = window.location.pathname.replace(/\/callback\/?$/, '') || '/'
       window.history.replaceState(null, '', cleanPath + window.location.search)
     }
@@ -329,7 +340,9 @@ export default function App() {
   // comportamiento correcto ahí. Una vez activa la org, recibe la cascada
   // real sin remontarse (misma posición en el árbol).
   let content: ReactNode
-  if (checking) {
+  if (isCallbackPath) {
+    content = <CallbackScreen />
+  } else if (checking) {
     content = <CheckingScreen />
   } else if (sessionCheckFailed && !user) {
     content = <SessionFailedScreen />

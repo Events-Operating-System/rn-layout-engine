@@ -123,6 +123,12 @@ const strings = {
     poweredBy: 'Powered by Reality Near',
     loginWithGoogle: 'Continue with Google',
     connecting: 'Connecting…',
+    // ── Module handoff callback (Identity → this module) ───────────────
+    callbackSigningIn: 'Signing in…',
+    callbackBlockedTitle: 'No access to this module',
+    callbackBlockedBody: "Your account doesn't have access to the Layout module in this organization. Contact your administrator.",
+    callbackErrorTitle: 'Sign-in failed',
+    callbackErrorGeneric: 'Something went wrong signing you in. Go back to EventOS and try again.',
     // ── Org status guard ─────────────────────────────────────────────
     verifyingAccess: 'Verifying access…',
     orgStatusError: "Couldn't verify your organization's status.",
@@ -259,6 +265,12 @@ const strings = {
     poweredBy: 'Con tecnología de Reality Near',
     loginWithGoogle: 'Continuar con Google',
     connecting: 'Conectando…',
+    // ── Handoff de módulo (Identity → este módulo) ─────────────────────
+    callbackSigningIn: 'Iniciando sesión…',
+    callbackBlockedTitle: 'Sin acceso a este módulo',
+    callbackBlockedBody: 'Tu cuenta no tiene acceso al módulo de Layout en esta organización. Contactá a tu administrador.',
+    callbackErrorTitle: 'No se pudo iniciar sesión',
+    callbackErrorGeneric: 'Algo salió mal al iniciar tu sesión. Volvé a EventOS e intentá de nuevo.',
     // ── Guard de estado de organización ──────────────────────────────
     verifyingAccess: 'Verificando acceso…',
     orgStatusError: 'No se pudo verificar el estado de tu organización.',
@@ -395,6 +407,12 @@ const strings = {
     poweredBy: 'Desenvolvido pela Reality Near',
     loginWithGoogle: 'Continuar com o Google',
     connecting: 'Conectando…',
+    // ── Handoff de módulo (Identity → este módulo) ─────────────────────
+    callbackSigningIn: 'Entrando…',
+    callbackBlockedTitle: 'Sem acesso a este módulo',
+    callbackBlockedBody: 'Sua conta não tem acesso ao módulo de Layout nesta organização. Entre em contato com o administrador.',
+    callbackErrorTitle: 'Não foi possível entrar',
+    callbackErrorGeneric: 'Algo deu errado ao iniciar sua sessão. Volte para o EventOS e tente de novo.',
     // ── Guard de status da organização ──────────────────────────────
     verifyingAccess: 'Verificando acesso…',
     orgStatusError: 'Não foi possível verificar o status da sua organização.',
