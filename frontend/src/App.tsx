@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, type ReactNode } from 'react'
 import { supabase, type User } from '@/lib/supabase'
 import LayoutEditor from '@/components/LayoutEditor'
 import LayoutDashboard from '@/components/LayoutDashboard'
+import ModuleAccessGuard from '@/components/ModuleAccessGuard'
 import OrgStatusGuard from '@/components/OrgStatusGuard'
 import LangToggle from '@/components/LangToggle'
 import CallbackScreen from '@/components/CallbackScreen'
@@ -351,27 +352,29 @@ export default function App() {
   } else {
     content = (
       <OrgStatusGuard status={orgStatus} onRefresh={refreshOrgStatus}>
-        {view === 'dashboard' ? (
-          <LayoutDashboard
-            layouts={layouts}
-            loading={dashboardLoading}
-            onOpen={handleOpenLayout}
-            onNew={handleNewLayout}
-            onDelete={handleDeleteLayout}
-            onDuplicate={handleDuplicateLayout}
-            userName={user.email ?? ''}
-            onSignOut={handleSignOut}
-            eventId={eventId}
-          />
-        ) : (
-          <AppShell
-            onGoToDashboard={handleGoToDashboard}
-            layoutIdToLoad={layoutIdToLoad}
-            eventId={eventId}
-            orgId={orgId}
-            onLayoutForked={handleLayoutForked}
-          />
-        )}
+        <ModuleAccessGuard orgId={orgId}>
+          {view === 'dashboard' ? (
+            <LayoutDashboard
+              layouts={layouts}
+              loading={dashboardLoading}
+              onOpen={handleOpenLayout}
+              onNew={handleNewLayout}
+              onDelete={handleDeleteLayout}
+              onDuplicate={handleDuplicateLayout}
+              userName={user.email ?? ''}
+              onSignOut={handleSignOut}
+              eventId={eventId}
+            />
+          ) : (
+            <AppShell
+              onGoToDashboard={handleGoToDashboard}
+              layoutIdToLoad={layoutIdToLoad}
+              eventId={eventId}
+              orgId={orgId}
+              onLayoutForked={handleLayoutForked}
+            />
+          )}
+        </ModuleAccessGuard>
       </OrgStatusGuard>
     )
   }
