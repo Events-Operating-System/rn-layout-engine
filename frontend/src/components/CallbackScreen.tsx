@@ -89,7 +89,11 @@ export default function CallbackScreen() {
 
       const moduleKeys: string[] = roleRows?.[0]?.module_keys ?? []
       if (roleError || !moduleKeys.includes(MODULE_KEY)) {
-        await supabase.auth.signOut()
+        // Solo la sesión de este navegador (scope 'local'): un signOut() global
+        // revoca TODAS las sesiones de la persona — los demás módulos y los otros
+        // dispositivos —, y acá basta con un rol sin este módulo o un error
+        // pasajero de la RPC para dispararlo.
+        await supabase.auth.signOut({ scope: 'local' })
         setState('blocked')
         return
       }
