@@ -75,3 +75,17 @@ Focus on clarity over complexity.
   Viewer nunca; `public.can_edit_org_module(org, 'administrativo')`); `settings.<grupo>`, quien tiene el módulo de ese
   grupo. Aprobación, plan y cobro: solo superadmin. Todo en la base (RLS y funciones), no solo en pantalla.
 - Detalle: `eventos-administracion-frontend/supabase/migrations/20261029150000_org_settings_single_place_and_admin_edit.sql`.
+
+
+## Antes de hacer push de código que depende de una migración (regla fija, 2026-10-29)
+
+1. Confirmar que estás en la carpeta de este repo y que el proyecto Supabase enlazado es **rn-layout-engine-v2**
+   (ref `zwrekwltmipmdbautnwd`): `cat supabase/.temp/project-ref` o `supabase projects list` (el enlazado lleva ●).
+   Si el repo no está enlazado, enlazarlo (`supabase link --project-ref zwrekwltmipmdbautnwd`) antes de seguir.
+2. Aplicar la migración y verificar que quedó aplicada: `supabase migration list` si se aplicó con `db push`; si se
+   aplicó con `supabase db query --linked -f <archivo>` (no pasa por el registro de migraciones), con una consulta
+   directa de lo que crea (función en `pg_proc`, política en `pg_policies`, columna en `information_schema`, datos).
+3. Recién después, push del código.
+
+Si el paso 2 falla, no hacer push: avisar a Javier. Motivo: el 2026-10-29 salió código antes que su migración (el
+comando se corrió desde una carpeta sin proyecto enlazado y no aplicó nada; ~2 minutos con funciones faltantes).
