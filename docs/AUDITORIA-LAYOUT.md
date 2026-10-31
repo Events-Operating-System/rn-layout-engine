@@ -577,6 +577,37 @@ Aplicada y verificada. Además, el editor viejo (sin `org_id`) sigue pudiendo gu
 **Pruebas:** 8 tests nuevos (capas por categoría, vista cliente, bloqueos, plantillas con grupos nuevos, permiso Compartir). Total en Layout: 76; Administración: 119.
 - **En QA:** conteos por capa correctos (1 muro, 27 piezas de mobiliario, 1 cota); "Vista cliente" ocultó la cota; ocultar mobiliario ocultó las mesas; con perímetro bloqueado el muro no se deja elegir. Se guardó el plano como plantilla compartida ("Plantilla QA - Salon 20x10": 28 piezas, cota, fondo, `shared = true`) y en un plano nuevo sin guardar se usó: aparecieron las 28 piezas con el fondo y la cota, con sus conjuntos. Sacar de la org y volver a compartir desde el panel funcionó. Sin errores en la consola.
 
+**Ajuste posterior (pedido de Javier, 2026-10-31): Cocina y Baños, y "Vista cliente" configurable.**
+- Cocina y Baños **nuevos** van a perímetro/estructura (se ven en "Vista cliente"). La capa se guarda en la pieza al crearla; las que ya estaban en planos existentes siguen en técnica y no se tocó nada automáticamente.
+- Las capas que oculta "Vista cliente" son ajuste de la org: `client_hide_structure/furniture/decor/technical/notes` en `settings.layout` (técnica y notas por defecto), con casillas en Administración → Organización → Layout. Migración `20261031280000`, generada desde la versión viva de `org_settings_schema()` con candado md5. Prueba con ROLLBACK: valores por defecto, owner guarda, texto rechazado, viewer rechazado, los otros grupos idénticos.
+
+### Bloque 7 — Curvas (2026-10-31)
+
+**Modelo** (§2.2, sin migración: va en `elements`):
+- `segments` por lado en polígono, muro y la forma nueva **`path`** (arco o curva libre; abierta = trazo de 10 cm, cerrada = con relleno). Cada lado: `line`, `arc` con `bulge` (formato DXF: radio, centro y ángulo exactos) o `bezier` con sus manijas en metros. Sin `segments`, todo recto: los planos existentes no cambian.
+- `lib/curves.ts`: arco por 3 puntos, arco desde bulge, flecha ↔ bulge, largo (exacto en arcos), área (exacta en arcos, polilínea fina en Bézier), polilínea para dibujar, medida en el medio de cada lado, curva suave por puntos (Catmull-Rom → Bézier), media luna.
+- Canvas, PDF, Medir y Propiedades usan la misma polilínea fina (arcos cada 2°, Bézier en 24 pasos), así que siempre dan lo mismo.
+
+**Herramientas:**
+- **Arco (R):** clic en el inicio, el fin y un punto por donde pasa.
+- **Curva (B):** clic en cada punto; doble clic la termina abierta, tocar el primer punto la cierra. Queda suave y pasa por los puntos.
+- **Media luna** (Formas, 6 × 3 m) y **Escenario media luna** (Escenario, 8 × 4 m).
+- **Lados** en Propiedades (polígono, muro y curva): cada lado recto, en arco o curva libre. El arco se edita con su **flecha en metros** (cuánto se separa el medio del arco del lado recto), muestra el radio y se invierte con ⇅. Si la curva sale de la caja, la pieza no se mueve en el plano, aunque esté rotada.
+- Estirar con el recuadro escala vértices y manijas; los arcos siguen siendo de círculo.
+- Guardar como asset una pieza con curvas, un muro o una curva la guarda como conjunto de una pieza, para no perder sus lados.
+
+**Arreglado de paso:** al terminar un muro, polígono o curva con doble clic se perdía el último punto (el doble clic borraba el vértice que acababa de poner su primer clic). Ahora solo se descarta si quedó repetido encima del anterior.
+
+**Pruebas:** 13 tests nuevos de curvas y 2 de capas. Total en Layout: 89; Administración: 119.
+- **En QA** (plano nuevo, sin guardar):
+  - Arco por 3 puntos de 20 m de cuerda que pasa a 10 m: largo **31,42 m** (π·10), radio 10. Con flecha 4 m: radio **14,5 m**, largo **22,07 m** (coincide con el cálculo a mano) y los extremos no se movieron.
+  - Escenario media luna: 8 × 4 m, lado recto 8 m, arco **12,57 m**, área **25,13 m²** (π·4²/2).
+  - Curva abierta de 4 puntos con doble clic (conserva los 4) y curva cerrada con relleno y área.
+  - Polígono de 10,8 m de lado con un lado en arco (flecha 1,62 m): hacia adentro **104,77 m²**, hacia afuera **128,51 m²** (cuadrado ± segmento circular de 11,87 m², coincide); la base no se movió.
+  - PDF (capturado sin descargar): curvas, lado en arco y medidas de cada tramo correctas. Sin errores en la consola.
+
+**Queda para después:** mover vértices y manijas con el mouse (hoy se editan los lados desde Propiedades y la forma con el recuadro), repetir piezas a lo largo de una curva, y círculo/elipse con radio editable.
+
 ---
 
 ## 6.1 Decisiones de Javier sobre los bloques 1 y 2 (2026-10-31, segunda tanda)
@@ -607,9 +638,10 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 | `wallThickness` | 0,15 m | 5 |
 | `dimensionDecimals` | 2 | 5 |
 | `backgroundFormats` | imagen y PDF | 5 |
+| `clientHide*` (Vista cliente) | técnica y notas | 6 |
 | `pdfDefaultSize` | A4 apaisado | 8 |
 
-**Siguiente:** bloque 7 (curvas: arcos y medias lunas). Bloques 3 a 6 hechos (ver §6).
+**Siguiente:** bloque 8 (PDF profesional). Bloques 3 a 7 hechos (ver §6).
 
 ---
 
