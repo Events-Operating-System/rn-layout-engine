@@ -210,9 +210,12 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   }, [elements, selectedIds])
 
   // Piezas de los conjuntos tocados por la selección (para "Desagrupar").
-  const groupedCount = useMemo(() => {
+  const { groupedCount, groupsCount } = useMemo(() => {
     const groups = new Set(elements.filter(e => selectedIds.has(e.id) && e.groupId).map(e => e.groupId))
-    return groups.size ? elements.filter(e => e.groupId && groups.has(e.groupId)).length : 0
+    return {
+      groupedCount: groups.size ? elements.filter(e => e.groupId && groups.has(e.groupId)).length : 0,
+      groupsCount: groups.size,
+    }
   }, [elements, selectedIds])
   // PAX automático: la casilla muestra los asientos dibujados (o lo escrito
   // a mano). Va igual en pantalla, PNG y PDF.
@@ -869,6 +872,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onRepeatGrid={repeatInGrid}
             defaultSpacing={layoutSettings.tableSpacing}
             groupedCount={groupedCount}
+            groupsCount={groupsCount}
             onUngroup={ungroupElements}
             onGroupTablesWithChairs={() => groupTablesWithChairs(layoutSettings)}
             onSetLayer={setLayerFor}

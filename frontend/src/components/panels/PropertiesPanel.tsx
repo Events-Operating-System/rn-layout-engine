@@ -26,6 +26,7 @@ interface PropertiesPanelProps {
   defaultSpacing: number
   // Conjuntos: piezas de la selección que pertenecen a uno (mesa con sillas).
   groupedCount: number
+  groupsCount: number
   onUngroup: (ids: string[]) => void
   // Planos viejos: agrupa las sillas sueltas con su mesa (sin selección).
   onGroupTablesWithChairs: () => { tables: number; chairs: number }
@@ -52,7 +53,7 @@ export default function PropertiesPanel({
   selectedDrawing, onUpdateDrawing, onDeleteDrawing,
   selectedIds, onBringToFront, onSendToBack, onSaveGroupAsAsset, onRotateGroup,
   onAlign, onDistribute, onRepeatGrid, defaultSpacing,
-  groupedCount, onUngroup, onGroupTablesWithChairs, onSetLayer, selectionLayer,
+  groupedCount, groupsCount, onUngroup, onGroupTablesWithChairs, onSetLayer, selectionLayer,
 }: PropertiesPanelProps) {
   const { t } = useLang()
   const isMultiSelect = element === null && selectedDrawing === null && selectedIds.size > 1
@@ -83,7 +84,7 @@ export default function PropertiesPanel({
         />
       ) : element !== null ? (
         <>
-        {groupedCount > 0 && <GroupSection count={groupedCount} onUngroup={() => onUngroup([element.id])} />}
+        {groupedCount > 0 && <GroupSection count={groupedCount} groups={groupsCount} onUngroup={() => onUngroup([element.id])} />}
         <LayerSelect value={layerOf(element)} onChange={l => onSetLayer([element.id], l)} />
         <ElementProperties
           element={element}
@@ -98,7 +99,7 @@ export default function PropertiesPanel({
         </>
       ) : (
         <>
-        {groupedCount > 0 && <GroupSection count={groupedCount} onUngroup={() => onUngroup([...selectedIds])} />}
+        {groupedCount > 0 && <GroupSection count={groupedCount} groups={groupsCount} onUngroup={() => onUngroup([...selectedIds])} />}
         <LayerSelect value={selectionLayer} onChange={l => onSetLayer([...selectedIds], l)} />
         <MultiSelectProperties
           count={selectedIds.size}
@@ -142,12 +143,12 @@ function LayerSelect({ value, onChange }: { value: LayerId | null; onChange: (l:
 
 // La selección es parte de un conjunto (mesa con sus sillas): se puede
 // desarmar. Arrastrar la mesa mueve el conjunto; una silla se mueve sola.
-function GroupSection({ count, onUngroup }: { count: number; onUngroup: () => void }) {
+function GroupSection({ count, groups, onUngroup }: { count: number; groups: number; onUngroup: () => void }) {
   const { t } = useLang()
   return (
     <div className="flex-none px-4 pt-4 -mb-2">
       <div className="rounded border border-slate-700 bg-slate-800/60 p-2.5 space-y-2">
-        <p className="text-[10px] text-slate-400 leading-snug">{t.groupInfo.replace('{n}', String(count))}</p>
+        <p className="text-[10px] text-slate-400 leading-snug">{groups > 1 ? t.groupInfoMany.replace('{g}', String(groups)).replace('{n}', String(count)) : t.groupInfo.replace('{n}', String(count))}</p>
         <button
           onClick={onUngroup}
           className="w-full h-7 rounded text-[10px] text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border border-slate-600 transition-colors font-mono uppercase tracking-wider"
