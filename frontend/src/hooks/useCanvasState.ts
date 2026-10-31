@@ -174,6 +174,8 @@ export function useCanvasState() {
     pushHistory()
     const ts = Date.now()
     const ids = children.map((_, i) => `el-${ts}-${i}`)
+    // Todas las piezas del conjunto comparten groupId (mesa + sillas).
+    const groupId = children.length > 1 ? `grp-${ts}` : undefined
     setElements(prev => {
       const vp = viewportRef.current
       const n = prev.length
@@ -200,6 +202,7 @@ export function useCanvasState() {
         ...(c.flipY ? { flipY: true } : {}),
         ...(c.shape === 'polygon' && c.points ? { points: c.points } : {}),
         ...(c.seats ? { seats: c.seats } : {}),
+        ...(groupId ? { groupId } : {}),
       }))
       return [...prev, ...newEls]
     })
@@ -271,12 +274,12 @@ export function useCanvasState() {
 
   const alignElements = useCallback((ids: string[], mode: AlignMode) => {
     const idSet = new Set(ids)
-    applyMoves(alignUpdates(elementsRef.current.filter(el => idSet.has(el.id)), mode))
+    applyMoves(alignUpdates(elementsRef.current.filter(el => idSet.has(el.id)), elementsRef.current, mode))
   }, [applyMoves])
 
   const distributeElements = useCallback((ids: string[], axis: 'horizontal' | 'vertical') => {
     const idSet = new Set(ids)
-    applyMoves(distributeUpdates(elementsRef.current.filter(el => idSet.has(el.id)), axis))
+    applyMoves(distributeUpdates(elementsRef.current.filter(el => idSet.has(el.id)), elementsRef.current, axis))
   }, [applyMoves])
 
   // Copias de la selección en filas × columnas; queda seleccionado todo
@@ -285,11 +288,11 @@ export function useCanvasState() {
     const idSet = new Set(ids)
     const source = elementsRef.current.filter(el => idSet.has(el.id))
     const ts = Date.now()
-    const copies = gridCopies(source, rows, cols, gap, i => `el-${ts}-g${i}`)
+    const { originals, copies } = gridCopies(source, elementsRef.current, rows, cols, gap, i => `el-${ts}-g${i}`, i => `grp-${ts}-${i}`)
     if (!copies.length) return
     pushHistory()
     setElements(prev => [...prev, ...copies])
-    setSelectedIds(new Set([...ids, ...copies.map(c => c.id)]))
+    setSelectedIds(new Set([...originals.map(o => o.id), ...copies.map(c => c.id)]))
     setSelectedDrawingId(null)
   }, [pushHistory])
 

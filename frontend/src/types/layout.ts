@@ -57,6 +57,9 @@ export interface LayoutElement {
   // Asientos que aporta la pieza al PAX automático (una silla = 1). Las
   // mesas no cuentan: cuentan sus sillas.
   seats?: number
+  // Conjunto al que pertenece (una mesa con sus sillas, un asset compuesto).
+  // Alinear, distribuir y repetir lo tratan como un solo bloque.
+  groupId?: string
 }
 
 export interface CanvasViewport {
