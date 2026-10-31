@@ -200,6 +200,17 @@ export interface VenueBackground {
   height: number
   opacity: number
   locked: boolean
+  // Recorte (0–1, relativo a la imagen original): lo que se usa del plano
+  // del arquitecto, sin cajetín, logos ni márgenes. x/y/width/height de
+  // arriba son entonces los de la parte recortada. El archivo no se toca.
+  crop?: BackgroundCrop
+}
+
+export interface BackgroundCrop {
+  x: number
+  y: number
+  w: number
+  h: number
 }
 
 export const DEFAULT_LAYOUT_META: LayoutMeta = {

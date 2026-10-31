@@ -771,6 +771,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
                 allowPdf={layoutSettings.backgroundPdf}
                 onChange={bg => updateMeta({ background: bg })}
                 onStartCalibrate={() => { setVenueOpen(false); setTool('calibrate') }}
+                imageUrl={backgroundImage?.src}
                 onClose={() => setVenueOpen(false)}
               />
             )}

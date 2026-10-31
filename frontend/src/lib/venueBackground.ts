@@ -3,6 +3,7 @@
 // como blob (mismo origen: el canvas puede exportarla sin quedar "sucio").
 
 import { supabase } from './supabase'
+import type { BackgroundCrop } from '@/types/layout'
 
 export const BACKGROUND_BUCKET = 'layout-backgrounds'
 const MAX_BYTES = 15 * 1024 * 1024
@@ -100,4 +101,46 @@ export function calibrate(
     width: r(bg.width * k),
     height: r(bg.height * k),
   }
+}
+
+// ── Recortar el fondo ───────────────────────────────────────────────────────
+type Placed = { x: number; y: number; width: number; height: number; crop?: BackgroundCrop }
+
+// Dónde quedaría la imagen ENTERA (sin recorte) en el plano.
+export function fullPlacement(bg: Placed): { x: number; y: number; width: number; height: number } {
+  const c = bg.crop
+  if (!c || !(c.w > 0) || !(c.h > 0)) return { x: bg.x, y: bg.y, width: bg.width, height: bg.height }
+  const width = bg.width / c.w, height = bg.height / c.h
+  return { x: bg.x - c.x * width, y: bg.y - c.y * height, width, height }
+}
+
+// Aplica un recorte nuevo (o lo quita con null) sin mover el dibujo: la parte
+// que queda sigue exactamente en el mismo lugar del plano.
+export function applyCrop<T extends Placed>(bg: T, crop: BackgroundCrop | null): T {
+  const full = fullPlacement(bg)
+  const r = (n: number) => Math.round(n * 1000) / 1000
+  const clamp = (n: number) => Math.min(1, Math.max(0, n))
+  if (!crop) {
+    const { crop: _drop, ...rest } = bg
+    void _drop
+    return { ...rest, x: r(full.x), y: r(full.y), width: r(full.width), height: r(full.height) } as T
+  }
+  const x = clamp(crop.x), y = clamp(crop.y)
+  const c = { x, y, w: Math.min(1 - x, Math.max(0.01, crop.w)), h: Math.min(1 - y, Math.max(0.01, crop.h)) }
+  const isFull = c.x < 0.0005 && c.y < 0.0005 && c.w > 0.999 && c.h > 0.999
+  if (isFull) return applyCrop(bg, null)
+  return {
+    ...bg,
+    crop: { x: r(c.x * 1e3) / 1e3, y: r(c.y * 1e3) / 1e3, w: r(c.w * 1e3) / 1e3, h: r(c.h * 1e3) / 1e3 },
+    x: r(full.x + c.x * full.width),
+    y: r(full.y + c.y * full.height),
+    width: r(c.w * full.width),
+    height: r(c.h * full.height),
+  }
+}
+
+// Rectángulo de la imagen (px) que se dibuja.
+export function cropPixels(crop: BackgroundCrop | undefined, naturalWidth: number, naturalHeight: number) {
+  const c = crop ?? { x: 0, y: 0, w: 1, h: 1 }
+  return { x: c.x * naturalWidth, y: c.y * naturalHeight, width: c.w * naturalWidth, height: c.h * naturalHeight }
 }

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { useLang } from '@/context/LangContext'
 import type { VenueBackground } from '@/types/layout'
-import { uploadBackground, kindOf, BackgroundError } from '@/lib/venueBackground'
+import { uploadBackground, kindOf, BackgroundError, applyCrop } from '@/lib/venueBackground'
+import CropBackgroundDialog from '@/components/CropBackgroundDialog'
 
 // "Plano del local" (bloque 5): subir el plano de fondo (imagen o PDF, según
 // los formatos que permita la org), transparencia, bloquearlo, calibrar la
@@ -14,12 +15,15 @@ interface Props {
   onChange: (bg: VenueBackground | undefined) => void
   onStartCalibrate: () => void
   onClose: () => void
+  // Imagen original ya bajada (para recortar).
+  imageUrl?: string
 }
 
 // Tamaño inicial: 50 m de ancho (se ajusta al calibrar).
 const INITIAL_WIDTH_M = 50
 
-export default function VenueBackgroundPanel({ orgId, background, allowImage, allowPdf, onChange, onStartCalibrate, onClose }: Props) {
+export default function VenueBackgroundPanel({ orgId, background, allowImage, allowPdf, onChange, onStartCalibrate, onClose, imageUrl }: Props) {
+  const [cropping, setCropping] = useState(false)
   const { t } = useLang()
   const inputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -39,6 +43,7 @@ export default function VenueBackgroundPanel({ orgId, background, allowImage, al
     try {
       const { path, pxWidth, pxHeight } = await uploadBackground(orgId, file)
       const width = background?.width ?? INITIAL_WIDTH_M
+      // Un archivo nuevo empieza sin recorte (el anterior era de otra imagen).
       onChange({
         path,
         x: background?.x ?? 0,
@@ -96,6 +101,9 @@ export default function VenueBackgroundPanel({ orgId, background, allowImage, al
             <input type="checkbox" checked={background.locked} onChange={e => onChange({ ...background, locked: e.target.checked })} />
             {t.venueLock}
           </label>
+          <button onClick={() => setCropping(true)} disabled={!imageUrl} className={`${btn} text-slate-200 bg-slate-800 hover:bg-slate-700 border-slate-600`}>
+            ✂ {background.crop ? t.cropEdit : t.cropBtn}
+          </button>
           <button onClick={onStartCalibrate} className={`${btn} text-slate-200 bg-slate-800 hover:bg-slate-700 border-slate-600`}>
             📐 {t.venueCalibrate}
           </button>
@@ -103,6 +111,14 @@ export default function VenueBackgroundPanel({ orgId, background, allowImage, al
             {t.venueRemove}
           </button>
         </>
+      )}
+      {cropping && background && imageUrl && (
+        <CropBackgroundDialog
+          imageUrl={imageUrl}
+          crop={background.crop}
+          onClose={() => setCropping(false)}
+          onApply={c => { setCropping(false); onChange(applyCrop(background, c)) }}
+        />
       )}
     </div>
   )

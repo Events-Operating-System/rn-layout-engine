@@ -5,6 +5,7 @@
 import type { VenueBackground } from '@/types/layout'
 import type { Bounds } from '@/lib/pdfLayout'
 import type { BakedBackground } from './pdfExport'
+import { cropPixels } from '@/lib/venueBackground'
 
 const DPI = 150
 const MAX_SIDE = 3500
@@ -20,10 +21,13 @@ export function bakeBackground(bg: VenueBackground, img: HTMLImageElement, regio
   let outW = w * pxPerM, outH = h * pxPerM
   const shrink = Math.min(1, MAX_SIDE / Math.max(outW, outH))
   outW = Math.max(1, Math.round(outW * shrink)); outH = Math.max(1, Math.round(outH * shrink))
-  const sx = ((x0 - bg.x) / bg.width) * img.naturalWidth
-  const sy = ((y0 - bg.y) / bg.height) * img.naturalHeight
-  const sw = (w / bg.width) * img.naturalWidth
-  const sh = (h / bg.height) * img.naturalHeight
+  // Con recorte, bg.x/y/width/height son los de la parte recortada: la zona
+  // pedida se toma dentro de ese recorte de la imagen original.
+  const c = cropPixels(bg.crop, img.naturalWidth, img.naturalHeight)
+  const sx = c.x + ((x0 - bg.x) / bg.width) * c.width
+  const sy = c.y + ((y0 - bg.y) / bg.height) * c.height
+  const sw = (w / bg.width) * c.width
+  const sh = (h / bg.height) * c.height
   const canvas = document.createElement('canvas')
   canvas.width = outW
   canvas.height = outH

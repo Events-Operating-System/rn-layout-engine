@@ -16,6 +16,8 @@ export interface Background3D {
   width: number
   height: number
   opacity: number
+  // Recorte del plano del local (0–1 de la imagen original).
+  crop?: { x: number; y: number; w: number; h: number }
 }
 
 export interface Stats3D {
@@ -92,6 +94,12 @@ export default function Viewer3D({ items, background, onStats, onReady, autoRota
     if (background) {
       const tex = keep(new THREE.TextureLoader().load(background.url))
       tex.colorSpace = THREE.SRGBColorSpace
+      if (background.crop) {
+        // Solo la parte recortada (la textura cuenta y de abajo hacia arriba).
+        const c = background.crop
+        tex.repeat.set(c.w, c.h)
+        tex.offset.set(c.x, 1 - c.y - c.h)
+      }
       const plane = new THREE.Mesh(
         keep(new THREE.PlaneGeometry(background.width, background.height)),
         keep(new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: Math.max(0.35, background.opacity) })),

@@ -15,6 +15,7 @@ import { computeAlignmentGuides, findElementId } from './geometry'
 import { exportLayoutPng, exportSelectionPng } from './exportLayout'
 import { buildLayoutPdf } from './pdfExport'
 import { bakeBackground } from './bakeBackground'
+import { cropPixels } from '@/lib/venueBackground'
 import { contentBounds, drawingsInside, type PaperChoice } from '@/lib/pdfLayout'
 import GridLines from './GridLines'
 import { DrawingShape, DrawingPreview } from './DrawingShape'
@@ -981,6 +982,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
             {background && backgroundImage && (
               <KonvaImage
                 image={backgroundImage}
+                crop={background.crop ? cropPixels(background.crop, backgroundImage.naturalWidth, backgroundImage.naturalHeight) : undefined}
                 x={background.x * PIXELS_PER_METER}
                 y={background.y * PIXELS_PER_METER}
                 width={background.width * PIXELS_PER_METER}

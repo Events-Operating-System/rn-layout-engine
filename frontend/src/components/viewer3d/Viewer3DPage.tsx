@@ -56,7 +56,7 @@ export default function Viewer3DPage({ layoutId, orgId = '' }: { layoutId: strin
     const b = plan?.meta.background
     if (!b) return
     let url: string | null = null
-    downloadBackground(b.path).then(u => { url = u; setBg({ url: u, x: b.x, y: b.y, width: b.width, height: b.height, opacity: b.opacity }) }).catch(() => {})
+    downloadBackground(b.path).then(u => { url = u; setBg({ url: u, x: b.x, y: b.y, width: b.width, height: b.height, opacity: b.opacity, crop: b.crop }) }).catch(() => {})
     return () => { if (url) URL.revokeObjectURL(url) }
   }, [plan])
 
