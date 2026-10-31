@@ -15,6 +15,8 @@ import { supabase } from '@/lib/supabase'
 import { layoutService, type LayoutData, type LayoutVersion } from '@/lib/layoutService'
 import { draftService, type LayoutDraft } from '@/lib/draftService'
 import { normalizeLayoutMeta } from '@/lib/layoutMeta'
+import { useLayoutSettings } from '@/hooks/useLayoutSettings'
+import { effectivePax, isPaxAuto } from '@/lib/seating'
 import { isPermissionError, NO_LAYOUT_PERMISSIONS, type LayoutPermissions } from '@/lib/layoutPermissions'
 import type { AssetTemplate, LayoutElement, GroupChild } from '@/types/layout'
 
@@ -48,6 +50,7 @@ function buildGroupAsset(els: LayoutElement[]): {
     flipY: e.flipY,
     notes: e.notes || undefined,
     points: e.shape === 'polygon' && e.points ? e.points.map(round2) : undefined,
+    seats: e.seats || undefined,
   }))
   return { width: round2(maxX - minX), height: round2(maxY - minY), children }
 }
@@ -98,7 +101,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     viewport, selectElement, toggleSelectElement, selectElements, selectDrawing,
     updateElement, updateElements, updateViewport, addElement, addGroup, addPolygon,
     deleteElement, deleteElements, duplicateElement, duplicateElements,
-    bringToFront, sendToBack, rotateElements, activeTool, setTool, measureMode, setMeasureMode,
+    bringToFront, sendToBack, rotateElements, alignElements, distributeElements, repeatInGrid,
+    activeTool, setTool, measureMode, setMeasureMode,
     drawings, addDrawing, deleteDrawing, updateDrawing,
     clearDrawings, layoutMeta, updateMeta,
     pushHistory, undo, redo, canUndo, canRedo,
@@ -151,6 +155,15 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   }, [readOnly, setTool])
 
   const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
+  // Medidas de mesas/sillas y separación entre mesas de la org.
+  const layoutSettings = useLayoutSettings(orgId)
+  // PAX automático: la casilla muestra los asientos dibujados (o lo escrito
+  // a mano). Va igual en pantalla, PNG y PDF.
+  const displayMeta = useMemo(
+    () => ({ ...layoutMeta, pax: effectivePax(layoutMeta, elements) }),
+    [layoutMeta, elements],
+  )
+  const paxAuto = isPaxAuto(layoutMeta)
 
   useEffect(() => {
     if (!layoutIdToLoad) {
@@ -624,6 +637,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             selectedElement={selectedElement}
             onSaveAsAsset={handleRequestSaveAsAsset}
             onDeleteAsset={deleteAsset}
+            settings={layoutSettings}
           />
         </div>}
 
@@ -647,7 +661,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             measureMode={measureMode}
             drawings={drawings}
             onAddDrawing={addDrawing}
-            layoutMeta={layoutMeta}
+            layoutMeta={displayMeta}
             versionNumber={versionNumber}
             selectedDrawingId={selectedDrawingId}
             onSelectDrawing={selectDrawing}
@@ -675,6 +689,10 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onSendToBack={sendToBack}
             onSaveGroupAsAsset={handleRequestSaveGroupAsAsset}
             onRotateGroup={rotateElements}
+            onAlign={alignElements}
+            onDistribute={distributeElements}
+            onRepeatGrid={repeatInGrid}
+            defaultSpacing={layoutSettings.tableSpacing}
           />
         </div>}
 
@@ -686,7 +704,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         )}
       </div>
 
-      <FooterLegend meta={layoutMeta} versionNumber={versionNumber} onUpdate={updateMeta} clienteFromEvent={!!eventClient} readOnly={readOnly} />
+      <FooterLegend meta={displayMeta} versionNumber={versionNumber} onUpdate={updateMeta} clienteFromEvent={!!eventClient} readOnly={readOnly} paxAuto={paxAuto} />
 
       {versionsOpen && (
         <VersionHistory

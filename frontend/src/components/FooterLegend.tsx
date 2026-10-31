@@ -10,11 +10,13 @@ interface FooterLegendProps {
   readOnly?: boolean
   // CLIENTE viene del evento vinculado: se muestra, no se edita acá.
   clienteFromEvent?: boolean
+  // PAX automático (asientos dibujados). Escribir pasa a manual.
+  paxAuto?: boolean
 }
 
 export const FOOTER_HEIGHT_PX = 88
 
-export default function FooterLegend({ meta, versionNumber, onUpdate, readOnly = false, clienteFromEvent = false }: FooterLegendProps) {
+export default function FooterLegend({ meta, versionNumber, onUpdate, readOnly = false, clienteFromEvent = false, paxAuto = false }: FooterLegendProps) {
   const { t } = useLang()
   return (
     <div
@@ -42,7 +44,15 @@ export default function FooterLegend({ meta, versionNumber, onUpdate, readOnly =
           <MetaField label="FECHA EVENTO"   value={meta.fechaEvento} readOnly={readOnly} onChange={v => onUpdate({ fechaEvento: v })} />
         </Column>
         <Column>
-          <MetaField label="PAX / INVITADOS" value={meta.pax}       readOnly={readOnly} onChange={v => onUpdate({ pax: v })} />
+          <PaxField
+            value={meta.pax}
+            auto={paxAuto}
+            readOnly={readOnly}
+            autoLabel={t.paxAutoLabel}
+            backToAutoLabel={t.paxBackToAuto}
+            onChange={v => onUpdate({ pax: v, paxAuto: false })}
+            onBackToAuto={() => onUpdate({ paxAuto: true })}
+          />
           <VersionField
             versionNumber={versionNumber}
             note={readOnly ? versionNote(meta.version) : meta.version === 'v1.0' ? '' : meta.version}
@@ -69,6 +79,47 @@ function Column({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col divide-y divide-slate-700/40">
       {children}
+    </div>
+  )
+}
+
+// PAX: automático (cuenta las sillas) o escrito a mano. Escribir lo pasa a
+// manual; "auto" vuelve a contar.
+function PaxField({
+  value, auto, readOnly, autoLabel, backToAutoLabel, onChange, onBackToAuto,
+}: {
+  value: string
+  auto: boolean
+  readOnly: boolean
+  autoLabel: string
+  backToAutoLabel: string
+  onChange: (v: string) => void
+  onBackToAuto: () => void
+}) {
+  return (
+    <div className="flex-1 px-2 py-0.5 flex flex-col justify-center min-h-0">
+      <span className="text-slate-600 text-[7px] uppercase tracking-[0.18em] leading-none mb-0.5 select-none flex items-center gap-1">
+        PAX / INVITADOS
+        {auto && <span className="normal-case tracking-normal text-indigo-400">· {autoLabel}</span>}
+        {!auto && !readOnly && (
+          <button
+            type="button"
+            onClick={onBackToAuto}
+            title={backToAutoLabel}
+            className="normal-case tracking-normal text-slate-500 hover:text-indigo-300"
+          >
+            ↺ {autoLabel}
+          </button>
+        )}
+      </span>
+      <input
+        type="text"
+        value={value}
+        readOnly={readOnly}
+        onChange={e => onChange(e.target.value)}
+        placeholder="—"
+        className="text-slate-200 text-[10px] bg-transparent border-none outline-none w-full placeholder-slate-700 font-mono leading-none"
+      />
     </div>
   )
 }

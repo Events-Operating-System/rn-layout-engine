@@ -54,6 +54,9 @@ export interface LayoutElement {
   // (not normalized 0..1) so drawingMath.polygonAreaMeters can shoelace
   // them directly without unit conversion.
   points?: number[]
+  // Asientos que aporta la pieza al PAX automático (una silla = 1). Las
+  // mesas no cuentan: cuentan sus sillas.
+  seats?: number
 }
 
 export interface CanvasViewport {
@@ -74,6 +77,7 @@ export interface AssetTemplate {
   // Set when re-adding a custom polygon asset so its real shape is
   // restored instead of a plain bounding-box rectangle.
   points?: number[]
+  seats?: number
 }
 
 // One piece inside a composite ('group') custom asset. dx/dy are meters
@@ -97,6 +101,7 @@ export interface GroupChild {
   flipY?: boolean
   notes?: string
   points?: number[]
+  seats?: number
 }
 
 // ── Drawing primitives ────────────────────────────────────────────────────────
@@ -125,6 +130,9 @@ export interface LayoutMeta {
   lugarEvento: string
   fechaEvento: string
   pax: string
+  // PAX automático (= asientos dibujados). false = se escribió a mano en
+  // `pax`. Sin definir (planos viejos): manual si `pax` tiene algo.
+  paxAuto?: boolean
   // Nota libre de versión escrita a mano. El número lo pone la base
   // (layouts.version_number); esto solo se muestra al lado.
   version: string
@@ -141,6 +149,7 @@ export const DEFAULT_LAYOUT_META: LayoutMeta = {
   lugarEvento: '',
   fechaEvento: '',
   pax: '',
+  paxAuto: true,
   version: '',
   fechaPlano: new Date().toISOString().slice(0, 10),
   contacto: '',

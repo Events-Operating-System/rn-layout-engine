@@ -6,6 +6,7 @@ import { layoutService, type LayoutVersion, type LayoutVersionSummary } from '@/
 import { isPermissionError } from '@/lib/layoutPermissions'
 import type { CanvasViewport } from '@/types/layout'
 import { normalizeLayoutMeta } from '@/lib/layoutMeta'
+import { effectivePax } from '@/lib/seating'
 
 const DATE_LOCALE: Record<Lang, string> = { es: 'es-PE', en: 'en-US', pt: 'pt-BR' }
 const noop = () => {}
@@ -195,7 +196,8 @@ function VersionViewer({ version, canRestore, onRestore, onClose }: {
   const canvasRef = useRef<LayoutCanvasHandle>(null)
   const [viewport, setViewport] = useState<CanvasViewport>(version.viewport)
   const updateViewport = useCallback((u: Partial<CanvasViewport>) => setViewport(v => ({ ...v, ...u })), [])
-  const meta = normalizeLayoutMeta(version.meta, version.name)
+  const normalized = normalizeLayoutMeta(version.meta, version.name)
+  const meta = { ...normalized, pax: effectivePax(normalized, version.elements ?? []) }
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">

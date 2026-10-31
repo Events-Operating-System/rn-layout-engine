@@ -3,6 +3,7 @@ import type { LayoutElement, DrawingPrimitive } from '@/types/layout'
 import { useLang, getCategoryLabel, getAssetName } from '@/context/LangContext'
 import { PIXELS_PER_METER } from '@/components/canvas/LayoutCanvas'
 import { lengthMeters, angleDegrees, pointFromLengthAngle, elementAreaMeters } from '@/lib/drawingMath'
+import type { AlignMode } from '@/lib/arrange'
 
 interface PropertiesPanelProps {
   element: LayoutElement | null
@@ -17,6 +18,11 @@ interface PropertiesPanelProps {
   onSendToBack: (ids: string[]) => void
   onSaveGroupAsAsset: () => void
   onRotateGroup: (ids: string[], deltaDeg: number) => void
+  onAlign: (ids: string[], mode: AlignMode) => void
+  onDistribute: (ids: string[], axis: 'horizontal' | 'vertical') => void
+  onRepeatGrid: (ids: string[], rows: number, cols: number, gap: number) => void
+  // Separación por defecto entre copias (ajuste de la org table_spacing).
+  defaultSpacing: number
 }
 
 const COLOR_PRESETS = [
@@ -35,6 +41,7 @@ export default function PropertiesPanel({
   element, onUpdate, onDeleteElement, onDuplicateElement,
   selectedDrawing, onUpdateDrawing, onDeleteDrawing,
   selectedIds, onBringToFront, onSendToBack, onSaveGroupAsAsset, onRotateGroup,
+  onAlign, onDistribute, onRepeatGrid, defaultSpacing,
 }: PropertiesPanelProps) {
   const { t } = useLang()
   const isMultiSelect = element === null && selectedDrawing === null && selectedIds.size > 1
@@ -68,6 +75,8 @@ export default function PropertiesPanel({
           onDuplicate={onDuplicateElement}
           onBringToFront={() => onBringToFront([element.id])}
           onSendToBack={() => onSendToBack([element.id])}
+          onRepeatGrid={(rows, cols, gap) => onRepeatGrid([element.id], rows, cols, gap)}
+          defaultSpacing={defaultSpacing}
         />
       ) : (
         <MultiSelectProperties
@@ -76,6 +85,10 @@ export default function PropertiesPanel({
           onSendToBack={() => onSendToBack([...selectedIds])}
           onSaveAsAsset={onSaveGroupAsAsset}
           onRotate={(deltaDeg) => onRotateGroup([...selectedIds], deltaDeg)}
+          onAlign={(mode) => onAlign([...selectedIds], mode)}
+          onDistribute={(axis) => onDistribute([...selectedIds], axis)}
+          onRepeatGrid={(rows, cols, gap) => onRepeatGrid([...selectedIds], rows, cols, gap)}
+          defaultSpacing={defaultSpacing}
         />
       )}
     </aside>
@@ -86,20 +99,46 @@ export default function PropertiesPanel({
 // to a heterogeneous group) ─────────────────────────────────────────────────
 
 function MultiSelectProperties({
-  count, onBringToFront, onSendToBack, onSaveAsAsset, onRotate,
+  count, onBringToFront, onSendToBack, onSaveAsAsset, onRotate, onAlign, onDistribute, onRepeatGrid, defaultSpacing,
 }: {
   count: number
   onBringToFront: () => void
   onSendToBack: () => void
   onSaveAsAsset: () => void
   onRotate: (deltaDeg: number) => void
+  onAlign: (mode: AlignMode) => void
+  onDistribute: (axis: 'horizontal' | 'vertical') => void
+  onRepeatGrid: (rows: number, cols: number, gap: number) => void
+  defaultSpacing: number
 }) {
   const { t } = useLang()
+  const smallBtn = 'h-7 rounded text-[10px] text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border border-slate-600 transition-colors font-mono uppercase tracking-wider disabled:opacity-40'
+  const aligns: { mode: AlignMode; label: string }[] = [
+    { mode: 'left', label: t.alignLeft }, { mode: 'center', label: t.alignCenter }, { mode: 'right', label: t.alignRight },
+    { mode: 'top', label: t.alignTop }, { mode: 'middle', label: t.alignMiddle }, { mode: 'bottom', label: t.alignBottom },
+  ]
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-5">
       <p className="text-xs text-slate-400">
         {count} {t.elementsSelected}
       </p>
+      <Section label={t.sAlign}>
+        <div className="grid grid-cols-3 gap-1.5">
+          {aligns.map(a => (
+            <button key={a.mode} onClick={() => onAlign(a.mode)} className={smallBtn}>{a.label}</button>
+          ))}
+        </div>
+      </Section>
+      <Section label={t.sDistribute}>
+        <div className="flex gap-2">
+          <button onClick={() => onDistribute('horizontal')} disabled={count < 3} className={`flex-1 ${smallBtn}`}>{t.distributeH}</button>
+          <button onClick={() => onDistribute('vertical')} disabled={count < 3} className={`flex-1 ${smallBtn}`}>{t.distributeV}</button>
+        </div>
+        <p className="text-[10px] text-slate-500 mt-1">{t.distributeHint}</p>
+      </Section>
+      <Section label={t.sRepeatGrid}>
+        <RepeatGrid onRepeat={onRepeatGrid} defaultSpacing={defaultSpacing} />
+      </Section>
       <Section label={t.sOrder}>
         <div className="flex gap-2">
           <button
@@ -171,6 +210,8 @@ function ElementProperties({
   onDuplicate,
   onBringToFront,
   onSendToBack,
+  onRepeatGrid,
+  defaultSpacing,
 }: {
   element: LayoutElement
   onUpdate: (id: string, updates: Partial<LayoutElement>) => void
@@ -178,6 +219,8 @@ function ElementProperties({
   onDuplicate: (id: string) => void
   onBringToFront: () => void
   onSendToBack: () => void
+  onRepeatGrid: (rows: number, cols: number, gap: number) => void
+  defaultSpacing: number
 }) {
   const { t, lang } = useLang()
 
@@ -278,6 +321,10 @@ function ElementProperties({
             {t.sendToBack}
           </button>
         </div>
+      </Section>
+
+      <Section label={t.sRepeatGrid}>
+        <RepeatGrid onRepeat={onRepeatGrid} defaultSpacing={defaultSpacing} />
       </Section>
 
       <Section label={t.sColor}>
@@ -546,6 +593,36 @@ function OpacitySlider({ value, onChange }: { value: number; onChange: (v: numbe
       <span className="text-[10px] text-slate-400 font-mono w-8 text-right tabular-nums">
         {Math.round(value * 100)}%
       </span>
+    </div>
+  )
+}
+
+// Repetir en grilla: filas × columnas con una separación (por defecto, la de
+// la org). La pieza o el conjunto elegido queda en la primera celda.
+function RepeatGrid({ onRepeat, defaultSpacing }: { onRepeat: (rows: number, cols: number, gap: number) => void; defaultSpacing: number }) {
+  const { t } = useLang()
+  const [rows, setRows] = useState('1')
+  const [cols, setCols] = useState('3')
+  const [gap, setGap] = useState(String(defaultSpacing))
+  const r = Math.max(1, Math.min(50, Math.floor(Number(rows) || 0)))
+  const c = Math.max(1, Math.min(50, Math.floor(Number(cols) || 0)))
+  const g = Math.max(0, Number(gap) || 0)
+  const input = 'w-full bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-100 outline-none focus:border-indigo-500'
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-3 gap-1.5">
+        <label className="text-[9px] text-slate-500">{t.gridRows}<input type="number" min={1} max={50} value={rows} onChange={e => setRows(e.target.value)} className={input} /></label>
+        <label className="text-[9px] text-slate-500">{t.gridCols}<input type="number" min={1} max={50} value={cols} onChange={e => setCols(e.target.value)} className={input} /></label>
+        <label className="text-[9px] text-slate-500">{t.gridGap}<input type="number" min={0} step={0.1} value={gap} onChange={e => setGap(e.target.value)} className={input} /></label>
+      </div>
+      <button
+        onClick={() => onRepeat(r, c, g)}
+        disabled={r * c < 2}
+        className="w-full h-7 rounded text-[10px] text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border border-slate-600 transition-colors font-mono uppercase tracking-wider disabled:opacity-40"
+      >
+        {t.repeatBtn} ({r} × {c})
+      </button>
+      <p className="text-[10px] text-slate-500">{t.repeatHint}</p>
     </div>
   )
 }

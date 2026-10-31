@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { LayoutElement, CanvasViewport, AssetTemplate, DrawingPrimitive, DrawingTool, LayoutMeta, GroupChild } from '@/types/layout'
 import { CATEGORY_COLORS, DEFAULT_LAYOUT_META } from '@/types/layout'
+import { alignUpdates, distributeUpdates, gridCopies, type AlignMode } from '@/lib/arrange'
 
 const PIXELS_PER_METER = 20
 const MAX_HISTORY = 50
@@ -154,6 +155,7 @@ export function useCanvasState() {
         // Restored for custom polygon assets (see AssetTemplate.points);
         // undefined for every built-in template.
         ...(template.shape === 'polygon' && template.points ? { points: template.points } : {}),
+        ...(template.seats ? { seats: template.seats } : {}),
       }
       return [...prev, newEl]
     })
@@ -197,6 +199,7 @@ export function useCanvasState() {
         ...(c.flipX ? { flipX: true } : {}),
         ...(c.flipY ? { flipY: true } : {}),
         ...(c.shape === 'polygon' && c.points ? { points: c.points } : {}),
+        ...(c.seats ? { seats: c.seats } : {}),
       }))
       return [...prev, ...newEls]
     })
@@ -255,6 +258,38 @@ export function useCanvasState() {
     }))
     setElements(prev => [...prev, ...duplicates])
     setSelectedIds(new Set(duplicates.map(d => d.id)))
+    setSelectedDrawingId(null)
+  }, [pushHistory])
+
+  // ── Alinear / distribuir / repetir en grilla (bloque 4) ─────────────────
+  // Una sola entrada de deshacer por operación.
+  const applyMoves = useCallback((updates: Record<string, { x?: number; y?: number }>) => {
+    if (Object.keys(updates).length === 0) return
+    pushHistory()
+    setElements(prev => prev.map(el => (updates[el.id] ? { ...el, ...updates[el.id] } : el)))
+  }, [pushHistory])
+
+  const alignElements = useCallback((ids: string[], mode: AlignMode) => {
+    const idSet = new Set(ids)
+    applyMoves(alignUpdates(elementsRef.current.filter(el => idSet.has(el.id)), mode))
+  }, [applyMoves])
+
+  const distributeElements = useCallback((ids: string[], axis: 'horizontal' | 'vertical') => {
+    const idSet = new Set(ids)
+    applyMoves(distributeUpdates(elementsRef.current.filter(el => idSet.has(el.id)), axis))
+  }, [applyMoves])
+
+  // Copias de la selección en filas × columnas; queda seleccionado todo
+  // (original + copias) para poder moverlo junto.
+  const repeatInGrid = useCallback((ids: string[], rows: number, cols: number, gap: number) => {
+    const idSet = new Set(ids)
+    const source = elementsRef.current.filter(el => idSet.has(el.id))
+    const ts = Date.now()
+    const copies = gridCopies(source, rows, cols, gap, i => `el-${ts}-g${i}`)
+    if (!copies.length) return
+    pushHistory()
+    setElements(prev => [...prev, ...copies])
+    setSelectedIds(new Set([...ids, ...copies.map(c => c.id)]))
     setSelectedDrawingId(null)
   }, [pushHistory])
 
@@ -421,6 +456,9 @@ export function useCanvasState() {
     bringToFront,
     sendToBack,
     rotateElements,
+    alignElements,
+    distributeElements,
+    repeatInGrid,
     activeTool,
     setTool,
     measureMode,

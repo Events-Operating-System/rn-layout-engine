@@ -1,4 +1,8 @@
+import { useMemo } from 'react'
 import { CATEGORY_COLORS } from '@/types/layout'
+import type { LayoutSettings } from '@/lib/layoutSettings'
+import { DEFAULT_LAYOUT_SETTINGS } from '@/lib/layoutSettings'
+import { roundTableWithChairs, rectTableWithChairs, rectTableSeats, CHAIR_NAME } from '@/lib/seating'
 import type { AssetCategory, AssetTemplate, GroupChild } from '@/types/layout'
 import { useLang, getCategoryLabel, getAssetName } from '@/context/LangContext'
 import type { CustomAsset } from '@/lib/assetService'
@@ -11,6 +15,25 @@ interface AssetLibraryPanelProps {
   selectedElement: LayoutElement | null
   onSaveAsAsset: (element: LayoutElement) => void
   onDeleteAsset: (id: string) => void
+  // Medidas de mesas y sillas de la org (organizations.settings.layout).
+  settings?: LayoutSettings
+}
+
+// Mesas y silla del catálogo con las medidas de la org.
+function withOrgSizes(templates: AssetTemplate[], s: LayoutSettings): AssetTemplate[] {
+  const out: AssetTemplate[] = []
+  for (const tpl of templates) {
+    if (tpl.name === 'Round Table 8') {
+      // La silla va primero en Asientos: es la pieza que más se usa.
+      out.push({ name: CHAIR_NAME, category: 'seating', defaultWidth: s.chairSize, defaultHeight: s.chairSize, shape: 'rounded-rect', defaultColor: '#d97706', seats: 1 })
+      out.push({ ...tpl, defaultWidth: s.tableRound8, defaultHeight: s.tableRound8 })
+    } else if (tpl.name === 'Round Table 10') {
+      out.push({ ...tpl, defaultWidth: s.tableRound10, defaultHeight: s.tableRound10 })
+      out.push({ name: 'Round Table 12', category: 'seating', defaultWidth: s.tableRound12, defaultHeight: s.tableRound12, shape: 'circle' })
+    } else if (tpl.name === 'Rect Table') out.push({ ...tpl, defaultWidth: s.tableRectLength, defaultHeight: s.tableRectWidth })
+    else out.push(tpl)
+  }
+  return out
 }
 
 const ASSET_TEMPLATES: AssetTemplate[] = [
@@ -67,9 +90,18 @@ const CATEGORY_ORDER: AssetCategory[] = [
 ]
 
 export default function AssetLibraryPanel({
-  onAddElement, onAddGroup, customAssets, selectedElement, onSaveAsAsset, onDeleteAsset
+  onAddElement, onAddGroup, customAssets, selectedElement, onSaveAsAsset, onDeleteAsset,
+  settings = DEFAULT_LAYOUT_SETTINGS,
 }: AssetLibraryPanelProps) {
   const { t, lang } = useLang()
+  const templates = useMemo(() => withOrgSizes(ASSET_TEMPLATES, settings), [settings])
+  // Mesas que se colocan con sus sillas alrededor (un grupo: mesa + sillas).
+  const tableSets = useMemo(() => [
+    { key: 'r8', label: getAssetName(lang, 'Round Table 8'), seats: 8, build: () => roundTableWithChairs(8, settings) },
+    { key: 'r10', label: getAssetName(lang, 'Round Table 10'), seats: 10, build: () => roundTableWithChairs(10, settings) },
+    { key: 'r12', label: getAssetName(lang, 'Round Table 12'), seats: 12, build: () => roundTableWithChairs(12, settings) },
+    { key: 'rect', label: getAssetName(lang, 'Rect Table'), seats: rectTableSeats(settings), build: () => rectTableWithChairs(settings) },
+  ], [settings, lang])
 
   function handleAddCustomAsset(asset: CustomAsset) {
     if (asset.kind === 'group' && asset.children?.length) {
@@ -98,9 +130,10 @@ export default function AssetLibraryPanel({
       <div className="flex-1 overflow-y-auto py-1">
         {/* Sistema */}
         {CATEGORY_ORDER.map(category => {
-          const assets = ASSET_TEMPLATES.filter(a => a.category === category)
+          const assets = templates.filter(a => a.category === category)
           return (
-            <div key={category} className="px-3 py-2">
+            <div key={category}>
+            <div className="px-3 py-2">
               <div className="flex items-center gap-2 mb-1.5">
                 <span
                   className="w-2 h-2 rounded-sm flex-none"
@@ -124,6 +157,29 @@ export default function AssetLibraryPanel({
                   </div>
                 ))}
               </div>
+            </div>
+            {category === 'seating' && (
+              <div className="px-3 py-2">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="w-2 h-2 rounded-full flex-none" style={{ backgroundColor: CATEGORY_COLORS.seating }} />
+                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">{t.tablesWithChairs}</span>
+                </div>
+                <div className="space-y-0.5">
+                  {tableSets.map(set => (
+                    <div
+                      key={set.key}
+                      onClick={() => onAddGroup(set.build())}
+                      className="flex items-center justify-between px-2 py-1.5 rounded text-xs text-slate-300 hover:bg-slate-700/40 cursor-pointer group transition-colors"
+                    >
+                      <span className="truncate">{set.label}</span>
+                      <span className="text-slate-600 text-[9px] font-mono ml-1 flex-none group-hover:text-slate-500">
+                        {set.seats} {t.chairsUnit}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             </div>
           )
         })}
