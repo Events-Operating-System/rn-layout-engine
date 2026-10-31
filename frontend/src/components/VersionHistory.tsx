@@ -7,6 +7,7 @@ import { isPermissionError } from '@/lib/layoutPermissions'
 import type { CanvasViewport } from '@/types/layout'
 import { normalizeLayoutMeta } from '@/lib/layoutMeta'
 import { effectivePax } from '@/lib/seating'
+import { useBackgroundImage } from '@/hooks/useBackgroundImage'
 
 const DATE_LOCALE: Record<Lang, string> = { es: 'es-PE', en: 'en-US', pt: 'pt-BR' }
 const noop = () => {}
@@ -198,6 +199,7 @@ function VersionViewer({ version, canRestore, onRestore, onClose }: {
   const updateViewport = useCallback((u: Partial<CanvasViewport>) => setViewport(v => ({ ...v, ...u })), [])
   const normalized = normalizeLayoutMeta(version.meta, version.name)
   const meta = { ...normalized, pax: effectivePax(normalized, version.elements ?? []) }
+  const backgroundImage = useBackgroundImage(meta.background?.path)
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">
@@ -253,6 +255,8 @@ function VersionViewer({ version, canRestore, onRestore, onClose }: {
           onAddDrawing={noop}
           layoutMeta={meta}
           versionNumber={version.version_number}
+          background={meta.background}
+          backgroundImage={backgroundImage}
           selectedDrawingId={null}
           onSelectDrawing={noop}
           onDeleteDrawing={noop}

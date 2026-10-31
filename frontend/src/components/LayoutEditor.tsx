@@ -5,6 +5,10 @@ import DrawingToolbar from '@/components/DrawingToolbar'
 import FooterLegend from '@/components/FooterLegend'
 import RecoveryBanner from '@/components/RecoveryBanner'
 import VersionHistory from '@/components/VersionHistory'
+import VenueBackgroundPanel from '@/components/VenueBackgroundPanel'
+import { useBackgroundImage } from '@/hooks/useBackgroundImage'
+import { calibrate as calibrateBackground } from '@/lib/venueBackground'
+import { formatMeters } from '@/lib/dimension'
 import LayoutCanvas, { type LayoutCanvasHandle } from '@/components/canvas/LayoutCanvas'
 import { useLang } from '@/context/LangContext'
 import { useCanvasState } from '@/hooks/useCanvasState'
@@ -99,7 +103,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     elements, selectedId, selectedIds, selectedElement,
     selectedDrawingId, selectedDrawing,
     viewport, selectElement, toggleSelectElement, selectElements, selectDrawing,
-    updateElement, updateElements, updateViewport, addElement, addGroup, addPolygon,
+    updateElement, updateElements, updateViewport, addElement, addGroup, addPolygon, addWall,
     deleteElement, deleteElements, duplicateElement, duplicateElements,
     bringToFront, sendToBack, rotateElements, alignElements, distributeElements, repeatInGrid,
     activeTool, setTool, measureMode, setMeasureMode,
@@ -164,6 +168,11 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     [layoutMeta, elements],
   )
   const paxAuto = isPaxAuto(layoutMeta)
+  // Plano del local de fondo (bloque 5).
+  const backgroundImage = useBackgroundImage(layoutMeta.background?.path)
+  const [venueOpen, setVenueOpen] = useState(false)
+  const [calibration, setCalibration] = useState<{ measuredM: number; anchor: { x: number; y: number } } | null>(null)
+  const [calibrationReal, setCalibrationReal] = useState('')
 
   useEffect(() => {
     if (!layoutIdToLoad) {
@@ -493,6 +502,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         return
       }
       if (e.key === 's') setTool('pointer')
+      else if (e.key === 'w') setTool('wall')
+      else if (e.key === 'c') setTool('dimension')
       else if (e.key === 'h') setTool('hand')
       else if (e.key === 'l') setTool('line')
       else if (e.key === 'a') setTool('arrow')
@@ -569,6 +580,28 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         {/* Acciones secundarias — ocultas < sm para que "Guardar" nunca
             quede fuera de pantalla en móvil. Duplicar sigue disponible
             desde las tarjetas del dashboard. */}
+        {!readOnly && (
+          <div className="relative flex-none">
+            <button
+              onClick={() => setVenueOpen(o => !o)}
+              className={`h-7 px-2 sm:px-3 rounded text-xs font-semibold border transition-colors whitespace-nowrap ${venueOpen ? 'text-white bg-indigo-600 border-indigo-500' : 'text-slate-300 bg-slate-800 hover:bg-slate-700 border-slate-600'}`}
+              title={t.venueTitle}
+            >
+              🗺<span className="hidden md:inline"> {t.venueTitle}</span>
+            </button>
+            {venueOpen && (
+              <VenueBackgroundPanel
+                orgId={orgId}
+                background={layoutMeta.background}
+                allowImage={layoutSettings.backgroundImage}
+                allowPdf={layoutSettings.backgroundPdf}
+                onChange={bg => updateMeta({ background: bg })}
+                onStartCalibrate={() => { setVenueOpen(false); setTool('calibrate') }}
+                onClose={() => setVenueOpen(false)}
+              />
+            )}
+          </div>
+        )}
         <button
           onClick={openVersions}
           title={t.versionsHint}
@@ -655,6 +688,12 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onUpdateElements={updateElements}
             onUpdateViewport={updateViewport}
             onAddPolygon={addPolygon}
+            onAddWall={w => addWall(w, layoutSettings.wallThickness)}
+            dimensionDecimals={layoutSettings.dimensionDecimals}
+            background={layoutMeta.background}
+            backgroundImage={backgroundImage}
+            onUpdateBackground={readOnly || !layoutMeta.background ? undefined : u => updateMeta({ background: { ...layoutMeta.background!, ...u } })}
+            onCalibrate={(measuredM, anchor) => { setCalibration({ measuredM, anchor }); setCalibrationReal('') }}
             onDeleteElement={deleteElement}
             onDeleteElements={deleteElements}
             activeTool={effectiveTool}
@@ -714,6 +753,47 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
           onClose={() => setVersionsOpen(false)}
           onRestored={handleVersionRestored}
         />
+      )}
+
+      {calibration && layoutMeta.background && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm">
+            <h3 className="text-sm font-semibold text-slate-100 mb-2">{t.calibrateTitle}</h3>
+            <p className="text-xs text-slate-400 mb-4">
+              {t.calibrateMeasured.replace('{m}', formatMeters(calibration.measuredM, layoutSettings.dimensionDecimals))}
+            </p>
+            <label className="block text-[11px] text-slate-400 mb-4">
+              {t.calibrateReal}
+              <input
+                autoFocus
+                type="number" min={0} step={0.01}
+                value={calibrationReal}
+                onChange={e => setCalibrationReal(e.target.value)}
+                className="mt-1 w-full bg-slate-800 border border-slate-600 focus:border-indigo-500 rounded px-3 py-2 text-sm text-slate-100 outline-none"
+              />
+            </label>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setCalibration(null); setTool('pointer') }}
+                className="flex-1 py-2 rounded-lg border border-slate-700 text-xs text-slate-400 hover:bg-slate-800"
+              >
+                {t.cancel}
+              </button>
+              <button
+                disabled={!(Number(calibrationReal) > 0)}
+                onClick={() => {
+                  const bg = layoutMeta.background!
+                  updateMeta({ background: { ...bg, ...calibrateBackground(bg, calibration.anchor, calibration.measuredM, Number(calibrationReal)) } })
+                  setCalibration(null)
+                  setTool('pointer')
+                }}
+                className="flex-1 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-xs text-white font-semibold disabled:opacity-40"
+              >
+                {t.calibrateApply}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {assetTarget && (

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { LayoutElement, DrawingPrimitive } from '@/types/layout'
 import { useLang, getCategoryLabel, getAssetName } from '@/context/LangContext'
 import { PIXELS_PER_METER } from '@/components/canvas/LayoutCanvas'
-import { lengthMeters, angleDegrees, pointFromLengthAngle, elementAreaMeters } from '@/lib/drawingMath'
+import { lengthMeters, angleDegrees, pointFromLengthAngle, elementAreaMeters, polylineLengthMeters } from '@/lib/drawingMath'
 import type { AlignMode } from '@/lib/arrange'
 
 interface PropertiesPanelProps {
@@ -251,8 +251,20 @@ function ElementProperties({
         </div>
       </Section>
 
+      {element.shape === 'wall' && (
+        <Section label={t.sWall}>
+          <Field label={t.wallThickness}>
+            <NumberInput value={element.thickness ?? 0.15} step={0.05} min={0.01} onChange={v => onUpdate(element.id, { thickness: v })} />
+          </Field>
+          <p className="text-[10px] text-slate-400 mt-1">
+            {t.wallLength}: {Math.round(polylineLengthMeters(element.points ?? [], !!element.closed) * 100) / 100} m
+            {element.closed ? ` · ${t.wallClosed}` : ''}
+          </p>
+        </Section>
+      )}
+
       <Section label={t.sDimensions}>
-        {element.shape === 'polygon' ? (
+        {element.shape === 'polygon' || element.shape === 'wall' ? (
           // Width/height are just the polygon's bounding box — editing them
           // as plain numbers would desync `points` (the actual shape) from
           // them. Resize by dragging the Transformer handles instead, which
@@ -393,7 +405,7 @@ function DrawingProperties({
   onDelete: (id: string) => void
 }) {
   const { t } = useLang()
-  const toolLabel = drawing.tool === 'line' ? t.toolLine : drawing.tool === 'arrow' ? t.toolArrow : t.toolText
+  const toolLabel = drawing.tool === 'line' ? t.toolLine : drawing.tool === 'arrow' ? t.toolArrow : drawing.tool === 'dimension' ? t.toolDimension : t.toolText
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-5">
@@ -411,7 +423,7 @@ function DrawingProperties({
         )}
       </Section>
 
-      {(drawing.tool === 'line' || drawing.tool === 'arrow') && (
+      {(drawing.tool === 'line' || drawing.tool === 'arrow' || drawing.tool === 'dimension') && (
         <Section label={t.sMeasurement}>
           <div className="grid grid-cols-2 gap-2">
             <Field label={t.fLength}>

@@ -29,7 +29,7 @@ export const CATEGORY_LABELS: Record<AssetCategory, string> = {
   primitive: 'Shapes',
 }
 
-export type ElementShape = 'rect' | 'circle' | 'oval' | 'rounded-rect' | 'tree' | 'polygon'
+export type ElementShape = 'rect' | 'circle' | 'oval' | 'rounded-rect' | 'tree' | 'polygon' | 'wall'
 
 export interface LayoutElement {
   id: string
@@ -57,6 +57,10 @@ export interface LayoutElement {
   // Asientos que aporta la pieza al PAX automático (una silla = 1). Las
   // mesas no cuentan: cuentan sus sillas.
   seats?: number
+  // shape === 'wall' (muro / perímetro del local): `points` igual que el
+  // polígono; `closed` = perímetro cerrado; `thickness` = grosor en metros.
+  closed?: boolean
+  thickness?: number
   // Conjunto al que pertenece (una mesa con sus sillas, un asset compuesto).
   // Alinear, distribuir y repetir lo tratan como un solo bloque.
   groupId?: string
@@ -109,11 +113,12 @@ export interface GroupChild {
 
 // ── Drawing primitives ────────────────────────────────────────────────────────
 
-export type DrawingTool = 'pointer' | 'hand' | 'line' | 'arrow' | 'text' | 'polygon' | 'measure'
+export type DrawingTool = 'pointer' | 'hand' | 'line' | 'arrow' | 'text' | 'polygon' | 'measure' | 'wall' | 'dimension' | 'calibrate'
 
 export interface DrawingPrimitive {
   id: string
-  tool: 'line' | 'arrow' | 'text'
+  // 'dimension' = cota: línea con su medida, que queda guardada en el plano.
+  tool: 'line' | 'arrow' | 'text' | 'dimension'
   points: number[]   // world-pixel coords: [x1,y1,x2,y2] for line/arrow; [x,y] for text
   text?: string
   color: string
@@ -136,6 +141,8 @@ export interface LayoutMeta {
   // PAX automático (= asientos dibujados). false = se escribió a mano en
   // `pax`. Sin definir (planos viejos): manual si `pax` tiene algo.
   paxAuto?: boolean
+  // Plano del local de fondo (imagen guardada en el bucket layout-backgrounds).
+  background?: VenueBackground
   // Nota libre de versión escrita a mano. El número lo pone la base
   // (layouts.version_number); esto solo se muestra al lado.
   version: string
@@ -143,6 +150,18 @@ export interface LayoutMeta {
   contacto: string
   telefono: string
   correo: string
+}
+
+// Fondo del plano: imagen ubicada en metros (x, y, ancho, alto), con su
+// transparencia y si está bloqueada (no se mueve al editar).
+export interface VenueBackground {
+  path: string
+  x: number
+  y: number
+  width: number
+  height: number
+  opacity: number
+  locked: boolean
 }
 
 export const DEFAULT_LAYOUT_META: LayoutMeta = {

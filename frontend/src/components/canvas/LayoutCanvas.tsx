@@ -1,7 +1,7 @@
 import { useRef, useCallback, useEffect, useState, forwardRef, useImperativeHandle } from 'react'
-import { Stage, Layer, Line, Arrow, Rect, Circle, Ellipse, Text, Group, Shape, Transformer } from 'react-konva'
+import { Stage, Layer, Line, Arrow, Rect, Circle, Ellipse, Text, Group, Shape, Transformer, Image as KonvaImage } from 'react-konva'
 import type Konva from 'konva'
-import type { LayoutElement, CanvasViewport, DrawingPrimitive, DrawingTool, LayoutMeta } from '@/types/layout'
+import type { LayoutElement, CanvasViewport, DrawingPrimitive, DrawingTool, LayoutMeta, VenueBackground } from '@/types/layout'
 import { FOOTER_HEIGHT_PX } from '@/components/FooterLegend'
 import { lengthMeters, angleDegrees, applyAngleSnap, pointFromLengthAngle, elementAreaMeters, type Point } from '@/lib/drawingMath'
 import jsPDF from 'jspdf'
@@ -48,6 +48,18 @@ interface LayoutCanvasProps {
   drawings: DrawingPrimitive[]
   onAddDrawing: (primitive: Omit<DrawingPrimitive, 'id'>) => void
   onAddPolygon: (polygon: { x: number; y: number; width: number; height: number; points: number[] }) => void
+  // Muro / perímetro del local (bloque 5): mismos puntos que el polígono;
+  // closed = se cerró tocando el primer punto.
+  onAddWall?: (wall: { x: number; y: number; width: number; height: number; points: number[]; closed: boolean }) => void
+  // Decimales de las medidas de muros y cotas (ajuste de la org).
+  dimensionDecimals?: number
+  // Fondo del plano del local: ubicación (meta.background) + la imagen ya bajada.
+  background?: VenueBackground
+  backgroundImage?: HTMLImageElement | null
+  // Sin esto el fondo no se puede mover (solo lectura o bloqueado).
+  onUpdateBackground?: (updates: Partial<VenueBackground>) => void
+  // Calibrar escala: distancia marcada sobre el fondo (m) y el primer punto (m).
+  onCalibrate?: (measuredM: number, anchor: { x: number; y: number }) => void
   layoutMeta: LayoutMeta
   // layouts.version_number — va en el nombre del archivo y en el cajetín.
   versionNumber: number
@@ -67,6 +79,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       onSelect, onToggleSelect, onSelectMultiple, onUpdateElement, onUpdateElements, onUpdateViewport,
       onDeleteElement, onDeleteElements,
       activeTool, measureMode, drawings, onAddDrawing, onAddPolygon, layoutMeta, versionNumber,
+      onAddWall, dimensionDecimals = 2, background, backgroundImage, onUpdateBackground, onCalibrate,
       selectedDrawingId, onSelectDrawing, onDeleteDrawing, onUpdateDrawing,
       onPushHistory,
     }: LayoutCanvasProps,
@@ -109,7 +122,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
     // ── Drawing refs + state ──────────────────────────────────────────────────
     const drawingStartRef = useRef<{ x: number; y: number } | null>(null)
-    const drawingToolRef = useRef<'line' | 'arrow'>('line')
+    const drawingToolRef = useRef<'line' | 'arrow' | 'dimension'>('line')
     const previewDataRef = useRef<{ tool: string; points: number[] } | null>(null)
     const [previewDrawing, setPreviewDrawing] = useState<{ tool: string; points: number[] } | null>(null)
     // Live length/angle readout shown next to the cursor while dragging a
@@ -285,7 +298,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           const [x1, y1, x2, y2] = preview.points
           if (Math.hypot(x2 - x1, y2 - y1) > 5) {
             onAddDrawing({
-              tool: preview.tool as 'line' | 'arrow',
+              tool: preview.tool as 'line' | 'arrow' | 'dimension',
               points: preview.points,
               color: DRAW_COLOR,
               strokeWidth: DRAW_STROKE,
@@ -338,8 +351,8 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     }, [containerSize, layoutMeta, versionNumber])
 
     const exportPDF = useCallback(() => {
-      exportLayoutPdf({ containerSize, elements, drawings, layoutMeta, versionNumber, lang })
-    }, [containerSize, elements, drawings, layoutMeta, versionNumber, lang])
+      exportLayoutPdf({ containerSize, elements, drawings, layoutMeta, versionNumber, lang, dimensionDecimals, background, backgroundImage })
+    }, [containerSize, elements, drawings, layoutMeta, versionNumber, lang, dimensionDecimals, background, backgroundImage])
 
     useImperativeHandle(ref, () => ({ exportPNG, exportPDF }), [exportPNG, exportPDF])
 
@@ -347,9 +360,10 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
     const fitToScreen = useCallback(() => {
       if (!containerSize) return
-      const next = fitViewportToContent(elements, drawings, containerSize, PIXELS_PER_METER, MIN_SCALE, MAX_SCALE)
+      const boxes = background ? [...elements, { x: background.x, y: background.y, width: background.width, height: background.height }] : elements
+      const next = fitViewportToContent(boxes, drawings, containerSize, PIXELS_PER_METER, MIN_SCALE, MAX_SCALE)
       if (next) onUpdateViewport(next)
-    }, [containerSize, elements, drawings, onUpdateViewport])
+    }, [containerSize, elements, drawings, background, onUpdateViewport])
 
     useEffect(() => {
       const onKey = (e: KeyboardEvent) => {
@@ -395,8 +409,9 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     // see types/layout.ts) and hands off to useCanvasState.addPolygon. Fewer
     // than 3 vertices means there's nothing to close — just discard.
 
-    const finalizePolygon = useCallback((pts: Point[]) => {
-      if (pts.length >= 3) {
+    const finalizePolygon = useCallback((pts: Point[], closed = true) => {
+      const isWall = activeTool === 'wall'
+      if (pts.length >= (isWall ? 2 : 3)) {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
         for (const p of pts) {
           minX = Math.min(minX, p.x); minY = Math.min(minY, p.y)
@@ -406,20 +421,22 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         for (const p of pts) {
           relPointsMeters.push((p.x - minX) / PIXELS_PER_METER, (p.y - minY) / PIXELS_PER_METER)
         }
-        onAddPolygon({
+        const shape = {
           x: minX / PIXELS_PER_METER,
           y: minY / PIXELS_PER_METER,
           width: (maxX - minX) / PIXELS_PER_METER,
           height: (maxY - minY) / PIXELS_PER_METER,
           points: relPointsMeters,
-        })
+        }
+        if (isWall) onAddWall?.({ ...shape, width: Math.max(shape.width, 0.01), height: Math.max(shape.height, 0.01), closed: closed && pts.length >= 3 })
+        else onAddPolygon(shape)
       }
       polygonPointsRef.current = []
       setPolygonPoints([])
       setPolygonPreviewEnd(null)
       setDrawingReadout(null)
       lastPolygonClickRef.current = null
-    }, [onAddPolygon])
+    }, [onAddPolygon, onAddWall, activeTool])
 
     // ── Mouse down — pan OR drawing start ────────────────────────────────────
 
@@ -427,7 +444,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       const stage = stageRef.current
       if (!stage) return
 
-      if (activeTool === 'polygon') {
+      if (activeTool === 'polygon' || activeTool === 'wall') {
         const pos = stage.getRelativePointerPosition()
         if (!pos) return
         const pts = polygonPointsRef.current
@@ -446,7 +463,8 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           // The first of these two clicks already committed a vertex at
           // ~this same spot — drop it so we don't close on a degenerate
           // zero-length edge.
-          finalizePolygon(pts.slice(0, -1))
+          // Doble clic: polígono cerrado; muro abierto.
+          finalizePolygon(pts.slice(0, -1), activeTool !== 'wall')
           return
         }
         lastPolygonClickRef.current = { x: pos.x, y: pos.y, time: now }
@@ -459,7 +477,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         const first = pts[0]
         const closeThresholdPx = 10 / viewport.scale
         if (pts.length >= 3 && Math.hypot(pos.x - first.x, pos.y - first.y) <= closeThresholdPx) {
-          finalizePolygon(pts)
+          finalizePolygon(pts, true)
           return
         }
         const last = pts[pts.length - 1]
@@ -470,6 +488,23 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         const newPts = [...pts, newPoint]
         polygonPointsRef.current = newPts
         setPolygonPoints(newPts)
+        return
+      }
+
+      // Calibrar el fondo: dos clics sobre una medida conocida del plano.
+      if (activeTool === 'calibrate') {
+        const pos = stage.getRelativePointerPosition()
+        if (!pos) return
+        if (measureStartRef.current === null) {
+          measureStartRef.current = pos
+          return
+        }
+        const origin = measureStartRef.current
+        const lengthM = lengthMeters(origin.x, origin.y, pos.x, pos.y, PIXELS_PER_METER)
+        measureStartRef.current = null
+        setMeasurePreviewEnd(null)
+        setDrawingReadout(null)
+        if (lengthM > 0) onCalibrate?.(lengthM, { x: origin.x / PIXELS_PER_METER, y: origin.y / PIXELS_PER_METER })
         return
       }
 
@@ -530,7 +565,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         return
       }
 
-      if (activeTool === 'line' || activeTool === 'arrow') {
+      if (activeTool === 'line' || activeTool === 'arrow' || activeTool === 'dimension') {
         const pos = stage.getRelativePointerPosition()
         if (!pos) return
         drawingStartRef.current = { x: pos.x, y: pos.y }
@@ -561,7 +596,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       if (!pos) return
       marqueeOrigin.current = pos
       marqueeMoved.current = false
-    }, [activeTool, measureMode, onAddDrawing, viewport.scale, finalizePolygon, elements])
+    }, [activeTool, measureMode, onAddDrawing, viewport.scale, finalizePolygon, elements, onCalibrate])
 
     // ── Mouse move ────────────────────────────────────────────────────────────
 
@@ -569,7 +604,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       const stage = stageRef.current
       if (!stage) return
 
-      if (activeTool === 'polygon' && polygonPointsRef.current.length > 0) {
+      if ((activeTool === 'polygon' || activeTool === 'wall') && polygonPointsRef.current.length > 0) {
         const pos = stage.getRelativePointerPosition()
         if (pos) {
           const pts = polygonPointsRef.current
@@ -592,7 +627,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         return
       }
 
-      if (activeTool === 'measure' && measureStartRef.current !== null) {
+      if ((activeTool === 'measure' || activeTool === 'calibrate') && measureStartRef.current !== null) {
         const pos = stage.getRelativePointerPosition()
         if (pos) {
           const origin = measureStartRef.current
@@ -840,11 +875,32 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
           {/* Assets + drawings + Transformer */}
           <Layer>
+            {/* Plano del local de fondo: debajo de todo. Solo se arrastra en
+                modo Selección, desbloqueado y con permiso de editar. */}
+            {background && backgroundImage && (
+              <KonvaImage
+                image={backgroundImage}
+                x={background.x * PIXELS_PER_METER}
+                y={background.y * PIXELS_PER_METER}
+                width={background.width * PIXELS_PER_METER}
+                height={background.height * PIXELS_PER_METER}
+                opacity={background.opacity}
+                listening={!!onUpdateBackground && !background.locked && activeTool === 'pointer'}
+                draggable={!!onUpdateBackground && !background.locked && activeTool === 'pointer'}
+                onDragEnd={e => {
+                  onUpdateBackground?.({
+                    x: Math.round((e.target.x() / PIXELS_PER_METER) * 100) / 100,
+                    y: Math.round((e.target.y() / PIXELS_PER_METER) * 100) / 100,
+                  })
+                }}
+              />
+            )}
             {elements.map(el => (
               <AssetShape
                 key={el.id}
                 element={el}
                 displayName={getAssetName(lang, el.name)}
+                decimals={dimensionDecimals}
                 isSelected={selectedIds.has(el.id)}
                 interactive={elementInteractive}
                 onSelect={(shiftKey) => (shiftKey ? onToggleSelect(el.id) : onSelect(el.id))}
@@ -927,7 +983,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                   // normalized to width/height), so a resize has to rescale
                   // them explicitly or the shape would snap back to its
                   // original size once the Transformer's scale resets to 1.
-                  if (el.shape === 'polygon' && el.points && el.points.length >= 6) {
+                  if ((el.shape === 'polygon' || el.shape === 'wall') && el.points && el.points.length >= 4) {
                     const scaleX = el.width !== 0 ? w / el.width : 1
                     const scaleY = el.height !== 0 ? h / el.height : 1
                     updates.points = el.points.map((v, i) => (i % 2 === 0 ? v * scaleX : v * scaleY))
@@ -941,6 +997,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
               <DrawingShape
                 key={drw.id}
                 drawing={drw}
+                decimals={dimensionDecimals}
                 isSelected={drw.id === selectedDrawingId}
                 interactive={drawingsInteractive}
                 onSelect={() => onSelectDrawing(drw.id)}
@@ -1008,7 +1065,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
             {/* Measurement tool — dashed line between the two clicked
                 points while waiting for the second click */}
-            {activeTool === 'measure' && measureStartRef.current && measurePreviewEnd && (
+            {(activeTool === 'measure' || activeTool === 'calibrate') && measureStartRef.current && measurePreviewEnd && (
               <Line
                 points={[
                   measureStartRef.current.x, measureStartRef.current.y,

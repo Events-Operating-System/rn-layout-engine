@@ -3,7 +3,8 @@
 // LayoutCanvas.tsx (bloque 3): mismo resultado, byte a byte.
 import type Konva from 'konva'
 import jsPDF from 'jspdf'
-import type { LayoutElement, DrawingPrimitive, LayoutMeta } from '@/types/layout'
+import type { LayoutElement, DrawingPrimitive, LayoutMeta, VenueBackground } from '@/types/layout'
+import { formatMeters } from '@/lib/dimension'
 import { FOOTER_HEIGHT_PX } from '@/components/FooterLegend'
 import { exportFileName } from '@/lib/layoutVersion'
 import { getAssetName, type Lang } from '@/context/LangContext'
@@ -59,9 +60,15 @@ export function exportLayoutPdf(params: {
   layoutMeta: LayoutMeta
   versionNumber: number
   lang: Lang
+  // Bloque 5: decimales de muros/cotas y plano del local de fondo.
+  dimensionDecimals?: number
+  background?: VenueBackground
+  backgroundImage?: HTMLImageElement | null
 }) {
   const { containerSize, elements, drawings, layoutMeta, versionNumber, lang } = params
-    if (!containerSize || !elements.length) return
+  const decimals = params.dimensionDecimals ?? 2
+  const bg = params.background && params.backgroundImage ? params.background : undefined
+    if (!containerSize || (!elements.length && !bg)) return
 
     const PADDING = 40
     const PPM = PIXELS_PER_METER
@@ -73,6 +80,12 @@ export function exportLayoutPdf(params: {
       minY = Math.min(minY, el.y * PPM)
       maxX = Math.max(maxX, (el.x + el.width) * PPM)
       maxY = Math.max(maxY, (el.y + el.height) * PPM)
+    }
+    if (bg) {
+      minX = Math.min(minX, bg.x * PPM)
+      minY = Math.min(minY, bg.y * PPM)
+      maxX = Math.max(maxX, (bg.x + bg.width) * PPM)
+      maxY = Math.max(maxY, (bg.y + bg.height) * PPM)
     }
     // drawing.points ya están en world-pixel coords (mismo espacio que el.x * PPM)
     for (const drw of drawings) {
@@ -114,6 +127,14 @@ export function exportLayoutPdf(params: {
     const offsetX = -minX + PADDING
     const offsetY = -minY + PADDING
 
+    // Plano del local de fondo, debajo de todo y con su transparencia.
+    if (bg && params.backgroundImage) {
+      ctx.save()
+      ctx.globalAlpha = bg.opacity
+      ctx.drawImage(params.backgroundImage, bg.x * PPM + offsetX, bg.y * PPM + offsetY, bg.width * PPM, bg.height * PPM)
+      ctx.restore()
+    }
+
     for (const el of elements) {
       const x = el.x * PPM + offsetX
       const y = el.y * PPM + offsetY
@@ -124,6 +145,7 @@ export function exportLayoutPdf(params: {
       const isCircle = el.shape === 'circle'
       const isOval = el.shape === 'oval'
       const isPolygon = el.shape === 'polygon'
+      const isWall = el.shape === 'wall'
 
       // Color: árbol=verde, color custom respetado, resto blanco
       const DEFAULT_COLORS = ['#6366f1','#0891b2','#f59e0b','#ef4444','#22c55e','#a855f7','#16a34a']
@@ -159,6 +181,33 @@ export function exportLayoutPdf(params: {
         ctx.ellipse(w / 2, h / 2, w / 2, h / 2, 0, 0, Math.PI * 2)
         ctx.fill()
         ctx.stroke()
+      } else if (isWall && el.points && el.points.length >= 4) {
+        // Muro: trazo negro con el grosor real + medida de cada tramo.
+        const pts = el.points.map(v => v * PPM)
+        const n = pts.length / 2
+        const closed = !!el.closed && n >= 3
+        ctx.strokeStyle = '#111111'
+        ctx.lineWidth = Math.max(1, (el.thickness ?? 0.15) * PPM)
+        ctx.lineJoin = 'miter'
+        ctx.lineCap = 'square'
+        ctx.beginPath()
+        ctx.moveTo(pts[0], pts[1])
+        for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1])
+        if (closed) ctx.closePath()
+        ctx.stroke()
+        ctx.fillStyle = '#333333'
+        ctx.font = '9px ui-monospace, monospace'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        const segs = closed ? n : n - 1
+        for (let i = 0; i < segs; i++) {
+          const j = (i + 1) % n
+          const x1 = pts[i * 2], y1 = pts[i * 2 + 1], x2 = pts[j * 2], y2 = pts[j * 2 + 1]
+          const len = Math.hypot(x2 - x1, y2 - y1)
+          if (len < 20) continue
+          const off = ctx.lineWidth / 2 + 7
+          ctx.fillText(formatMeters(len / PPM, decimals), (x1 + x2) / 2 - ((y2 - y1) / len) * off, (y1 + y2) / 2 + ((x2 - x1) / len) * off)
+        }
       } else if (isPolygon && el.points && el.points.length >= 6) {
         // el.points are meter offsets relative to (x,y) — same convention
         // as w/h above, so *PPM gives the same local pixel space already
@@ -180,7 +229,7 @@ export function exportLayoutPdf(params: {
 
       // Label — bounding-box dims would be misleading over an irregular
       // polygon (e.g. an L-shape), so it's skipped there too.
-      if (w > 20 && h > 12 && !isPolygon) {
+      if (w > 20 && h > 12 && !isPolygon && !isWall) {
         ctx.fillStyle = isTree ? '#ffffff' : '#1a1a1a'
         const fontSize = Math.min(11, Math.max(7, Math.min(w, h) / 4))
         ctx.font = `600 ${fontSize}px ui-monospace, monospace`
@@ -245,6 +294,32 @@ export function exportLayoutPdf(params: {
         ctx.lineTo(rightX, rightY)
         ctx.closePath()
         ctx.fill()
+      } else if (drw.tool === 'dimension') {
+        // Cota: línea con topes y la medida en el medio (como en pantalla).
+        const x1 = drw.points[0] + offsetX, y1 = drw.points[1] + offsetY
+        const x2 = drw.points[2] + offsetX, y2 = drw.points[3] + offsetY
+        const len = Math.hypot(x2 - x1, y2 - y1)
+        if (len > 0) {
+          const nx = -(y2 - y1) / len, ny = (x2 - x1) / len
+          ctx.strokeStyle = '#111111'
+          ctx.fillStyle = '#111111'
+          ctx.lineWidth = 1
+          ctx.beginPath()
+          ctx.moveTo(x1, y1); ctx.lineTo(x2, y2)
+          ctx.moveTo(x1 + nx * 7, y1 + ny * 7); ctx.lineTo(x1 - nx * 7, y1 - ny * 7)
+          ctx.moveTo(x2 + nx * 7, y2 + ny * 7); ctx.lineTo(x2 - nx * 7, y2 - ny * 7)
+          ctx.stroke()
+          let ang = Math.atan2(y2 - y1, x2 - x1)
+          if (ang > Math.PI / 2 || ang < -Math.PI / 2) ang += Math.PI
+          ctx.save()
+          ctx.translate((x1 + x2) / 2 + nx * 9, (y1 + y2) / 2 + ny * 9)
+          ctx.rotate(ang)
+          ctx.font = '10px ui-monospace, monospace'
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(formatMeters(len / PPM, decimals), 0, 0)
+          ctx.restore()
+        }
       } else if (drw.tool === 'text' && drw.text) {
         ctx.font = `${drw.fontSize ?? 14}px ui-monospace, monospace`
         ctx.textAlign = 'left'

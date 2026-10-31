@@ -400,6 +400,33 @@ export function useCanvasState() {
     setSelectedDrawingId(null)
   }, [pushHistory])
 
+  // Muro / perímetro del local (bloque 5). Grosor por defecto = el de la org.
+  const addWall = useCallback((wall: { x: number; y: number; width: number; height: number; points: number[]; closed: boolean }, thickness: number) => {
+    pushHistory()
+    const id = `el-${Date.now()}`
+    const newEl: LayoutElement = {
+      id,
+      name: wall.closed ? 'Perimeter' : 'Wall',
+      category: 'structure',
+      x: wall.x,
+      y: wall.y,
+      width: wall.width,
+      height: wall.height,
+      rotation: 0,
+      color: '#cbd5e1',
+      opacity: 1,
+      locked: false,
+      notes: '',
+      shape: 'wall',
+      points: wall.points,
+      closed: wall.closed,
+      thickness,
+    }
+    setElements(prev => [...prev, newEl])
+    setSelectedIds(new Set([id]))
+    setSelectedDrawingId(null)
+  }, [pushHistory])
+
   const addDrawing = useCallback((primitive: Omit<DrawingPrimitive, 'id'>) => {
     pushHistory()
     const id = `drw-${Date.now()}`
@@ -452,6 +479,7 @@ export function useCanvasState() {
     addElement,
     addGroup,
     addPolygon,
+    addWall,
     deleteElement,
     deleteElements,
     duplicateElement,

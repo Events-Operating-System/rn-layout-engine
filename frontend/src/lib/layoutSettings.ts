@@ -11,6 +11,11 @@ export interface LayoutSettings {
   tableRectWidth: number
   chairGap: number
   tableSpacing: number
+  // Plano del local (bloque 5)
+  wallThickness: number
+  dimensionDecimals: number
+  backgroundImage: boolean
+  backgroundPdf: boolean
 }
 
 export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
@@ -22,6 +27,10 @@ export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
   tableRectWidth: 0.75,
   chairGap: 0.15,
   tableSpacing: 1.5,
+  wallThickness: 0.15,
+  dimensionDecimals: 2,
+  backgroundImage: true,
+  backgroundPdf: true,
 }
 
 const num = (v: unknown, fallback: number, min: number) => {
@@ -42,5 +51,9 @@ export function parseLayoutSettings(data: unknown): LayoutSettings {
     tableRectWidth: num(l.table_rect_width, d.tableRectWidth, 0.3),
     chairGap: num(l.chair_gap, d.chairGap, 0),
     tableSpacing: num(l.table_spacing, d.tableSpacing, 0),
+    wallThickness: num(l.wall_thickness, d.wallThickness, 0.01),
+    dimensionDecimals: Math.min(4, Math.round(num(l.dimension_decimals, d.dimensionDecimals, 0))),
+    backgroundImage: typeof l.background_image === 'boolean' ? l.background_image : d.backgroundImage,
+    backgroundPdf: typeof l.background_pdf === 'boolean' ? l.background_pdf : d.backgroundPdf,
   }
 }

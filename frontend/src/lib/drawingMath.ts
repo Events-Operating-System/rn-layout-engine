@@ -67,11 +67,28 @@ export function polygonAreaMeters(points: number[]): number {
   return Math.abs(sum) / 2
 }
 
+// Largo total de un muro (polilínea en metros); cerrado suma el tramo final.
+export function polylineLengthMeters(points: number[], closed: boolean): number {
+  const n = points.length / 2
+  if (n < 2) return 0
+  let sum = 0
+  const segs = closed ? n : n - 1
+  for (let i = 0; i < segs; i++) {
+    const j = (i + 1) % n
+    sum += Math.hypot(points[j * 2] - points[i * 2], points[j * 2 + 1] - points[i * 2 + 1])
+  }
+  return sum
+}
+
 // Real (not bounding-box) area for a placed element, in m² — used by both
 // the measurement tool and the Properties panel so the two never disagree.
-export function elementAreaMeters(el: { shape?: ElementShape; width: number; height: number; points?: number[] }): number {
+export function elementAreaMeters(el: { shape?: ElementShape; width: number; height: number; points?: number[]; closed?: boolean }): number {
   if (el.shape === 'polygon' && el.points && el.points.length >= 6) {
     return polygonAreaMeters(el.points)
+  }
+  // Muro: un perímetro cerrado encierra un área; un muro abierto no.
+  if (el.shape === 'wall') {
+    return el.closed && el.points && el.points.length >= 6 ? polygonAreaMeters(el.points) : 0
   }
   if (el.shape === 'circle' || el.shape === 'oval') {
     return Math.PI * (el.width / 2) * (el.height / 2)

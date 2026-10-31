@@ -35,6 +35,8 @@ const TOOL_DEFS: { tool: DrawingTool; icon: string; shortcut: string }[] = [
   { tool: 'line',     icon: '—', shortcut: 'L' },
   { tool: 'arrow',    icon: '→', shortcut: 'A' },
   { tool: 'polygon',  icon: '⬠', shortcut: 'P' },
+  { tool: 'wall',     icon: '▭', shortcut: 'W' },
+  { tool: 'dimension', icon: '↔', shortcut: 'C' },
   { tool: 'text',     icon: 'T', shortcut: 'T' },
   { tool: 'measure',  icon: '📐', shortcut: 'M' },
 ]
@@ -68,6 +70,9 @@ export default function DrawingToolbar({
     text: t.toolText,
     polygon: t.toolPolygon,
     measure: t.toolMeasure,
+    wall: t.toolWall,
+    dimension: t.toolDimension,
+    calibrate: t.toolCalibrate,
   }
 
   const toolHints: Partial<Record<DrawingTool, string>> = {
@@ -76,6 +81,9 @@ export default function DrawingToolbar({
     text: t.toolHint,
     polygon: t.toolHintPolygon,
     measure: measureMode === 'area' ? t.toolHintMeasureArea : t.toolHintMeasureDistance,
+    wall: t.toolHintWall,
+    dimension: t.toolHintDimension,
+    calibrate: t.toolHintCalibrate,
   }
 
   return (

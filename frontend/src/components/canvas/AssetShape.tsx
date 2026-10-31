@@ -3,6 +3,7 @@ import type Konva from 'konva'
 import { Rect, Circle, Ellipse, Text, Group, Shape, Line } from 'react-konva'
 import type { LayoutElement } from '@/types/layout'
 import { elementAreaMeters } from '@/lib/drawingMath'
+import { formatMeters } from '@/lib/dimension'
 import { PIXELS_PER_METER } from './constants'
 
 // ── Individual placed asset ───────────────────────────────────────────────────
@@ -17,10 +18,12 @@ export interface AssetShapeProps {
   onDragEnd: (x: number, y: number) => void
   onTransformEnd: (x: number, y: number, w: number, h: number, rotation: number) => void
   displayName: string
+  // Decimales de las medidas de los muros (ajuste de la org).
+  decimals?: number
 }
 
 export default function AssetShape({
-  element, displayName, isSelected, interactive,
+  element, displayName, isSelected, interactive, decimals = 2,
   onSelect, onDragStart, onDragMove, onDragEnd, onTransformEnd,
 }: AssetShapeProps) {
   const groupRef = useRef<Konva.Group>(null)
@@ -35,11 +38,12 @@ export default function AssetShape({
   const isRoundedRect = element.shape === 'rounded-rect'
   const isTree = element.shape === 'tree'
   const isPolygon = element.shape === 'polygon'
+  const isWall = element.shape === 'wall'
   const radius = Math.min(pw, ph) / 2
   const fontSize = Math.min(13, Math.max(8, Math.min(pw, ph) / 4))
   // Bounding-box dims would be misleading printed over an irregular
   // polygon (e.g. an L-shape), so it's excluded the same way `tree` is.
-  const showLabel = !isTree && !isPolygon && pw > 30 && ph > 16
+  const showLabel = !isTree && !isPolygon && !isWall && pw > 30 && ph > 16
 
   const baseOpacity = element.opacity ?? 0.65
 
@@ -50,15 +54,17 @@ export default function AssetShape({
     const scaleY = node.scaleY()
     node.scaleX(1)
     node.scaleY(1)
-    const newW = Math.max(0.5, Math.round((element.width * scaleX) * 10) / 10)
-    const newH = Math.max(0.5, Math.round((element.height * scaleY) * 10) / 10)
+    // Un muro recto puede tener caja de ancho o alto ~0: no se fuerza a 0,5 m.
+    const minSize = isWall ? 0.01 : 0.5
+    const newW = Math.max(minSize, Math.round((element.width * scaleX) * 100) / 100)
+    const newH = Math.max(minSize, Math.round((element.height * scaleY) * 100) / 100)
     onTransformEnd(
       Math.round((node.x() / PIXELS_PER_METER) * 10) / 10,
       Math.round((node.y() / PIXELS_PER_METER) * 10) / 10,
       newW, newH,
       Math.round(node.rotation()),
     )
-  }, [element.width, element.height, onTransformEnd])
+  }, [element.width, element.height, onTransformEnd, isWall])
 
   const shapeStyle = {
     fill: element.color,
@@ -101,6 +107,8 @@ export default function AssetShape({
           <Ellipse x={pw / 2} y={ph / 2} radiusX={pw / 2} radiusY={ph / 2} {...shapeStyle} />
         ) : isRoundedRect ? (
           <Rect width={pw} height={ph} cornerRadius={Math.min(pw, ph) * 0.25} {...shapeStyle} />
+        ) : isWall ? (
+          <WallShape element={element} isSelected={isSelected} decimals={decimals} displayName={displayName} />
         ) : isPolygon ? (
           <Line points={(element.points ?? []).map(v => v * PIXELS_PER_METER)} closed {...shapeStyle} />
         ) : isTree ? (
@@ -152,6 +160,81 @@ export default function AssetShape({
           />
         )}
       </Group>
+    </Group>
+  )
+}
+
+// Muro / perímetro del local: trazo con el grosor real, y la medida de cada
+// tramo junto a él. Sin relleno: lo de adentro se sigue pudiendo tocar.
+function WallShape({ element, isSelected, decimals, displayName }: {
+  element: LayoutElement
+  isSelected: boolean
+  decimals: number
+  displayName: string
+}) {
+  const pts = (element.points ?? []).map(v => v * PIXELS_PER_METER)
+  const thick = (element.thickness ?? 0.15) * PIXELS_PER_METER
+  const closed = !!element.closed && pts.length >= 6
+  const n = pts.length / 2
+  const segs = closed ? n : n - 1
+  const labels: { x: number; y: number; rot: number; text: string }[] = []
+  for (let i = 0; i < segs; i++) {
+    const j = (i + 1) % n
+    const x1 = pts[i * 2], y1 = pts[i * 2 + 1], x2 = pts[j * 2], y2 = pts[j * 2 + 1]
+    const len = Math.hypot(x2 - x1, y2 - y1)
+    if (len < 20) continue
+    let ang = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI
+    if (ang > 90 || ang < -90) ang += 180
+    // corrido hacia afuera del trazo, perpendicular al tramo
+    const nx = -(y2 - y1) / len, ny = (x2 - x1) / len
+    const off = thick / 2 + 7
+    labels.push({ x: (x1 + x2) / 2 + nx * off, y: (y1 + y2) / 2 + ny * off, rot: ang, text: formatMeters(len / PIXELS_PER_METER, decimals) })
+  }
+  return (
+    <Group>
+      <Line
+        points={pts}
+        closed={closed}
+        stroke={element.color}
+        strokeWidth={Math.max(1, thick)}
+        lineJoin="miter"
+        lineCap="square"
+        fillEnabled={false}
+        opacity={element.opacity ?? 1}
+        hitStrokeWidth={Math.max(12, thick)}
+        shadowEnabled={isSelected}
+        shadowColor="#60a5fa"
+        shadowBlur={10}
+        shadowOpacity={0.9}
+      />
+      {labels.map((l, i) => (
+        <Text
+          key={i}
+          x={l.x}
+          y={l.y}
+          text={l.text}
+          rotation={l.rot}
+          offsetX={l.text.length * 3}
+          offsetY={5}
+          fontSize={10}
+          fontFamily="ui-monospace, monospace"
+          fill="#cbd5e1"
+          listening={false}
+        />
+      ))}
+      {closed && displayName && (
+        <Text
+          text={displayName}
+          width={element.width * PIXELS_PER_METER}
+          height={element.height * PIXELS_PER_METER}
+          align="center"
+          verticalAlign="middle"
+          fontSize={12}
+          fontFamily="ui-monospace, monospace"
+          fill="rgba(226,232,240,0.45)"
+          listening={false}
+        />
+      )}
     </Group>
   )
 }
