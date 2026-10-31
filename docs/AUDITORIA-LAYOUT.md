@@ -234,6 +234,74 @@ type Segment =
 - **B se construye encima de A, sí.** La captura y la profundidad del 3D son la mejor guía para la IA: sin el 3D, B queda muy inexacto.
 - Orden: curvas (para que el 3D no nazca sin ellas) → 3D Fase 1 → render IA → modelos GLTF si la venta lo pide.
 
+### 3.1 Investigación: por qué está prohibido Three.js (2026-10-31)
+
+**Qué se encontró.** No hubo ningún intento previo de 3D.
+- Three.js nunca estuvo en `frontend/package.json`, en ninguna rama ni en ningún commit de este repo.
+- Tampoco está en ningún otro repo de `~/Developer` (revisé los `package.json` y el historial de git de todos).
+- No hay rastro de pruebas de peso, rendimiento o memoria.
+
+**De dónde sale la prohibición:**
+- **DEC-0020 (2026-05-20, migración de Next.js a Vite):** "Three.js is explicitly excluded: this project is 2D canvas only; 3D readiness is a backend data concern, not a rendering concern". Se copió a `AGENTS.md`, `ARCHITECTURE.md` y `MVP_SCOPE.md` ("3D rendering: not applicable").
+- Fue una **decisión de alcance del MVP** ("Avoid premature 3D complexity" en `ROADMAP.md`), no una reacción a un problema técnico.
+- El único problema de celular registrado (pantalla negra en iPhone, SESSION-0013, 2026-05-23) fue por paneles más anchos que la pantalla y no tuvo relación con 3D.
+- El 2026-07-01 quedó anotado "Layout 3D con Three.js" como próximo paso en `CLAUDE.md`, pero nunca se empezó.
+
+**Conclusión:** no hay un fracaso que repetir. La regla protege el foco del MVP; levantarla es una decisión de producto, no técnica.
+
+### 3.2 Propuesta para que el 3D no afecte al editor 2D
+
+1. **Módulo aparte:**
+   - Botón "Ver en 3D" en el editor.
+   - Ruta propia (`/editor/:id/3d`) que se agrega a los rewrites de `vercel.json`.
+   - El código 3D se baja **solo al tocar el botón** (import dinámico, un paquete separado). El editor 2D no carga ni un byte de Three.js.
+2. **Aislado ante fallas:**
+   - Una barrera de error envuelve la vista 3D. Si WebGL no existe o falla, muestra "Tu dispositivo no puede mostrar 3D" y vuelve al 2D.
+   - El 3D solo lee el plano (los mismos datos de `layouts` o de una versión), nunca escribe.
+3. **Rendimiento:**
+   - Formas simples (cajas, cilindros, extrusión de la huella).
+   - **Instanciado**: todas las sillas en una sola llamada de dibujo, todas las mesas en otra.
+   - Calidad automática: menor resolución en celulares, sin sombras por defecto.
+4. **Reglas a cambiar si se aprueba:**
+   - DEC-0020 (nueva decisión que la reemplace: "Three.js permitido solo en el módulo 3D cargado aparte").
+   - `AGENTS.md`, `ARCHITECTURE.md` y `MVP_SCOPE.md`.
+
+### 3.3 Medición con el plano más grande de JBD (913 piezas)
+
+**Cómo se midió.**
+- Página de prueba mínima, fuera del repo (carpeta temporal, sin rama, sin merge y sin deploy).
+- Three.js r170, con la geometría del plano de 913 piezas (708 sillas, 195 rectángulos, 10 círculos), sin nombres ni datos del cliente. El archivo se borró al terminar.
+- La cámara gira 8 segundos alrededor del plano.
+
+| Medida | Instanciado (propuesto) | Una pieza = un objeto (ingenuo) |
+|---|---|---|
+| Llamadas de dibujo por cuadro | **4** | 914 |
+| Triángulos | 31.462 | 31.462 |
+| Memoria JS | **6 MB** | 34 MB |
+| Armado de la escena | 43 ms | 31 ms |
+| Cuadros por segundo, laptop (Apple M5 Pro, 1573×909 @2x) | 119 (tope de pantalla de 120 Hz) | 119 |
+| Cuadros por segundo, tamaño celular simulado (390×844 @3x, misma GPU) | 120 | 120 |
+
+**Peso de carga:**
+
+| | |
+|---|---|
+| Three.js (medido) | 691 KB minificado, **171 KB comprimido (gzip)** |
+| Controles de cámara (medido) | ~7 KB gzip |
+| react-three-fiber (estimado) | ~40–50 KB gzip |
+| Total del paquete 3D | **~220 KB gzip**, que se bajan solo al abrir el 3D |
+| Editor 2D actual, para comparar | 377 KB gzip el archivo principal |
+
+**Celular (estimado, no medido en un teléfono real).** La laptop llega al tope de la pantalla en todos los casos, así que no sirve para distinguir. Lo que distingue es la cantidad de llamadas de dibujo:
+
+| Celular | Instanciado (4 llamadas, 31 mil triángulos) | Ingenuo (914 llamadas) |
+|---|---|---|
+| iPhone / Android de gama media de 2019 en adelante | **60 cuadros por segundo** sin problema | **20–40 cuadros por segundo** (el límite práctico en gama media ronda 200–300 llamadas para 60 fps) |
+| Gama baja | Puede bajar a 30–40 fps con resolución completa (se compensa bajando la resolución) | — |
+
+- **Carga en celular con 4G:** 0,3–0,5 s de descarga más 0,3–0,6 s de lectura del código y 0,2–0,3 s de armado. Total: **~1–1,5 s** hasta ver el 3D.
+- **Conclusión:** con instanciado, el plano más grande de JBD es liviano para cualquier dispositivo actual. Sin instanciado, el riesgo en celular es real. Cuando se construya, hay que medir en un iPhone y en un Android de gama media de verdad antes de dar el bloque por cerrado.
+
 ---
 
 ## 4. Mejoras generales (por tiempo que le ahorra a un productor)
@@ -297,6 +365,105 @@ type Segment =
 **Orden sugerido:** 0 → 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12.
 - Los bloques 0 a 2 son los que más tiempo ahorran desde el día uno, y el 2 cierra un riesgo de seguridad.
 - Las curvas van antes del 3D para que el 3D nazca completo.
+
+> Este orden quedó reemplazado por las decisiones de la §0. La lista completa de decisiones pendientes, ya con el orden nuevo, está en la §7.
+
+---
+
+## 6. Estado de los bloques construidos
+
+### Bloque 1 — Permisos por rol (2026-10-31, migración `20261031200000_layout_role_permissions`)
+
+**Catálogo:**
+- Layout aparece en Administración → Roles y permisos con **Crear, Editar y Borrar**. No hizo falta tocar ese repo: la pantalla arma la matriz con la base.
+- Por defecto pueden owner, admin, production, sales y coordinación (los roles que hoy usan Layout en las 11 orgs). Owner no se puede limitar. Viewer no tiene ninguna acción: solo lee si se le da el módulo.
+
+**Candado en la base:**
+- `layout_can(org, acción)` exige tener el módulo y la acción.
+- RLS por acción en `layouts`: insertar = crear; actualizar = editar o borrar; eliminar la fila = borrar.
+- Trigger que, dentro de un mismo UPDATE, pide **borrar** para archivar y **editar** para el resto.
+- El autoguardado (`layout_drafts`) pide editar.
+- La lectura no cambió: Eventos sigue viendo los planos de cada evento.
+
+**Pantalla:**
+- Se esconden Nuevo, Duplicar, Guardar como copia, Guardar, Eliminar y Restaurar según el rol.
+- Sin editar, el editor queda en **solo lectura**: mano, medir, ajustar a pantalla, ver versiones y exportar PDF/PNG. Sin biblioteca, propiedades ni aviso de recuperar borrador, y con la banda "Solo lectura".
+- Si la base rechaza algo, se avisa "No tienes permiso…".
+
+**Prueba con ROLLBACK por rol**, todo como se esperaba:
+
+| Rol | Ver | Crear | Editar | Archivar | Autoguardado | Restaurar |
+|---|---|---|---|---|---|---|
+| Owner | sí | sí | sí | sí | sí | sí |
+| Admin | sí | sí | sí | sí | sí | sí |
+| Production sin "borrar" | sí | sí | sí | **no** | sí | sí |
+| Production sin el módulo | sí ¹ | no | no | no | no | no |
+| Viewer (con el módulo dado) | sí | no | no | no | no | no |
+| Otra org (sobre el plano QA) | no | — ² | no | no | no | no |
+
+¹ La lectura queda abierta a los miembros de la org a propósito: Eventos la usa.
+² Puede crear planos, pero en su propia organización.
+
+**Prueba en el navegador (QA):**
+- Como owner: todos los botones.
+- Rol cambiado a "production" sin editar ni borrar: Eliminar desaparece, el editor abre en solo lectura y, con la pantalla desactualizada, la base rechazó el archivado y apareció "No tienes permiso".
+- Al terminar se devolvió el rol a owner y se borraron las filas de prueba.
+
+### Bloque 2 — Arreglos rápidos (2026-10-31)
+
+- **Plano nuevo en blanco:** sin las 6 piezas de demo.
+- **Nombres en el idioma del usuario:** las piezas del catálogo (y las de demo viejas como "Tent 20x20" o "Restroom Block") se muestran en es/en/pt en el canvas, en Medir, en el PDF y en Propiedades. Se traducen al mostrar; lo guardado no cambia. Los nombres propios se ven tal cual.
+- **Ajustar a pantalla:** botón junto al zoom y atajo Shift+1. Encuadra piezas y dibujos con margen y respeta el zoom mínimo.
+- Los planos existentes no cambian.
+
+**Pendiente de este bloque, a propósito:** encabezado "RN Layout Engine"/"MVP" y placeholder "Nombre del cliente / evento" (no estaban en la lista de la §0).
+
+---
+
+## 7. Decisiones pendientes por bloque (lista completa, orden nuevo)
+
+**1. Permisos (hecho)**
+- ¿Agregar **Viewer** a la matriz de Administración → Roles y permisos? Hoy esa pantalla no lo muestra, así que no hay forma de darle el módulo Layout desde ahí. *Recomiendo:* sí, mostrarlo solo con "ver".
+- Proteger `custom_assets` (que es por usuario y permite suplantar `created_by`). *Recomiendo:* hacerlo en el bloque 6, junto con la biblioteca de la org.
+
+**2. Arreglos rápidos (hecho)**
+- ¿Plantillas de plano por org (boda 100, corporativo, cóctel)? *Recomiendo:* sumarlas al bloque 6 (biblioteca de la org).
+- ¿Cambiar el encabezado a "EventOS Layout" y sacar "MVP"? *Recomiendo:* sí, en el bloque 3.
+
+**3. Ordenar el código del canvas**
+- Sin decisiones. Lo que ve el usuario no cambia.
+
+**4. Mesas con sillas y PAX**
+- Medidas por defecto. *Recomiendo:* silla 0,45 m; mesa redonda de 8 = 1,5 m, de 10 = 1,8 m, de 12 = 2,1 m; rectangular 2,4 × 0,75 m; 0,15 m entre silla y mesa.
+- ¿PAX automático o solo sugerido? *Recomiendo:* automático (cuenta las sillas dibujadas), con opción de escribirlo a mano.
+- Separación por defecto al repetir en grilla. *Recomiendo:* 1,5 m entre mesas, editable.
+
+**5. Plano del local y cotas**
+- Formatos de fondo. *Recomiendo:* imagen y PDF ahora; DWG/DXF después.
+- ¿Muros con grosor? *Recomiendo:* sí, 0,15 m por defecto y editable.
+- Precisión de las cotas. *Recomiendo:* metros con 2 decimales.
+
+**6. Capas y biblioteca de la organización**
+- Confirmar la lectura del mensaje cortado (§0, nota 1).
+- ¿Capas fijas o propias de cada org? *Recomiendo:* fijas al inicio (perímetro/estructura, mobiliario, decoración, técnica, notas) y editables después.
+- ¿Quién publica en la biblioteca de la org? *Recomiendo:* una facultad nueva "Compartir" en Layout, con owner y admin por defecto.
+- ¿Los assets personales siguen existiendo? *Recomiendo:* sí. Cada uno se puede "compartir con la org".
+
+**7. Curvas**
+- ¿Arcos primero o Bézier primero? *Recomiendo:* arcos y medias lunas primero (escenarios, backings, sillas de ceremonia); Bézier después.
+
+**8. PDF profesional**
+- Tamaño y escala por defecto. *Recomiendo:* A3 apaisado; escala automática de las estándar (1:100, 1:200, 1:500) que entre en la hoja.
+- ¿Exportar la selección lleva cajetín? *Recomiendo:* sí.
+
+**9. 3D**
+- ¿Levantar la exclusión de Three.js (DEC-0020) solo para el módulo 3D cargado aparte? *Recomiendo:* sí (ver §3.1–3.3).
+- Alturas por defecto por tipo. *Recomiendo:* la tabla de la §3, opción A.
+- ¿Modelos libres (CC0) o un pack pagado? *Recomiendo:* libres primero.
+- Render con IA: proveedor y tope mensual. *Recomiendo:* modelo abierto alojado, con tope de US$ 50/mes.
+
+**Después (sin número todavía)**
+- Lista de materiales e Inventarios: ¿reserva desde el plano o solo sugiere? *Recomiendo:* que primero solo sugiera.
 
 ---
 
