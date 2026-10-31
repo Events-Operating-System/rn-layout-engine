@@ -9,6 +9,7 @@ import { normalizeLayoutMeta } from '@/lib/layoutMeta'
 import { effectivePax } from '@/lib/seating'
 import { useBackgroundImage } from '@/hooks/useBackgroundImage'
 import { applyLayers } from '@/lib/layers'
+import type { PaperChoice } from '@/lib/pdfLayout'
 
 const DATE_LOCALE: Record<Lang, string> = { es: 'es-PE', en: 'en-US', pt: 'pt-BR' }
 const noop = () => {}
@@ -27,6 +28,8 @@ interface Props {
   // Restaurar crea una versión nueva: pide permiso de editar.
   canRestore: boolean
   onClose: () => void
+  // Hoja del PDF por defecto (ajuste de la org).
+  pdfPaper?: PaperChoice
   // La base ya creó la versión nueva; el editor carga su contenido.
   onRestored: (newVersion: number, content: LayoutVersion) => void
 }
@@ -34,7 +37,7 @@ interface Props {
 // Panel "Versiones": lista el historial (layout_versions), abre una versión
 // en solo lectura (con exportar PDF/PNG con su propio número) y la restaura
 // creando una versión nueva.
-export default function VersionHistory({ layoutId, currentVersion, canRestore, onClose, onRestored }: Props) {
+export default function VersionHistory({ layoutId, currentVersion, canRestore, onClose, onRestored, pdfPaper = { paper: 'a4', landscape: true } }: Props) {
   const { t, lang } = useLang()
   const [versions, setVersions] = useState<LayoutVersionSummary[] | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -145,6 +148,7 @@ export default function VersionHistory({ layoutId, currentVersion, canRestore, o
 
       {viewing && (
         <VersionViewer
+          pdfPaper={pdfPaper}
           version={viewing}
           canRestore={canRestore && viewing.version_number !== currentVersion}
           onRestore={() => { setRestoreError(false); setConfirming(viewing.version_number) }}
@@ -188,7 +192,8 @@ export default function VersionHistory({ layoutId, currentVersion, canRestore, o
 // Visor de solo lectura: el mismo canvas en modo "mano" (los elementos no
 // se pueden seleccionar ni mover), con pan/zoom local que no toca el
 // editor. Exporta con el nombre y número de ESA versión.
-function VersionViewer({ version, canRestore, onRestore, onClose }: {
+function VersionViewer({ version, canRestore, onRestore, onClose, pdfPaper }: {
+  pdfPaper: PaperChoice
   version: LayoutVersion
   canRestore: boolean
   onRestore: () => void
@@ -213,7 +218,7 @@ function VersionViewer({ version, canRestore, onRestore, onClose }: {
         </span>
         <div className="flex-1" />
         <button
-          onClick={() => canvasRef.current?.exportPDF()}
+          onClick={() => canvasRef.current?.exportPDF({ paper: pdfPaper })}
           className="flex-none h-7 px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600"
         >
           PDF

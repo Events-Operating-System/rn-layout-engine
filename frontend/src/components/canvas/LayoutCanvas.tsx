@@ -12,7 +12,10 @@ import { PIXELS_PER_METER, RESIZE_ANCHORS, GRID_TOTAL_PX, MIN_SCALE, MAX_SCALE, 
 import { dragSet } from '@/lib/grouping'
 import { scaleSegments, bulgeFromThreePoints, smoothSegments, normalizePath, flattenPath, type NewPath } from '@/lib/curves'
 import { computeAlignmentGuides, findElementId } from './geometry'
-import { exportLayoutPng, exportLayoutPdf } from './exportLayout'
+import { exportLayoutPng, exportSelectionPng } from './exportLayout'
+import { buildLayoutPdf } from './pdfExport'
+import { bakeBackground } from './bakeBackground'
+import { contentBounds, drawingsInside, type PaperChoice } from '@/lib/pdfLayout'
 import GridLines from './GridLines'
 import { DrawingShape, DrawingPreview } from './DrawingShape'
 import AssetShape from './AssetShape'
@@ -27,8 +30,10 @@ export { PIXELS_PER_METER }
 // ── Public handle exposed via forwardRef ──────────────────────────────────────
 
 export interface LayoutCanvasHandle {
-  exportPNG: () => void
-  exportPDF: () => void
+  // Sin selección: la vista actual. Con selección: solo esas piezas.
+  exportPNG: (opts?: { selectionIds?: Set<string> }) => void
+  // Hoja A4/A3 a escala estándar; con selección, solo esas piezas.
+  exportPDF: (opts: { paper: PaperChoice; selectionIds?: Set<string> }) => void
   fitToScreen: () => void
 }
 
@@ -358,14 +363,57 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
     // ── Export PNG ────────────────────────────────────────────────────────────
 
-    const exportPNG = useCallback(() => {
-      exportLayoutPng(stageRef.current, containerSize, layoutMeta, versionNumber)
-    }, [containerSize, layoutMeta, versionNumber])
+    const exportPNG = useCallback((opts?: { selectionIds?: Set<string> }) => {
+      const ids = opts?.selectionIds
+      if (!ids?.size) {
+        exportLayoutPng(stageRef.current, containerSize, layoutMeta, versionNumber)
+        return
+      }
+      const stage = stageRef.current
+      const sel = elements.filter(e => ids.has(e.id))
+      const b = contentBounds(sel, [])
+      if (!stage || !b) return
+      // Solo lo elegido (y los dibujos que caen enteros dentro): se oculta
+      // lo demás un instante, se captura esa zona y se vuelve a mostrar.
+      const keep = new Set(drawingsInside(drawings, b).map(d => d.id))
+      const hidden: Konva.Node[] = []
+      const hide = (sel: string) => { const n = stage.findOne(sel); if (n && n.visible()) { n.visible(false); hidden.push(n) } }
+      for (const e of elements) if (!ids.has(e.id)) hide(`#${e.id}`)
+      for (const d of drawings) if (!keep.has(d.id)) hide(`#drw-${d.id}`)
+      const pad = 1 // m
+      const sc = stage.scaleX()
+      const region = {
+        x: (b.minX - pad) * PIXELS_PER_METER * sc + stage.x(),
+        y: (b.minY - pad) * PIXELS_PER_METER * sc + stage.y(),
+        width: (b.maxX - b.minX + pad * 2) * PIXELS_PER_METER * sc,
+        height: (b.maxY - b.minY + pad * 2) * PIXELS_PER_METER * sc,
+      }
+      try {
+        exportSelectionPng(stage, region, layoutMeta, versionNumber)
+      } finally {
+        for (const n of hidden) n.visible(true)
+        stage.batchDraw()
+      }
+    }, [containerSize, layoutMeta, versionNumber, elements, drawings])
 
-    const exportPDF = useCallback(() => {
-      exportLayoutPdf({ containerSize, elements, drawings, layoutMeta, versionNumber, lang, dimensionDecimals, background, backgroundImage })
-    }, [containerSize, elements, drawings, layoutMeta, versionNumber, lang, dimensionDecimals, background, backgroundImage])
-
+    const exportPDF = useCallback((opts: { paper: PaperChoice; selectionIds?: Set<string> }) => {
+      const ids = opts.selectionIds?.size ? opts.selectionIds : null
+      const els = ids ? elements.filter(e => ids.has(e.id)) : elements
+      const b = contentBounds(els, [])
+      const drw = ids ? (b ? drawingsInside(drawings, b) : []) : drawings
+      const hasBg = !!background && !!backgroundImage
+      // Todo el plano: entra el fondo entero. Selección: el fondo recortado
+      // a la zona de lo elegido.
+      const extraBounds = !ids && hasBg ? { minX: background!.x, minY: background!.y, maxX: background!.x + background!.width, maxY: background!.y + background!.height } : undefined
+      const region = ids ? contentBounds(els, drw) : null
+      const r = buildLayoutPdf({
+        elements: els, drawings: drw, meta: layoutMeta, versionNumber, lang,
+        decimals: dimensionDecimals, paper: opts.paper, extraBounds, selectionOnly: !!ids,
+        bakeBackground: hasBg ? (mmPerM => bakeBackground(background!, backgroundImage!, region, mmPerM)) : undefined,
+      })
+      if (!r) return
+      r.doc.save(exportFileName(layoutMeta.proyecto, versionNumber, 'pdf'))
+    }, [elements, drawings, layoutMeta, versionNumber, lang, dimensionDecimals, background, backgroundImage])
 
     // ── Ajustar a pantalla ────────────────────────────────────────────────────
 
@@ -1054,8 +1102,8 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
             ))}
 
             {drawings.map(drw => (
+              <Group key={drw.id} id={`drw-${drw.id}`}>
               <DrawingShape
-                key={drw.id}
                 drawing={drw}
                 decimals={dimensionDecimals}
                 isSelected={drw.id === selectedDrawingId}
@@ -1064,6 +1112,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 onMoveDrawing={(newPoints) => onUpdateDrawing(drw.id, { points: newPoints })}
                 onPushHistory={onPushHistory}
               />
+              </Group>
             ))}
 
             {previewDrawing && (

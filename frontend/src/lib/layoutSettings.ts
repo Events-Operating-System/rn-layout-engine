@@ -1,4 +1,5 @@
 import type { LayerId } from '@/types/layout'
+import type { PaperChoice } from './pdfLayout'
 
 // Ajustes de Layout de la organización (organizations.settings.layout,
 // migración 20261031220000). Se editan en Administración → Organización; acá
@@ -20,6 +21,8 @@ export interface LayoutSettings {
   backgroundPdf: boolean
   // Capas que oculta "Vista cliente" (client_hide_*).
   clientViewHidden: LayerId[]
+  // Hoja del PDF por defecto (bloque 8): A4 apaisado salvo que la org diga otra cosa.
+  pdfPaper: PaperChoice
 }
 
 export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
@@ -36,6 +39,7 @@ export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
   backgroundImage: true,
   backgroundPdf: true,
   clientViewHidden: ['technical', 'notes'],
+  pdfPaper: { paper: 'a4', landscape: true },
 }
 
 const num = (v: unknown, fallback: number, min: number) => {
@@ -71,5 +75,9 @@ export function parseLayoutSettings(data: unknown): LayoutSettings {
     clientViewHidden: CLIENT_KEYS.filter(([key, id]) =>
       typeof l[key] === 'boolean' ? l[key] : d.clientViewHidden.includes(id),
     ).map(([, id]) => id),
+    pdfPaper: {
+      paper: l.pdf_a3 === true ? 'a3' : 'a4',
+      landscape: typeof l.pdf_landscape === 'boolean' ? l.pdf_landscape : true,
+    },
   }
 }

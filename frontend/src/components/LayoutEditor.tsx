@@ -22,6 +22,8 @@ import { normalizeLayoutMeta } from '@/lib/layoutMeta'
 import { buildTemplate, type TemplatePayload } from '@/lib/templates'
 import { applyLayers, normalizeLayers, countByLayer, layerOf } from '@/lib/layers'
 import LayersPanel from '@/components/LayersPanel'
+import ExportDialog from '@/components/ExportDialog'
+import type { PaperChoice } from '@/lib/pdfLayout'
 import type { CustomAsset } from '@/lib/assetService'
 import { useLayoutSettings } from '@/hooks/useLayoutSettings'
 import { effectivePax, isPaxAuto } from '@/lib/seating'
@@ -106,6 +108,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   // Aviso corto de la biblioteca (plantilla usada, plano vacío…).
   const [templateMsg, setTemplateMsg] = useState<string | null>(null)
   const [layersOpen, setLayersOpen] = useState(false)
+  // Diálogo de exportar (bloque 8).
+  const [exportOpen, setExportOpen] = useState<'pdf' | 'png' | null>(null)
   const [versionsOpen, setVersionsOpen] = useState(false)
   // La base rechazó una operación por permisos → aviso "No tienes permiso".
   const [permissionDenied, setPermissionDenied] = useState(false)
@@ -554,17 +558,20 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   // Exportar sin selección ni recuadros de edición (Transformer, sombra de
   // seleccionado): se limpia la selección, se espera a que el canvas se
   // redibuje y después se devuelve tal cual estaba.
-  const exportClean = useCallback((kind: 'png' | 'pdf') => {
+  const exportClean = useCallback((kind: 'png' | 'pdf', opts?: { paper: PaperChoice; selectionOnly: boolean }) => {
     const prevIds = [...selectedIds]
     const prevDrawing = selectedDrawingId
+    // Solo piezas visibles (las capas ocultas no se exportan).
+    const visible = new Set(layerView.elements.map(e => e.id))
+    const selectionIds = opts?.selectionOnly ? new Set(prevIds.filter(id => visible.has(id))) : undefined
     selectElement(null)
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (kind === 'png') canvasRef.current?.exportPNG()
-      else canvasRef.current?.exportPDF()
+      if (kind === 'png') canvasRef.current?.exportPNG({ selectionIds })
+      else canvasRef.current?.exportPDF({ paper: opts?.paper ?? layoutSettings.pdfPaper, selectionIds })
       if (prevDrawing) selectDrawing(prevDrawing)
       else if (prevIds.length) selectElements(prevIds)
     }))
-  }, [selectedIds, selectedDrawingId, selectElement, selectDrawing, selectElements])
+  }, [selectedIds, selectedDrawingId, selectElement, selectDrawing, selectElements, layerView.elements, layoutSettings.pdfPaper])
 
   const openVersions = useCallback(() => {
     // Sin selección en el editor mientras el panel/visor está abierto: así
@@ -598,7 +605,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Con un panel o un diálogo abierto, las teclas son para ese diálogo.
-      if (versionsOpen || calibration) return
+      if (versionsOpen || calibration || exportOpen) return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
       // Solo lectura: nada que cambie el plano (mano y medir sí).
@@ -635,7 +642,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedId, selectedIds, duplicateElement, duplicateElements, setTool, undo, redo, handleSave, versionsOpen, readOnly, calibration])
+  }, [selectedId, selectedIds, duplicateElement, duplicateElements, setTool, undo, redo, handleSave, versionsOpen, readOnly, calibration, exportOpen])
 
   function toggleMobilePanel(panel: 'library' | 'properties') {
     setMobilePanel(prev => (prev === panel ? null : panel))
@@ -660,8 +667,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         measureMode={measureMode}
         onSetMeasureMode={setMeasureMode}
         onClearDrawings={clearDrawings}
-        onExport={() => exportClean('png')}
-        onExportPDF={() => exportClean('pdf')}
+        onExport={() => (selectedIds.size ? setExportOpen('png') : exportClean('png'))}
+        onExportPDF={() => setExportOpen('pdf')}
         onToggleLibrary={() => toggleMobilePanel('library')}
         onToggleProperties={() => toggleMobilePanel('properties')}
         libraryOpen={mobilePanel === 'library'}
@@ -905,8 +912,19 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
 
       <FooterLegend meta={displayMeta} versionNumber={versionNumber} onUpdate={updateMeta} clienteFromEvent={!!eventClient} readOnly={readOnly} paxAuto={paxAuto} />
 
+      {exportOpen && (
+        <ExportDialog
+          kind={exportOpen}
+          selectionCount={layerView.elements.filter(e => selectedIds.has(e.id)).length}
+          defaultPaper={layoutSettings.pdfPaper}
+          onClose={() => setExportOpen(null)}
+          onExport={opts => { setExportOpen(null); exportClean(exportOpen, opts) }}
+        />
+      )}
+
       {versionsOpen && (
         <VersionHistory
+          pdfPaper={layoutSettings.pdfPaper}
           layoutId={layoutId}
           currentVersion={versionNumber}
           canRestore={permissions.canEdit}
