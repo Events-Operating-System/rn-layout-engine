@@ -6,6 +6,9 @@ import { PIXELS_PER_METER } from '@/components/canvas/LayoutCanvas'
 import { lengthMeters, angleDegrees, pointFromLengthAngle, elementAreaMeters, elementLengthMeters } from '@/lib/drawingMath'
 import { sidesOf, sideInfo, withSegments, arcFromBulge, sagittaFromBulge, bulgeFromSagitta } from '@/lib/curves'
 import type { Segment } from '@/types/layout'
+import { isChair, isTable } from '@/lib/grouping'
+import { CHAIR_TYPES, CLOTH_TYPES, withGroups, type Furnishing } from '@/lib/furnishing'
+import { heightType, height3dOf, type Heights3D, type Height3DType } from '@/lib/heights3d'
 import type { AlignMode } from '@/lib/arrange'
 
 interface PropertiesPanelProps {
@@ -36,6 +39,10 @@ interface PropertiesPanelProps {
   onSetLayer: (ids: string[], layer: LayerId) => void
   // Capa común de la selección múltiple, o null si hay varias.
   selectionLayer: LayerId | null
+  // Mantel y sillas (mesa, conjunto o selección) y alturas 3D.
+  allElements: LayoutElement[]
+  onFurnish: (ids: string[], f: Furnishing) => void
+  heights3d: Heights3D
 }
 
 const COLOR_PRESETS = [
@@ -56,6 +63,7 @@ export default function PropertiesPanel({
   selectedIds, onBringToFront, onSendToBack, onSaveGroupAsAsset, onRotateGroup,
   onAlign, onDistribute, onRepeatGrid, defaultSpacing,
   groupedCount, groupsCount, onUngroup, onGroupTablesWithChairs, onSetLayer, selectionLayer,
+  allElements, onFurnish, heights3d,
 }: PropertiesPanelProps) {
   const { t } = useLang()
   const isMultiSelect = element === null && selectedDrawing === null && selectedIds.size > 1
@@ -88,7 +96,9 @@ export default function PropertiesPanel({
         <>
         {groupedCount > 0 && <GroupSection count={groupedCount} groups={groupsCount} onUngroup={() => onUngroup([element.id])} />}
         <LayerSelect value={layerOf(element)} onChange={l => onSetLayer([element.id], l)} />
+        {element.groupId && <FurnishSection ids={[element.id]} all={allElements} onFurnish={onFurnish} />}
         <ElementProperties
+          heights3d={heights3d}
           element={element}
           onUpdate={onUpdate}
           onDelete={onDeleteElement}
@@ -103,6 +113,7 @@ export default function PropertiesPanel({
         <>
         {groupedCount > 0 && <GroupSection count={groupedCount} groups={groupsCount} onUngroup={() => onUngroup([...selectedIds])} />}
         <LayerSelect value={selectionLayer} onChange={l => onSetLayer([...selectedIds], l)} />
+        <FurnishSection ids={[...selectedIds]} all={allElements} onFurnish={onFurnish} />
         <MultiSelectProperties
           count={selectedIds.size}
           onBringToFront={() => onBringToFront([...selectedIds])}
@@ -202,6 +213,105 @@ function SidesSection({ element, onUpdate }: {
       </div>
       <p className="text-[10px] text-slate-500 mt-1 leading-snug">{t.sidesHint}</p>
     </Section>
+  )
+}
+
+// Texto libre con sugerencias (tipo de silla, tipo/tela del mantel). Se
+// guarda al salir del campo o con Enter.
+function TextSuggest({ value, options, placeholder, onCommit }: { value: string; options: string[]; placeholder?: string; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  const [prev, setPrev] = useState(value)
+  if (prev !== value) { setPrev(value); setDraft(value) }
+  const listId = `sug-${options[0]}`
+  return (
+    <>
+      <input
+        list={listId}
+        value={draft}
+        placeholder={placeholder}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={() => { if (draft.trim() !== value) onCommit(draft.trim()) }}
+        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+        className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-slate-500"
+      />
+      <datalist id={listId}>{options.map(o => <option key={o} value={o} />)}</datalist>
+    </>
+  )
+}
+
+const TYPE_LABEL: Record<Height3DType, keyof ReturnType<typeof useLang>['t']> = {
+  table: 'h3dTable', chair: 'h3dChair', stage: 'h3dStage', dance: 'h3dDance', bar: 'h3dBar', screen: 'h3dScreen', wall: 'h3dWall',
+  tent: 'h3dTent', service: 'h3dService', barrier: 'h3dBarrier', truss: 'h3dTruss', vehicle: 'h3dVehicle', other: 'h3dOther', floor: 'h3dFloor', tree: 'h3dTree',
+}
+
+// Altura en 3D: vacía = la del tipo (ajuste de la org); un número la fija
+// para esta pieza.
+function Height3DField({ element, heights, onChange }: { element: LayoutElement; heights: Heights3D; onChange: (v: number | undefined) => void }) {
+  const { t } = useLang()
+  const type = heightType(element)
+  const byType = height3dOf({ ...element, height3d: undefined }, heights)
+  const [draft, setDraft] = useState(element.height3d !== undefined ? String(element.height3d) : '')
+  const [prev, setPrev] = useState(element.height3d)
+  if (prev !== element.height3d) { setPrev(element.height3d); setDraft(element.height3d !== undefined ? String(element.height3d) : '') }
+  const commit = () => {
+    const v = draft.trim().replace(',', '.')
+    if (v === '') return onChange(undefined)
+    const n = Number(v)
+    if (Number.isFinite(n) && n >= 0) onChange(Math.round(n * 100) / 100)
+    else setDraft(element.height3d !== undefined ? String(element.height3d) : '')
+  }
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <input
+          inputMode="decimal"
+          value={draft}
+          placeholder={String(byType)}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+          aria-label={t.sHeight3d}
+          className="w-20 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 font-mono focus:outline-none focus:border-slate-500"
+        />
+        <span className="text-[10px] text-slate-500">m</span>
+        {element.height3d !== undefined && (
+          <button onClick={() => onChange(undefined)} className="text-[10px] text-slate-400 hover:text-slate-100 underline">{t.h3dReset}</button>
+        )}
+      </div>
+      <p className="text-[10px] text-slate-500 leading-snug">{t.h3dHint.replace('{type}', String(t[TYPE_LABEL[type]])).replace('{h}', String(byType))}</p>
+    </div>
+  )
+}
+
+// Mantel y sillas de un conjunto o de una selección, de una vez.
+function FurnishSection({ ids, all, onFurnish }: { ids: string[]; all: LayoutElement[]; onFurnish: (ids: string[], f: Furnishing) => void }) {
+  const { t } = useLang()
+  const items = withGroups(ids, all)
+  const tables = items.filter(isTable)
+  const chairs = items.filter(isChair)
+  if (!tables.length && !chairs.length) return null
+  if (tables.length + chairs.length < 2) return null
+  const firstTable = tables[0], firstChair = chairs[0]
+  return (
+    <div className="flex-none px-4 pt-4 -mb-2">
+      <div className="rounded border border-slate-700 bg-slate-800/60 p-2.5 space-y-2">
+        <p className="text-[10px] text-slate-400">{t.furnishTitle.replace('{t}', String(tables.length)).replace('{c}', String(chairs.length))}</p>
+        {tables.length > 0 && (
+          <>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest">{t.sCloth}</p>
+            <ColorPicker value={firstTable.color} onChange={v => onFurnish(ids, { clothColor: v })} />
+            <TextSuggest value={firstTable.fabric ?? ''} options={CLOTH_TYPES} placeholder={t.fFabricPh} onCommit={v => onFurnish(ids, { fabric: v })} />
+          </>
+        )}
+        {chairs.length > 0 && (
+          <>
+            <p className="text-[10px] text-slate-500 uppercase tracking-widest">{t.furnishChairs}</p>
+            <TextSuggest value={firstChair.chairType ?? ''} options={CHAIR_TYPES} placeholder={t.fChairTypePh} onCommit={v => onFurnish(ids, { chairType: v })} />
+            <ColorPicker value={firstChair.color} onChange={v => onFurnish(ids, { chairColor: v })} />
+          </>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -387,7 +497,9 @@ function ElementProperties({
   onSendToBack,
   onRepeatGrid,
   defaultSpacing,
+  heights3d,
 }: {
+  heights3d: Heights3D
   element: LayoutElement
   onUpdate: (id: string, updates: Partial<LayoutElement>) => void
   onDelete: (id: string) => void
@@ -518,11 +630,32 @@ function ElementProperties({
         <RepeatGrid onRepeat={onRepeatGrid} defaultSpacing={defaultSpacing} />
       </Section>
 
-      <Section label={t.sColor}>
-        <ColorPicker
-          value={element.color}
-          onChange={v => onUpdate(element.id, { color: v })}
-        />
+      {isTable(element) ? (
+        // El color de la mesa es el del MANTEL (también en el 3D, PNG y PDF).
+        <Section label={t.sCloth}>
+          <ColorPicker value={element.color} onChange={v => onUpdate(element.id, { color: v })} />
+          <Field label={t.fFabric}>
+            <TextSuggest value={element.fabric ?? ''} options={CLOTH_TYPES} placeholder={t.fFabricPh} onCommit={v => onUpdate(element.id, { fabric: v || undefined })} />
+          </Field>
+        </Section>
+      ) : isChair(element) ? (
+        <Section label={t.sChair}>
+          <Field label={t.fChairType}>
+            <TextSuggest value={element.chairType ?? ''} options={CHAIR_TYPES} placeholder={t.fChairTypePh} onCommit={v => onUpdate(element.id, { chairType: v || undefined })} />
+          </Field>
+          <ColorPicker value={element.color} onChange={v => onUpdate(element.id, { color: v })} />
+        </Section>
+      ) : (
+        <Section label={t.sColor}>
+          <ColorPicker
+            value={element.color}
+            onChange={v => onUpdate(element.id, { color: v })}
+          />
+        </Section>
+      )}
+
+      <Section label={t.sHeight3d}>
+        <Height3DField element={element} heights={heights3d} onChange={v => onUpdate(element.id, { height3d: v })} />
       </Section>
 
       <Section label={t.sOpacity}>

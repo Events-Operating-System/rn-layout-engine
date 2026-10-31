@@ -10,6 +10,7 @@ import { readSnapshot3D } from '@/lib/snapshot3d'
 import { layoutService } from '@/lib/layoutService'
 import { downloadBackground } from '@/lib/venueBackground'
 import { useLang } from '@/context/LangContext'
+import { useLayoutSettings } from '@/hooks/useLayoutSettings'
 import type { LayoutElement, LayoutMeta } from '@/types/layout'
 
 class Boundary extends Component<{ fallback: ReactNode; children: ReactNode }, { failed: boolean }> {
@@ -29,8 +30,10 @@ function hasWebGL(): boolean {
   }
 }
 
-export default function Viewer3DPage({ layoutId }: { layoutId: string }) {
+export default function Viewer3DPage({ layoutId, orgId = '' }: { layoutId: string; orgId?: string }) {
   const { t } = useLang()
+  // Alturas por tipo de pieza: ajuste de la org.
+  const { heights3d } = useLayoutSettings(orgId)
   const [plan, setPlan] = useState<{ name: string; elements: LayoutElement[]; meta: Partial<LayoutMeta> } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [bg, setBg] = useState<Background3D | null>(null)
@@ -57,7 +60,7 @@ export default function Viewer3DPage({ layoutId }: { layoutId: string }) {
     return () => { if (url) URL.revokeObjectURL(url) }
   }, [plan])
 
-  const items = useMemo(() => (plan ? toItems(applyLayers(plan.elements, plan.meta.layers).elements) : []), [plan])
+  const items = useMemo(() => (plan ? toItems(applyLayers(plan.elements, plan.meta.layers).elements, heights3d) : []), [plan, heights3d])
   const kinds = useMemo(() => countKinds(items), [items])
   const webgl = useMemo(hasWebGL, [])
 

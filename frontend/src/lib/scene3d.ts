@@ -9,6 +9,8 @@ import type { LayoutElement } from '@/types/layout'
 import { CATEGORY_COLORS } from '@/types/layout'
 import { flattenPath } from './curves'
 import { isChair } from './grouping'
+import { isShortCloth } from './furnishing'
+import { height3dOf, heightType, isTranslucentType, DEFAULT_HEIGHTS, type Heights3D } from './heights3d'
 
 export type Kind3D =
   | 'chair'     // silla: asiento + respaldo (instanciada)
@@ -36,27 +38,14 @@ export interface Item3D {
   outline?: number[]
   closed?: boolean
   thickness?: number
+  // Mesa con mantel corto (no llega al piso).
+  shortCloth?: boolean
 }
 
-const TALL_NAMES: Record<string, number> = { 'LED Wall': 3.5, Screen: 3, 'DJ Booth': 1.1, 'DJ Booth PRO': 1.1, Podium: 1.1, 'Dance Floor': 0.1, Bar: 1.1, Buffet: 0.9, Lounge: 0.45, 'Chair Row Block': 0.9, 'Bleacher Block': 2, Generator: 1.8, Kitchen: 2.5, Restrooms: 2.6, 'First Aid': 2.6, 'Entrance Gate': 2.6, 'Exit Gate': 2.6, Entrance: 0.05, 'Emergency Exit': 0.05, Fence: 1.1, 'Crowd Barrier': 1.1, 'Fence Panel': 2 }
-
-const CATEGORY_HEIGHT: Record<string, number> = {
-  stage: 1, structure: 3, seating: 0.75, barrier: 1.1, utility: 2.5, circulation: 0.05, primitive: 0.05,
-}
-
-// Alto de una pieza (m). Las formas sueltas (rectángulos, círculos) quedan
-// como marcas en el piso para no tapar nada.
-export function heightOf(e: Pick<LayoutElement, 'name' | 'category' | 'shape'>): number {
-  if (e.shape === 'wall') return 3
-  if (e.shape === 'path') return 2.4
-  if (e.shape === 'tree') return 4
-  if (TALL_NAMES[e.name] !== undefined) return TALL_NAMES[e.name]
-  return CATEGORY_HEIGHT[e.category] ?? 1
-}
-
-// Estructuras grandes (carpas, backstage) translúcidas para ver lo de adentro.
-function isBigStructure(e: LayoutElement): boolean {
-  return e.category === 'structure' && e.width * e.height > 40
+// Alto de una pieza (m): el de su tipo (ajuste de la org) o el escrito a
+// mano en Propiedades. Ver lib/heights3d.ts.
+export function heightOf(e: Pick<LayoutElement, 'name' | 'category' | 'shape' | 'width' | 'height' | 'seats' | 'closed' | 'height3d'>, h: Heights3D = DEFAULT_HEIGHTS): number {
+  return height3dOf(e, h)
 }
 
 function rotate(e: LayoutElement, lx: number, ly: number): [number, number] {
@@ -64,9 +53,11 @@ function rotate(e: LayoutElement, lx: number, ly: number): [number, number] {
   return [e.x + lx * Math.cos(r) - ly * Math.sin(r), e.y + lx * Math.sin(r) + ly * Math.cos(r)]
 }
 
-export function toItems(elements: LayoutElement[]): Item3D[] {
+export function toItems(elements: LayoutElement[], heights: Heights3D = DEFAULT_HEIGHTS): Item3D[] {
   const out: Item3D[] = []
   for (const e of elements) {
+    const height = heightOf(e, heights)
+    const translucent = isTranslucentType(heightType(e))
     const color = e.color || CATEGORY_COLORS[e.category] || '#94a3b8'
     const [cx, cz] = rotate(e, e.width / 2, e.height / 2)
     const rotY = -(e.rotation * Math.PI) / 180
@@ -77,33 +68,33 @@ export function toItems(elements: LayoutElement[]): Item3D[] {
       const flat = flattenPath(pts, e.segments, closed)
       const abs: number[] = []
       for (let i = 0; i < flat.length; i += 2) abs.push(...rotate(e, flat[i], flat[i + 1]))
-      out.push({ ...base, kind: 'wall', height: heightOf(e), outline: abs, closed, thickness: e.thickness ?? (e.shape === 'wall' ? 0.15 : 0.1) })
+      out.push({ ...base, kind: 'wall', height, outline: abs, closed, thickness: e.thickness ?? (e.shape === 'wall' ? 0.15 : 0.1) })
       continue
     }
     if ((e.shape === 'polygon' || e.shape === 'path') && pts.length >= 4) {
       const flat = flattenPath(pts, e.segments, true)
       const abs: number[] = []
       for (let i = 0; i < flat.length; i += 2) abs.push(...rotate(e, flat[i], flat[i + 1]))
-      out.push({ ...base, kind: 'extrude', height: heightOf(e), outline: abs, closed: true, translucent: isBigStructure(e) })
+      out.push({ ...base, kind: 'extrude', height, outline: abs, closed: true, translucent })
       continue
     }
     if (e.shape === 'tree') {
-      out.push({ ...base, kind: 'tree', height: heightOf(e) })
+      out.push({ ...base, kind: 'tree', height })
       continue
     }
     if (isChair(e)) {
-      out.push({ ...base, kind: 'chair', height: 0.9 })
+      out.push({ ...base, kind: 'chair', height })
       continue
     }
-    if ((e.shape === 'circle' || e.shape === 'oval') && e.category === 'seating') {
-      out.push({ ...base, kind: 'table', height: 0.75 })
+    if ((e.shape === 'circle' || e.shape === 'oval') && heightType(e) === 'table') {
+      out.push({ ...base, kind: 'table', height, shortCloth: isShortCloth(e.fabric) })
       continue
     }
     if (e.shape === 'circle' || e.shape === 'oval') {
-      out.push({ ...base, kind: 'cylinder', height: heightOf(e), translucent: isBigStructure(e) })
+      out.push({ ...base, kind: 'cylinder', height, translucent })
       continue
     }
-    out.push({ ...base, kind: 'box', height: heightOf(e), translucent: isBigStructure(e) })
+    out.push({ ...base, kind: 'box', height, translucent })
   }
   return out
 }

@@ -76,6 +76,13 @@ export interface LayoutElement {
   // shape 'path' = curva libre o arco: abierta se dibuja como trazo de
   // `thickness`; cerrada, con relleno.
   segments?: Segment[]
+  // Mesas: el color de la pieza es el del MANTEL; acá, tipo o tela
+  // ("Lino, hasta el piso", "Satén corto"…). Bloque A de Javier 2026-10-31.
+  fabric?: string
+  // Sillas: tipo (Tiffany, Crossback, Plegable…). El color es el de la pieza.
+  chairType?: string
+  // Altura en 3D elegida a mano (m). Sin definir: la del tipo (ajuste de la org).
+  height3d?: number
 }
 
 // Capas fijas (bloque 6): perímetro/estructura, mobiliario, decoración,
@@ -135,6 +142,9 @@ export interface GroupChild {
   segments?: Segment[]
   closed?: boolean
   thickness?: number
+  fabric?: string
+  chairType?: string
+  height3d?: number
 }
 
 // ── Drawing primitives ────────────────────────────────────────────────────────

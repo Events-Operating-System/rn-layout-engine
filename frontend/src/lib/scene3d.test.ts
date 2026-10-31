@@ -19,12 +19,12 @@ describe('3D: piezas a formas', () => {
     expect(it.cx).toBeCloseTo(9, 6)
     expect(it.cz).toBeCloseTo(12, 6)
     expect(it.rotY).toBeCloseTo(-Math.PI / 2, 6)
-    expect(it.height).toBe(1)
+    expect(it.height).toBe(0.6) // tarima por defecto
   })
   it('alturas por tipo', () => {
-    expect(heightOf({ name: 'LED Wall', category: 'stage' })).toBe(3.5)
-    expect(heightOf({ name: 'Rectangle', category: 'primitive' })).toBe(0.05)
-    expect(heightOf({ name: 'Perimeter', category: 'structure', shape: 'wall' })).toBe(3)
+    expect(heightOf(el({ name: 'LED Wall', category: 'stage' }))).toBe(3)
+    expect(heightOf(el({ name: 'Rectangle', category: 'primitive' }))).toBe(0.05)
+    expect(heightOf(el({ name: 'Perimeter', category: 'structure', shape: 'wall' }))).toBe(3)
   })
   it('carpa grande translúcida; media luna extruida con su curva', () => {
     const h = halfMoon(8)

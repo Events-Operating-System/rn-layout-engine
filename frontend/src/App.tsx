@@ -401,7 +401,7 @@ export default function App() {
           {view3dId ? (
             <View3DBoundary>
               <Suspense fallback={<CheckingScreen />}>
-                <Viewer3DPage layoutId={view3dId} />
+                <Viewer3DPage layoutId={view3dId} orgId={orgId} />
               </Suspense>
             </View3DBoundary>
           ) : view === 'dashboard' ? (

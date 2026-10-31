@@ -19,7 +19,7 @@ export function isChair(e: Pick<Piece, 'name' | 'category' | 'shape' | 'width' |
   return (e.category === 'seating' || e.category === 'primitive') && e.width > 0.2 && e.height > 0.2
 }
 
-function isTable(e: Piece): boolean {
+export function isTable(e: Piece): boolean {
   if (e.category !== 'seating' || isChair(e)) return false
   if (e.shape === 'wall' || e.shape === 'polygon' || e.shape === 'tree') return false
   return Math.min(e.width, e.height) >= 0.5

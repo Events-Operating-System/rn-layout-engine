@@ -24,6 +24,7 @@ import { applyLayers, normalizeLayers, countByLayer, layerOf } from '@/lib/layer
 import LayersPanel from '@/components/LayersPanel'
 import ExportDialog from '@/components/ExportDialog'
 import { writeSnapshot3D } from '@/lib/snapshot3d'
+import { furnishingUpdates, type Furnishing } from '@/lib/furnishing'
 import type { PaperChoice } from '@/lib/pdfLayout'
 import type { CustomAsset } from '@/lib/assetService'
 import { useLayoutSettings } from '@/hooks/useLayoutSettings'
@@ -212,6 +213,13 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     // Si la capa está oculta o bloqueada, la pieza deja de estar elegida.
     if (layerState.hidden.includes(layer) || layerState.locked.includes(layer)) selectElement(null)
   }, [elements, pushHistory, updateElements, layerState, selectElement])
+  // Mantel y sillas de un conjunto o selección: una entrada de deshacer.
+  const handleFurnish = useCallback((ids: string[], f: Furnishing) => {
+    const u = furnishingUpdates(ids, elements, f)
+    if (!Object.keys(u).length) return
+    pushHistory()
+    updateElements(u)
+  }, [elements, pushHistory, updateElements])
   const selectionLayer = useMemo(() => {
     const ls = new Set(elements.filter(e => selectedIds.has(e.id)).map(layerOf))
     return ls.size === 1 ? [...ls][0] : null
@@ -917,6 +925,9 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onGroupTablesWithChairs={() => groupTablesWithChairs(layoutSettings)}
             onSetLayer={setLayerFor}
             selectionLayer={selectionLayer}
+            allElements={elements}
+            onFurnish={handleFurnish}
+            heights3d={layoutSettings.heights3d}
           />
         </div>}
 

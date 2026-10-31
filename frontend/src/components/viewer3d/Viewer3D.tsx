@@ -58,9 +58,14 @@ export default function Viewer3D({ items, background, onStats, onReady, autoRota
     host.appendChild(renderer.domElement)
 
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color(0x0b1020)
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x334155, 1.1))
-    const sun = new THREE.DirectionalLight(0xffffff, 1.3)
+    // Escena clara (pedido de Javier): cielo gris azulado, luz de ambiente
+    // pareja y un sol suave; el piso claro con la grilla bien visible.
+    scene.background = new THREE.Color(0xdde5ee)
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 1.05
+    scene.add(new THREE.HemisphereLight(0xffffff, 0xb8c2cf, 2.2))
+    scene.add(new THREE.AmbientLight(0xffffff, 0.5))
+    const sun = new THREE.DirectionalLight(0xffffff, 1.6)
     scene.add(sun)
 
     const b = itemsBounds(items) ?? { minX: -10, minZ: -10, maxX: 10, maxZ: 10 }
@@ -72,13 +77,13 @@ export default function Viewer3D({ items, background, onStats, onReady, autoRota
     const keep = <T extends { dispose: () => void }>(x: T) => { disposables.push(x); return x }
 
     // Piso y grilla de 1 m (5 m si el plano es grande).
-    const floor = new THREE.Mesh(keep(new THREE.PlaneGeometry(span * 1.6, span * 1.6)), keep(new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 1 })))
+    const floor = new THREE.Mesh(keep(new THREE.PlaneGeometry(span * 1.6, span * 1.6)), keep(new THREE.MeshStandardMaterial({ color: 0xeef1f5, roughness: 1 })))
     floor.rotation.x = -Math.PI / 2
     floor.position.set(cx, -0.01, cz)
     scene.add(floor)
     const step = span > 120 ? 5 : 1
     const divisions = Math.min(400, Math.ceil((span * 1.6) / step))
-    const grid = new THREE.GridHelper(divisions * step, divisions, 0x334155, 0x1f2a3d)
+    const grid = new THREE.GridHelper(divisions * step, divisions, 0x8a97a8, 0xc5cdd8)
     grid.position.set(cx, 0.002, cz)
     scene.add(grid)
     disposables.push(grid.geometry, grid.material as THREE.Material)
@@ -124,8 +129,19 @@ export default function Viewer3D({ items, background, onStats, onReady, autoRota
     const boxMesh = inst(new THREE.BoxGeometry(1, 1, 1), boxes.length)
     boxes.forEach((it, i) => place(boxMesh, i, it.cx, it.height / 2, it.cz, it.rotY, it.width, it.height, it.depth, it.color))
 
-    const tableMesh = inst(new THREE.CylinderGeometry(0.5, 0.5, 1, 32), tables.length)
-    tables.forEach((it, i) => place(tableMesh, i, it.cx, 0.75 / 2, it.cz, it.rotY, it.width, 0.75, it.depth, '#e5e7eb'))
+    // Mesas del color del MANTEL. Mantel largo: hasta el piso. Corto: el
+    // mantel cubre los últimos 25 cm y abajo se ve el pie.
+    const longT = tables.filter(it => !it.shortCloth)
+    const shortT = tables.filter(it => it.shortCloth)
+    const tableMesh = inst(new THREE.CylinderGeometry(0.5, 0.5, 1, 32), longT.length)
+    longT.forEach((it, i) => place(tableMesh, i, it.cx, it.height / 2, it.cz, it.rotY, it.width, it.height, it.depth, it.color))
+    const clothMesh = inst(new THREE.CylinderGeometry(0.5, 0.5, 1, 32), shortT.length)
+    const legMesh = inst(new THREE.CylinderGeometry(0.5, 0.5, 1, 12), shortT.length)
+    shortT.forEach((it, i) => {
+      const skirt = Math.min(0.25, it.height)
+      place(clothMesh, i, it.cx, it.height - skirt / 2, it.cz, it.rotY, it.width, skirt, it.depth, it.color)
+      place(legMesh, i, it.cx, (it.height - skirt) / 2, it.cz, 0, 0.12, it.height - skirt, 0.12, '#6b7280')
+    })
 
     const cylMesh = inst(new THREE.CylinderGeometry(0.5, 0.5, 1, 32), cyls.length)
     cyls.forEach((it, i) => place(cylMesh, i, it.cx, it.height / 2, it.cz, it.rotY, it.width, it.height, it.depth, it.color))
@@ -135,9 +151,11 @@ export default function Viewer3D({ items, background, onStats, onReady, autoRota
     const seatMesh = inst(new THREE.BoxGeometry(1, 1, 1), chairs.length)
     const backMesh = inst(new THREE.BoxGeometry(1, 1, 1), chairs.length)
     chairs.forEach((it, i) => {
-      place(seatMesh, i, it.cx, 0.225, it.cz, it.rotY, it.width, 0.45, it.depth, it.color)
+      const seat = Math.min(0.45, it.height / 2)
+      const back = Math.max(0.02, it.height - seat)
+      place(seatMesh, i, it.cx, seat / 2, it.cz, it.rotY, it.width, seat, it.depth, it.color)
       const off = new THREE.Vector3(0, 0, -it.depth / 2 + 0.04).applyAxisAngle(UP, it.rotY)
-      place(backMesh, i, it.cx + off.x, 0.45 + 0.225, it.cz + off.z, it.rotY, it.width, 0.45, 0.08, it.color)
+      place(backMesh, i, it.cx + off.x, seat + back / 2, it.cz + off.z, it.rotY, it.width, back, 0.08, it.color)
     })
 
     const trunkMesh = inst(new THREE.CylinderGeometry(0.12, 0.16, 1, 10), trees.length)

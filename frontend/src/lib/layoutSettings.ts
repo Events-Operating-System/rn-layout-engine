@@ -1,5 +1,6 @@
 import type { LayerId } from '@/types/layout'
 import type { PaperChoice } from './pdfLayout'
+import { DEFAULT_HEIGHTS, parseHeights, type Heights3D } from './heights3d'
 
 // Ajustes de Layout de la organización (organizations.settings.layout,
 // migración 20261031220000). Se editan en Administración → Organización; acá
@@ -23,6 +24,8 @@ export interface LayoutSettings {
   clientViewHidden: LayerId[]
   // Hoja del PDF por defecto (bloque 8): A4 apaisado salvo que la org diga otra cosa.
   pdfPaper: PaperChoice
+  // Alturas en 3D por tipo de pieza (h3d_*).
+  heights3d: Heights3D
 }
 
 export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
@@ -40,6 +43,7 @@ export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
   backgroundPdf: true,
   clientViewHidden: ['technical', 'notes'],
   pdfPaper: { paper: 'a4', landscape: true },
+  heights3d: DEFAULT_HEIGHTS,
 }
 
 const num = (v: unknown, fallback: number, min: number) => {
@@ -79,5 +83,6 @@ export function parseLayoutSettings(data: unknown): LayoutSettings {
       paper: l.pdf_a3 === true ? 'a3' : 'a4',
       landscape: typeof l.pdf_landscape === 'boolean' ? l.pdf_landscape : true,
     },
+    heights3d: parseHeights(l),
   }
 }
