@@ -416,7 +416,32 @@ type Segment =
 - **Ajustar a pantalla:** botón junto al zoom y atajo Shift+1. Encuadra piezas y dibujos con margen y respeta el zoom mínimo.
 - Los planos existentes no cambian.
 
-**Pendiente de este bloque, a propósito:** encabezado "RN Layout Engine"/"MVP" y placeholder "Nombre del cliente / evento" (no estaban en la lista de la §0).
+**Pendiente de este bloque, a propósito:** encabezado "RN Layout Engine"/"MVP" y placeholder "Nombre del cliente / evento" (no estaban en la lista de la §0). → Hecho en el bloque 3.
+
+### Bloque 3 — Ordenar el código del canvas (2026-10-31)
+
+`LayoutCanvas.tsx` pasó de **1.920 a 1.054 líneas**. Lo demás se movió tal cual a `components/canvas/`:
+
+| Archivo | Qué tiene |
+|---|---|
+| `constants.ts` | Escala (20 px/m), grilla, zoom, export, color de dibujo |
+| `geometry.ts` | Guías de alineación, búsqueda de la pieza clicada |
+| `GridLines.tsx` | Grilla |
+| `DrawingShape.tsx` | Líneas, flechas, textos y su vista previa |
+| `AssetShape.tsx` | Cada pieza del plano |
+| `titleBlock.ts` | Cajetín del PNG y del PDF |
+| `exportLayout.ts` | Export a PNG y PDF |
+| `CanvasHud.tsx` | Cursor, zoom y "Ajustar a pantalla", lecturas de dibujo y medida |
+
+En `LayoutCanvas.tsx` quedaron el estado, el manejo del mouse y del tacto y el armado del Stage de Konva.
+
+**Verificación de "sin cambios visibles":**
+- Se tomó la huella (SHA-256) del PNG y del PDF exportados del plano QA "Cumple 42 años QA" con el código anterior, dos veces para confirmar que es estable: PNG `4979ef5a…`, PDF `3a81c99a…` (sin las fechas internas del PDF).
+- Con el código nuevo en producción dieron **idénticas**.
+- Además se probó seleccionar, arrastrar, dibujar una línea, medir y deshacer.
+- 3 tests nuevos (guías de alineación y orden del cajetín). Total: 33.
+
+**Visible, por decisión de la §6.1:** encabezado "EventOS Layout" sin "MVP", título de la pestaña "EventOS Layout" y campo de nombre "Nombre del proyecto" (es/en/pt).
 
 ---
 
