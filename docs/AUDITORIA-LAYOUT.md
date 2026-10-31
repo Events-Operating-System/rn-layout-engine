@@ -536,6 +536,47 @@ En `LayoutCanvas.tsx` quedaron el estado, el manejo del mouse y del tacto y el a
   - La posición del muro se mostraba con demasiados decimales; ahora va al centímetro.
 - **Pendiente para el bloque 8:** el PDF todavía es una imagen grande (5,4 MB con fondo).
 
+**Ajuste posterior (pedido de Javier, 2026-10-31): arrastre de conjuntos y planos viejos.**
+- Arrastrar una mesa mueve su conjunto entero; una silla arrastrada sola se mueve sola. Lo bloqueado no se mueve. El desplazamiento se redondea a 10 cm y se suma a la posición exacta de cada pieza (las sillas no se corren respecto de su mesa).
+- **Desagrupar** en Propiedades (pieza o selección que sea parte de un conjunto).
+- **Agrupar sillas con su mesa** (Propiedades, sin selección): busca las sillas sueltas cuyo centro queda a no más de espacio silla–mesa + silla + 0,3 m del borde de una mesa suelta (redonda o rectangular, rotada o no); si queda cerca de dos, va con la más cercana. Solo toca piezas sin conjunto, se deshace en un paso y no corre solo al abrir el plano.
+- Duplicar un conjunto entero crea un conjunto nuevo; duplicar una parte la deja suelta.
+- 11 tests nuevos. **En QA:** la mesa arrastró sus 8 sillas, una silla se movió sola, Desagrupar dejó la mesa suelta y "Agrupar sillas con su mesa" agrupó 1 mesa con 7 sillas (la que se había alejado 2,3 m quedó fuera).
+
+### Bloque 6 — Capas y biblioteca de la organización (2026-10-31, migración `20261031260000_layout_org_library`)
+
+**Capas fijas:** perímetro/estructura, mobiliario, decoración, técnica y notas.
+- Cada pieza tiene su capa: la elegida en Propiedades o la que toca por categoría (muros, estructura, escenario, barreras y circulación → perímetro/estructura; asientos → mobiliario; formas y árboles → decoración; servicios, LED, pantallas, cabinas DJ y generador → técnica). Los dibujos y cotas van en notas. Un conjunto cambia de capa entero.
+- Botón **Capas**: mostrar/ocultar y bloquear cada capa, con su conteo. "Mostrar todo" y **"Vista cliente"** (sin técnica ni notas). El botón queda marcado si hay algo oculto o bloqueado.
+- Lo oculto no se dibuja ni sale en el PNG o el PDF (así se exporta por capa). Lo bloqueado no se elige, ni con el recuadro, ni se mueve. El PAX cuenta todo igual.
+- Se guarda en el plano (`meta.layers`), entra en las versiones y el visor de versiones lo respeta. En solo lectura se puede ocultar (para exportar), no bloquear.
+
+**Biblioteca de la organización:**
+- `custom_assets` pasa a ser por org (`org_id`), con `shared` (compartido con la org) y `payload` (plantillas, `kind = 'template'`).
+- Facultad nueva **`layout.compartir`** (owner y admin por defecto) en Administración → Roles y permisos, con una nota que explica cada acción de Layout.
+- La biblioteca muestra **Biblioteca de la organización**, **Plantillas de plano** y **Mis assets**. Al guardar un asset o una plantilla, quien tiene Compartir puede marcar "Compartir con la organización"; los demás guardan como personal.
+- **Plantillas:** "Guardar plano como plantilla" guarda piezas, dibujos, plano del local y capas. Usarla **suma** sus piezas al plano (no borra nada, se deshace con Cmd+Z) y toma el plano del local si el plano no tiene uno.
+- La base pone `created_by` y `org_id` (se cierra el riesgo de suplantación). Compartir o sacar de la org va por `layout_set_asset_shared`.
+- Los 20 assets que existían (todos de JBD, de 2 personas con una sola org cada una) se asignaron a la org de su creador y siguen personales. Fue la única escritura en JBD: el campo nuevo `org_id`, sin cambiar lo que ven.
+
+**Prueba con ROLLBACK** (rol del usuario QA cambiado dentro de cada transacción):
+
+| Caso | Owner | Admin | Production | Viewer con módulo | Viewer sin módulo | Otra org |
+|---|---|---|---|---|---|---|
+| Crear personal | sí | sí | sí | no | no | — |
+| `created_by` ajeno | se corrige | se corrige | se corrige | — | — | — |
+| Crear compartido / compartir lo propio | sí | sí | no | no | no | — |
+| Ver compartido de la org | sí | sí | sí | sí | no | no |
+| Ver personal ajeno | no | no | no | no | no | — |
+| Cambiar contenido ajeno | no | no | no | no | no | — |
+| Sacar de la org / borrar compartido ajeno | sí | sí | no | no | no | no |
+| Crear en otra org / mover a otra org | no / queda | no / queda | no / queda | no | no | — |
+
+Aplicada y verificada. Además, el editor viejo (sin `org_id`) sigue pudiendo guardar: el trigger completa la org.
+
+**Pruebas:** 8 tests nuevos (capas por categoría, vista cliente, bloqueos, plantillas con grupos nuevos, permiso Compartir). Total en Layout: 76; Administración: 119.
+- **En QA:** conteos por capa correctos (1 muro, 27 piezas de mobiliario, 1 cota); "Vista cliente" ocultó la cota; ocultar mobiliario ocultó las mesas; con perímetro bloqueado el muro no se deja elegir. Se guardó el plano como plantilla compartida ("Plantilla QA - Salon 20x10": 28 piezas, cota, fondo, `shared = true`) y en un plano nuevo sin guardar se usó: aparecieron las 28 piezas con el fondo y la cota, con sus conjuntos. Sacar de la org y volver a compartir desde el panel funcionó. Sin errores en la consola.
+
 ---
 
 ## 6.1 Decisiones de Javier sobre los bloques 1 y 2 (2026-10-31, segunda tanda)
@@ -568,7 +609,7 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 | `backgroundFormats` | imagen y PDF | 5 |
 | `pdfDefaultSize` | A4 apaisado | 8 |
 
-**Siguiente:** bloque 6 (capas y biblioteca de la organización). Bloques 3, 4 y 5 hechos (ver §6).
+**Siguiente:** bloque 7 (curvas: arcos y medias lunas). Bloques 3 a 6 hechos (ver §6).
 
 ---
 
