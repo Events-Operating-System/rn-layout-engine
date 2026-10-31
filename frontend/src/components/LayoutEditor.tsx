@@ -602,7 +602,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         </div>
       )}
 
-      {recovery && (
+      {/* Recuperar un borrador es una edición: solo para quien puede editar. */}
+      {recovery && permissions.canEdit && (
         <RecoveryBanner
           updatedAt={recovery.updated_at}
           onRecover={handleRecoverDraft}
