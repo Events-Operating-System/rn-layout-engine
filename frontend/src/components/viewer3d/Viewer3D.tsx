@@ -209,9 +209,12 @@ export default function Viewer3D({ items, background, onStats, onReady, autoRota
       controls.target.set(cx, 0, cz)
       controls.update()
     }
+    // A la altura de los ojos, adentro del plano (cerca de un borde) y
+    // mirando hacia el centro.
     const person = () => {
-      camera.position.set(cx, 1.65, b.maxZ + 2)
-      controls.target.set(cx, 1.4, cz)
+      const dz = (b.maxZ - b.minZ) * 0.3
+      camera.position.set(cx, 1.65, cz + dz)
+      controls.target.set(cx, 1.4, cz - dz)
       controls.update()
     }
     overview()
