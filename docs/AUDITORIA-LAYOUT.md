@@ -443,6 +443,41 @@ En `LayoutCanvas.tsx` quedaron el estado, el manejo del mouse y del tacto y el a
 
 **Visible, por decisión de la §6.1:** encabezado "EventOS Layout" sin "MVP", título de la pestaña "EventOS Layout" y campo de nombre "Nombre del proyecto" (es/en/pt).
 
+### Bloque 4 — Mesas con sillas y PAX automático (2026-10-31)
+
+**Silla como pieza propia y mesas con sillas:**
+- Nueva pieza **Silla** en Asientos (cuenta 1 asiento) y nueva **Mesa redonda de 12**.
+- Nueva sección **"Mesas con sillas"**: redonda de 8, 10 y 12, y rectangular (una silla cada ~0,6 m por lado; con 2,4 m, 8 sillas). Se colocan como un conjunto, la mesa más sus sillas mirándola, todo seleccionado.
+- Las medidas de las mesas sueltas del catálogo también salen de los ajustes de la org.
+
+**Ajustes de la org** (migración `20261031220000_layout_org_settings`):
+- Grupo `layout` en `organizations.settings`: `chair_size`, `table_round8/10/12`, `table_rect_length/width`, `chair_gap`, `table_spacing`, con los valores de la §6.1.
+- Se editan en **Administración → Organización → Layout**. La base exige el módulo Layout con "editar"; Viewer y otras orgs quedan rechazados.
+- Prueba con ROLLBACK: valores por defecto, owner guarda, negativos y texto rechazados, los ajustes de Financiero intactos.
+- ⚠️ `org_settings_schema()` es compartida. Se aplicó partiendo de la versión viva y verificando que nadie la hubiera cambiado entre la prueba y la aplicación. Quien la reemplace después tiene que partir de `pg_get_functiondef` y conservar el grupo `layout`.
+
+**PAX automático:**
+- La casilla PAX muestra los asientos dibujados, en pantalla, PNG, PDF y en el visor de versiones.
+- Escribir un número lo pasa a manual; "↺ auto" vuelve a contar.
+- Los planos viejos que ya tenían PAX escrito quedan en manual: no cambian.
+
+**Selección:**
+- **Alinear** (izquierda, centro, derecha, arriba, medio, abajo).
+- **Distribuir** horizontal o vertical (3 piezas o más, mismo espacio libre entre ellas).
+- **Repetir en grilla**: filas × columnas con separación; por defecto, la de la org.
+- Cada operación es una sola entrada de deshacer. Las piezas bloqueadas no se mueven.
+
+**Administración:** en Roles y permisos, la casilla "ver" de **Viewer** se puede cambiar **solo en Layout** (ahí la base lo deja en solo lectura); en los demás módulos sigue fija.
+
+**Pruebas:**
+- 13 tests nuevos (sillas alrededor de la mesa a la distancia justa, sillas por lado, PAX automático/manual/planos viejos, alinear, distribuir, grilla). Total en Layout: 46; Administración: 117.
+- **En QA:**
+  - Mesa de 10 con sillas → PAX 10 auto.
+  - Grilla 2 × 3 → 6 mesas, 66 piezas, PAX 60.
+  - PAX escrito a mano (120) aparece en el PNG; "↺ auto" vuelve a 60.
+  - "Alinear arriba" funciona y se deshace en un paso.
+  - En Administración: la tarjeta Layout guardó silla 0,5 m, Layout la tomó (0,5 × 0,5) y se volvió a 0,45 m. Viewer editable solo en Layout.
+
 ---
 
 ## 6.1 Decisiones de Javier sobre los bloques 1 y 2 (2026-10-31, segunda tanda)
