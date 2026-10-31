@@ -144,3 +144,26 @@ Sesión larga: fixes de producto sobre "Mis Assets" + autosave, tres features de
 - `"EventOS Layout"` sigue hardcodeado en el header del `Dashboard` (misma string de marca que `t.appName`) — no vale una tanda por una string.
 - Smoke test real de iPhone/iPad del chrome responsive y del `<LangToggle>` a ~320px (entra justo).
 - Mismos pendientes de sesiones anteriores (migración de duplicación `20260702000000` sin ejecutar, office testing general).
+
+### Sesión 2026-10-31 — Auditoría de Layout, bloques 1 a 9
+
+Todo el detalle (decisiones, pruebas con ROLLBACK, capturas y lo "decidido en ausencia, revisar") está en `docs/AUDITORIA-LAYOUT.md`. Resumen para la próxima sesión:
+
+**Hecho (todo en `main`, desplegado):**
+- Bloque 1: permisos por rol (`layout_can`, RLS por acción). Bloque 2: arreglos rápidos. Bloque 3: `LayoutCanvas.tsx` partido en `components/canvas/`.
+- Bloque 4: mesas con sillas (`groupId`), PAX automático, alinear/distribuir/repetir; ajustes de la org en `organizations.settings.layout`.
+- Bloque 5: plano del local de fondo (bucket `layout-backgrounds`), muros (W) y cotas (C).
+- Bloque 6: capas fijas (`meta.layers`, "Vista cliente" configurable) y biblioteca de la org (`custom_assets` por org, facultad `layout.compartir`, plantillas).
+- Bloque 7: curvas (`segments` por lado: recto / arco con bulge / Bézier; herramientas Arco R y Curva B; medias lunas).
+- Bloque 8: PDF vectorial A4/A3 a escala estándar con cajetín siempre (`components/canvas/pdfExport.ts`, `lib/pdfLayout.ts`); exportar selección en PDF y PNG; fondo como JPEG de 150 ppp (de 5,5 MB a ~20 KB).
+- Bloque 9 (primer paso): vista 3D en `/3d/<plano>` (otra pestaña, `components/viewer3d/`, Three.js solo ahí, 153 KB gzip aparte).
+
+**Reglas que siguen valiendo:**
+- `org_settings_schema()` es compartida entre módulos: toda migración que la toque se genera desde `pg_get_functiondef` vivo y lleva candado md5 (ver migraciones `20261031240000`, `…280000`, `…300000`).
+- Migraciones con `supabase db query --linked -f`, probadas antes con ROLLBACK por rol; nunca `db push`.
+- En JBD solo mirar.
+
+**Pendiente:**
+- La sesión de QA en el navegador se cerró sola durante el bloque 8 (no por esta sesión); el bloque 8 y el 9 se probaron con páginas locales que montan los módulos reales (PDF, canvas, visor 3D) y con el plano más grande de JBD en solo lectura. Falta repetir en la app con sesión: el diálogo de exportar del editor, el botón "Ver en 3D" y la tarjeta de Administración (hoja del PDF).
+- Bloque 9, pasos siguientes: modelos CC0 para piezas especiales, choques al recorrer, dibujos/cotas en 3D, render con IA (después, sin proveedor pago).
+

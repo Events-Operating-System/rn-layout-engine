@@ -608,6 +608,105 @@ Aplicada y verificada. Además, el editor viejo (sin `org_id`) sigue pudiendo gu
 
 **Queda para después:** mover vértices y manijas con el mouse (hoy se editan los lados desde Propiedades y la forma con el recuadro), repetir piezas a lo largo de una curva, y círculo/elipse con radio editable.
 
+### Bloque 8 — PDF profesional y exportar selección (2026-10-31, trabajo en ausencia de Javier)
+
+**Qué hace:**
+- **Exportar PDF** abre un diálogo: hoja **A4 o A3**, **apaisado o vertical** y **todo el plano o lo seleccionado**. Viene elegido lo que diga la org (por defecto A4 apaisado).
+- **Escala automática:** la más grande de las estándar (1:20, 1:25, 1:50, 1:75, 1:100, 1:125, 1:150, 1:200, 1:250, 1:300, 1:400, 1:500, 1:750, 1:1000 … 1:10000) en la que el plano entra completo. Va en el **cajetín** (columna nueva ESCALA y HOJA) y en una **barra de escala** abajo a la izquierda.
+- **El cajetín va siempre**, también con "lo seleccionado" (la casilla HOJA dice "· selección").
+- **Exportar lo seleccionado** en PDF y PNG: las piezas elegidas y los dibujos o cotas que caen enteros dentro. El PNG agranda una selección chica hasta el ancho del cajetín.
+- Respeta las **capas ocultas** y "Vista cliente": lo oculto no sale.
+- Nombre del archivo igual que antes: "<Nombre> - vN.pdf/png".
+- **Ajuste de la org:** hoja por defecto en Administración → Organización → Layout (migración `20261031300000`: `pdf_a3` y `pdf_landscape`, generada desde la versión viva de `org_settings_schema()` con candado md5; probada con ROLLBACK: valores por defecto, owner guarda, texto rechazado, viewer rechazado, los otros grupos idénticos).
+
+**El PDF ahora es vectorial** (líneas y texto nítidos a cualquier zoom). El plano del local va como una sola imagen JPEG, ya mezclada con blanco a su transparencia y a 150 ppp sobre su tamaño impreso; con "lo seleccionado", recortada a esa zona.
+
+| Plano QA "Bloque 5 QA - Salon" con plano del local de fondo | Peso | Escala |
+|---|---|---|
+| PDF anterior (imagen PNG de pantalla) | **5,54 MB** | — |
+| PDF nuevo, A4 apaisado | **18 KB** | 1:150 |
+| PDF nuevo, A3 apaisado | **30 KB** | 1:100 |
+| PDF nuevo, lo seleccionado (3 mesas) | **7 KB** | 1:50 |
+
+**Pruebas:** 11 tests nuevos (hoja, escala, caja del contenido con piezas rotadas, dibujos dentro de la selección, PDF A4/A3/selección con escala y peso). Total en Layout: 108; Administración: 119.
+
+### Bloque 9 — Vista 3D, primer paso (2026-10-31, trabajo en ausencia de Javier)
+
+- Botón **"🧊 Ver en 3D"** en el editor: abre **otra pestaña** con la ruta propia **`/3d/<plano>`**. El editor le deja una copia del plano tal como se ve (con lo no guardado y las capas); si no hay copia, la vista lee el plano guardado.
+- **Aislada:** el código 3D (Three.js 0.186.1) va en un archivo aparte que se baja solo al abrir esa ruta (**153 KB comprimidos**; el editor no baja nada de esto). Si falla al cargar o al dibujar, se avisa en esa pestaña; el editor sigue en la suya. Sin WebGL, lo dice.
+- **Formas simples con las medidas reales:** sillas (asiento + respaldo), mesas, cajas y tramos de muro **instanciados** (una malla por tipo, sin importar cuántas piezas). Polígonos y curvas extruidos; carpas y estructuras grandes translúcidas para ver lo de adentro; árboles (tronco + copa); el plano del local en el piso. Sin modelos descargados ni render con IA.
+- **Se puede girar** (arrastrar), **acercar** (rueda), **mover** (clic derecho) y **recorrer** con W A S D o flechas (Shift: más rápido). Botones "Vista general" y "Altura de persona".
+- **Respeta las capas visibles** del plano.
+
+**Medición** (Apple M5 Pro, Chrome, pantalla de 120 Hz, resolución doble 3146 × 1818):
+
+| Plano | Piezas | Cuadros por segundo | Llamadas de dibujo | Triángulos | Armado |
+|---|---|---|---|---|---|
+| El más grande de JBD (solo lectura, sin guardar nada) | 913 | **114–120** (el tope de la pantalla) | 26 | 20 614 | 93 ms |
+| QA "Bloque 5 QA - Salon" con plano del local | 28 | 120 | 7 | 1 012 | 23 ms |
+
+Descarga: **153 KB** comprimidos (595 KB sin comprimir) al abrir la vista 3D, medido en producción.
+
+## 6.2 Reporte del trabajo en ausencia (2026-10-31)
+
+**Resumen:** bloque 8 y primer paso del bloque 9 hechos, en `main` y desplegados. Paré al terminar el primer paso del 3D.
+
+**⚠️ La sesión de QA se cerró** mientras probaba el bloque 8: el editor pidió "Continuar con Google" (no la cerré yo; ya había pasado antes con un cierre global desde otra sesión). No inicio sesión por Javier, así que **las pruebas de los bloques 8 y 9 se hicieron con páginas locales (localhost) que montan los módulos reales** del producto: el generador del PDF, el `LayoutCanvas` con sus exports, el diálogo de exportar y el visor 3D. Los datos: el plano QA "Bloque 5 QA - Salon" con su plano del local (leídos de QA) y el plano más grande de JBD (solo lectura, sin guardar nada). En producción verifiqué la ruta `/3d/...`, el archivo aparte del 3D y que el archivo principal no trae Three.js. **Falta repetir con sesión:** el diálogo de exportar dentro del editor, el botón "Ver en 3D" de punta a punta y la tarjeta de Administración (hoja del PDF).
+
+**Capturas del PDF** (plano QA con plano del local de fondo):
+
+A4 apaisado, escala 1:150 — 18 KB:
+
+![PDF A4](img/bloque8-pdf-a4.jpg)
+
+A3 apaisado, escala 1:100 — 30 KB:
+
+![PDF A3](img/bloque8-pdf-a3.jpg)
+
+Lo seleccionado (3 mesas con sus sillas), escala 1:50, con el cajetín — 7 KB:
+
+![PDF selección](img/bloque8-pdf-seleccion.jpg)
+
+PNG de lo seleccionado (una mesa con sus sillas) y el diálogo de exportar:
+
+![PNG selección](img/bloque8-png-seleccion.jpg)
+
+![Diálogo de exportar](img/bloque8-dialogo.jpg)
+
+**Capturas del 3D:**
+
+El plano más grande de JBD (913 piezas) a 120 cuadros por segundo:
+
+![3D plano grande](img/bloque9-3d-plano-grande.jpg)
+
+Plano QA: muros de 3 m, plano del local en el piso, mesas con sillas:
+
+![3D QA](img/bloque9-3d-qa.jpg)
+
+Recorriendo con W a la altura de una persona:
+
+![3D recorrer](img/bloque9-3d-recorrer.jpg)
+
+### Decidido en ausencia, revisar
+
+1. **PDF vectorial** con jsPDF (`context2d` para las formas, texto con alineación propia porque `context2d` centra mal el texto rotado). Letra **Helvetica** en el PDF (antes monoespaciada).
+2. **Hoja por defecto en dos claves sí/no** (`pdf_a3`, `pdf_landscape`): la validación de ajustes de la base no admite listas de valores.
+3. Además de A4/A3 se puede elegir **vertical**; por defecto apaisado.
+4. **Escalas estándar** de 1:20 a 1:10000; más allá, la escala se redondea al millar.
+5. **Fondo en el PDF** como JPEG a 150 ppp mezclado con blanco; con "lo seleccionado", recortado a la zona elegida (no se agranda la hoja por el fondo entero).
+6. **"Lo seleccionado"** incluye los dibujos y cotas que caen enteros dentro de la selección.
+7. Si hay algo seleccionado, el diálogo viene marcado en **"Lo seleccionado"**. PNG sin selección exporta directo (como antes, la vista actual); con selección, pregunta.
+8. **PNG de lo seleccionado** con el mismo estilo oscuro de pantalla, agrandado hasta el ancho del cajetín.
+9. El **visor de versiones** exporta el PDF con la hoja por defecto de la org, sin diálogo.
+10. En el PDF, el **nombre y las medidas** de una pieza solo se escriben si entran dentro de ella.
+11. La **vista 3D se abre en otra pestaña** (máximo aislamiento) con una copia del plano en el navegador (vale 30 minutos), en vez de un panel dentro del editor.
+12. **Three.js sin react-three-fiber** (menos peso y menos dependencias). Versión 0.186.1 (la 0.187.0 salió ayer).
+13. **Alturas en 3D:** muros 3 m; curvas abiertas 2,4 m; escenario 1 m; LED 3,5 m; pantalla 3 m; barra 1,1 m; mesas 0,75 m; sillas 0,45 m + respaldo; baños y cocina 2,5–2,6 m; vallas 1,1 m; formas sueltas y circulación como marcas de 5 cm en el piso; estructuras de más de 40 m² translúcidas.
+14. En esta primera versión **no hay choques** al recorrer (se atraviesan paredes) y **los dibujos y cotas no aparecen** en 3D.
+15. **Arreglado de paso** (bloque 7): el doble clic que termina un muro, polígono o curva perdía el último punto.
+
+**Nada grande ni irreversible quedó decidido.** Lo único que requiere a Javier es volver a iniciar sesión en QA para repetir las pruebas en la app.
+
 ---
 
 ## 6.1 Decisiones de Javier sobre los bloques 1 y 2 (2026-10-31, segunda tanda)
@@ -639,9 +738,9 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 | `dimensionDecimals` | 2 | 5 |
 | `backgroundFormats` | imagen y PDF | 5 |
 | `clientHide*` (Vista cliente) | técnica y notas | 6 |
-| `pdfDefaultSize` | A4 apaisado | 8 |
+| `pdf_a3` / `pdf_landscape` (hoja del PDF) | A4 apaisado | 8 |
 
-**Siguiente:** bloque 8 (PDF profesional). Bloques 3 a 7 hechos (ver §6).
+**Siguiente:** bloque 9, pasos siguientes del 3D (modelos CC0 para piezas especiales, choques, cotas en 3D). Bloques 3 a 8 y el primer paso del 9 hechos (ver §6 y el reporte §6.2).
 
 ---
 

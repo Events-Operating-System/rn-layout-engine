@@ -4,7 +4,8 @@
 
 - Vite + React 19 + TypeScript
 - Tailwind v4 (via `@tailwindcss/vite` plugin — no PostCSS config needed)
-- Konva.js + react-konva (2D canvas — NOT Three.js)
+- Konva.js + react-konva (2D canvas)
+- Three.js 0.186.1 ONLY in `src/components/viewer3d/` (route `/3d/<plano>`, lazy-loaded; see below)
 - No SSR — this is a browser-only client application
 
 ## Path Alias
@@ -34,7 +35,7 @@ This is NOT a general-purpose UI app. It is an operational layout engine for liv
 - Do NOT rewrite canvas logic or Konva implementation without explicit instruction.
 - Do NOT refactor hooks, components, or types without explicit instruction.
 - Do NOT introduce SSR, server components, or backend dependencies into this frontend.
-- Do NOT introduce Three.js — this project uses Konva for 2D canvas operations.
+- Three.js is allowed ONLY in `src/components/viewer3d/` (decision 2026-10-31, replaces DEC-0020 for the 3D view only). It must stay behind the lazy route `/3d/<plano>` in `App.tsx`; never import it from the editor, the canvas or any shared module. The 2D editor stays on Konva.
 
 ## Governance
 
