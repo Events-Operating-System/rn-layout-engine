@@ -420,7 +420,43 @@ type Segment =
 
 ---
 
+## 6.1 Decisiones de Javier sobre los bloques 1 y 2 (2026-10-31, segunda tanda)
+
+Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no dijo otra cosa, **vale la recomendación**.
+
+| # | Tema | Decisión |
+|---|---|---|
+| 1 | Viewer | Aparece en Administración → Roles y permisos, **solo con "ver"** en Layout. |
+| 2 | Plantillas y encabezado | Plantillas de plano por organización: **sí**. Encabezado **"EventOS Layout"**, sin el sello "MVP". |
+| 3 | Mesas y sillas | Medidas por defecto de la §7 (silla 0,45 m; mesa redonda de 8 = 1,5 m, de 10 = 1,8 m, de 12 = 2,1 m; rectangular 2,4 × 0,75 m; 0,15 m entre silla y mesa), pero **guardadas como ajustes de la org** en `organizations.settings.layout` y editables en Administración. **PAX automático**, con opción de escribirlo a mano. La **separación entre mesas** (1,5 m) también es ajuste de la org. |
+| 4 | Plano del local | Fondo en imagen o PDF, muros de 0,15 m y cotas con 2 decimales, **todo como ajuste de la org**. |
+| 5 | Biblioteca y capas | La biblioteca es **la de la organización**. **Capas fijas** al inicio. Publicar en la biblioteca es una **facultad nueva** en Roles y permisos (owner y admin por defecto). |
+| 6 | Curvas | **Arcos y medias lunas primero**; curvas libres (Bézier) después. |
+| 7 | PDF | El usuario **elige A4 o A3** al exportar. Por defecto **A4 apaisado** (el tamaño por defecto también es ajuste de la org). Escala automática. **El cajetín va siempre**, también al exportar solo lo seleccionado. |
+| 8 | 3D | Se levanta la prohibición de Three.js **solo para la ruta "Ver en 3D"**, cargada al tocarla y aislada del editor. **Primera versión:** formas simples generadas en código con las medidas reales, sillas y mesas instanciadas, **sin descargar modelos**. Los modelos descargados vienen más adelante, **solo CC0** (Kenney, Poly Haven, Quaternius, Poly Pizza) y solo para piezas especiales. **Render con IA: después.** No se contrata ni configura ningún proveedor pago. |
+| 9 | Resto | Se aplican las recomendaciones de la §7: Viewer solo "ver"; `custom_assets` protegido en el bloque 6; encabezado en el bloque 3; muros con grosor editable; capas iniciales perímetro/estructura, mobiliario, decoración, técnica y notas; assets personales que se pueden compartir con la org; DEC-0020 reemplazada solo para el módulo 3D; Inventarios: primero solo sugiere. |
+
+**Ajustes de la org para Layout** (`organizations.settings.layout`, regla del 2026-10-29: nunca tablas de ajustes nuevas). Cuando se construyan, estas son las claves previstas, con su valor por defecto:
+
+| Clave | Por defecto | Bloque |
+|---|---|---|
+| `chairSize` | 0,45 m | 4 |
+| `tableRound8` / `tableRound10` / `tableRound12` | 1,5 / 1,8 / 2,1 m | 4 |
+| `tableRect` | 2,4 × 0,75 m | 4 |
+| `chairGap` | 0,15 m (silla–mesa) | 4 |
+| `tableSpacing` | 1,5 m (entre mesas al repetir) | 4 |
+| `wallThickness` | 0,15 m | 5 |
+| `dimensionDecimals` | 2 | 5 |
+| `backgroundFormats` | imagen y PDF | 5 |
+| `pdfDefaultSize` | A4 apaisado | 8 |
+
+**Siguiente:** bloque 3 (ordenar el código del canvas), después el 4. Se para antes del 5.
+
+---
+
 ## 7. Decisiones pendientes por bloque (lista completa, orden nuevo)
+
+> **Resueltas el 2026-10-31** (ver §6.1). Se deja la lista como registro.
 
 **1. Permisos (hecho)**
 - ¿Agregar **Viewer** a la matriz de Administración → Roles y permisos? Hoy esa pantalla no lo muestra, así que no hay forma de darle el módulo Layout desde ahí. *Recomiendo:* sí, mostrarlo solo con "ver".
