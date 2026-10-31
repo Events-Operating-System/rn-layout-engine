@@ -23,6 +23,7 @@ import { buildTemplate, type TemplatePayload } from '@/lib/templates'
 import { applyLayers, normalizeLayers, countByLayer, layerOf } from '@/lib/layers'
 import LayersPanel from '@/components/LayersPanel'
 import ExportDialog from '@/components/ExportDialog'
+import { writeSnapshot3D } from '@/lib/snapshot3d'
 import type { PaperChoice } from '@/lib/pdfLayout'
 import type { CustomAsset } from '@/lib/assetService'
 import { useLayoutSettings } from '@/hooks/useLayoutSettings'
@@ -573,6 +574,16 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     }))
   }, [selectedIds, selectedDrawingId, selectElement, selectDrawing, selectElements, layerView.elements, layoutSettings.pdfPaper])
 
+  // "Ver en 3D" (bloque 9): otra pestaña con su propia ruta, para que el 3D
+  // no toque el editor. Se le deja una copia del plano tal como se ve (con
+  // lo no guardado y las capas).
+  const handleOpen3d = useCallback(() => {
+    const id = layoutId ?? 'nuevo'
+    const ok = writeSnapshot3D(id, { name: inputName, elements, drawings, meta: layoutMeta })
+    if (!ok && !layoutId) return
+    window.open(`/3d/${encodeURIComponent(id)}`, '_blank', 'noopener')
+  }, [layoutId, inputName, elements, drawings, layoutMeta])
+
   const openVersions = useCallback(() => {
     // Sin selección en el editor mientras el panel/visor está abierto: así
     // Supr/Backspace no borra nada del plano de fondo.
@@ -709,6 +720,13 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         {/* Acciones secundarias — ocultas < sm para que "Guardar" nunca
             quede fuera de pantalla en móvil. Duplicar sigue disponible
             desde las tarjetas del dashboard. */}
+        <button
+          onClick={handleOpen3d}
+          title={t.view3dOpenHint}
+          className="flex-none h-7 px-2 sm:px-3 rounded text-xs font-semibold border transition-colors whitespace-nowrap text-slate-300 bg-slate-800 hover:bg-slate-700 border-slate-600"
+        >
+          🧊<span className="hidden md:inline"> {t.view3dOpen}</span>
+        </button>
         <div className="relative flex-none">
           <button
             onClick={() => { setLayersOpen(o => !o); setVenueOpen(false) }}

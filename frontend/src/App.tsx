@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, type ReactNode } from 'react'
+import { useEffect, useState, useCallback, lazy, Suspense, Component, type ReactNode } from 'react'
 import { supabase, type User } from '@/lib/supabase'
 import LayoutEditor from '@/components/LayoutEditor'
 import LayoutDashboard from '@/components/LayoutDashboard'
@@ -168,6 +168,27 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutFor
 
 type View = 'dashboard' | 'editor'
 
+// Vista 3D (bloque 9): ruta propia /3d/<plano>, en un archivo aparte que se
+// baja solo al abrirla. Three.js vive únicamente ahí.
+const Viewer3DPage = lazy(() => import('@/components/viewer3d/Viewer3DPage'))
+
+function get3dIdFromPath(): string | null {
+  const match = window.location.pathname.match(/^\/3d\/([^/]+?)(?:\/callback)?\/?$/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+// Si el archivo del 3D no se puede bajar o rompe al cargar, se avisa acá
+// (el editor está en otra pestaña y no se entera).
+class View3DBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  render() {
+    return this.state.failed
+      ? <div className="fixed inset-0 bg-slate-950 flex items-center justify-center text-sm text-slate-300 p-6 text-center">No se pudo abrir la vista 3D. El editor sigue funcionando en su pestaña.</div>
+      : this.props.children
+  }
+}
+
 const IDENTITY_URL = import.meta.env.VITE_IDENTITY_URL
   ?? 'https://eventos-identity-frontend.vercel.app'
 
@@ -199,6 +220,7 @@ export default function App() {
   const [checking, setChecking] = useState(true)
   const [sessionCheckFailed, setSessionCheckFailed] = useState(false)
   const [directLayoutId] = useState<string | null>(() => getLayoutIdFromPath())
+  const [view3dId] = useState<string | null>(() => get3dIdFromPath())
   // Ruta plana `/callback#code=...`: handoff de un solo uso emitido por
   // Identity al clickear el tile de este módulo (ver CallbackScreen). Path
   // fijo por lo que window.location.pathname no cambia durante la vida de
@@ -267,10 +289,10 @@ export default function App() {
   }, [orgId])
 
   useEffect(() => {
-    if (!checking && !user && directLayoutId && !sessionCheckFailed) {
+    if (!checking && !user && (directLayoutId || view3dId) && !sessionCheckFailed) {
       window.location.replace(`${IDENTITY_URL}?redirect=${window.location.href}`)
     }
-  }, [checking, user, directLayoutId, sessionCheckFailed])
+  }, [checking, user, directLayoutId, view3dId, sessionCheckFailed])
 
   // Once a session is confirmed, drop the `/callback` segment from the
   // address bar so it doesn't stick around (see getLayoutIdFromPath above).
@@ -371,12 +393,18 @@ export default function App() {
   } else if (sessionCheckFailed && !user) {
     content = <SessionFailedScreen />
   } else if (!user) {
-    content = directLayoutId ? <RedirectingScreen /> : <LoginScreen />
+    content = directLayoutId || view3dId ? <RedirectingScreen /> : <LoginScreen />
   } else {
     content = (
       <OrgStatusGuard status={orgStatus} onRefresh={refreshOrgStatus}>
         <ModuleAccessGuard orgId={orgId}>
-          {view === 'dashboard' ? (
+          {view3dId ? (
+            <View3DBoundary>
+              <Suspense fallback={<CheckingScreen />}>
+                <Viewer3DPage layoutId={view3dId} />
+              </Suspense>
+            </View3DBoundary>
+          ) : view === 'dashboard' ? (
             <LayoutDashboard
               layouts={layouts}
               loading={dashboardLoading}
