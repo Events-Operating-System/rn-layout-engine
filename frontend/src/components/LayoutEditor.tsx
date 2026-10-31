@@ -173,6 +173,14 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   const [venueOpen, setVenueOpen] = useState(false)
   const [calibration, setCalibration] = useState<{ measuredM: number; anchor: { x: number; y: number } } | null>(null)
   const [calibrationReal, setCalibrationReal] = useState('')
+  // El clic en el canvas que abre el diálogo de calibrar se queda con el foco;
+  // se le pasa al campo un instante después, ya con el diálogo en pantalla.
+  const calibrationInputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (!calibration) return
+    const timer = window.setTimeout(() => calibrationInputRef.current?.focus(), 80)
+    return () => window.clearTimeout(timer)
+  }, [calibration])
 
   useEffect(() => {
     if (!layoutIdToLoad) {
@@ -766,8 +774,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             <label className="block text-[11px] text-slate-400 mb-4">
               {t.calibrateReal}
               <input
-                autoFocus
-                ref={el => { if (el && document.activeElement !== el) setTimeout(() => el.focus(), 0) }}
+                ref={calibrationInputRef}
                 type="number" min={0} step={0.01}
                 onKeyDown={e => { if (e.key === 'Escape') { setCalibration(null); setTool('pointer') } }}
                 value={calibrationReal}
