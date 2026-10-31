@@ -489,13 +489,15 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           prevClick && now - prevClick.time < 400 &&
           Math.hypot(pos.x - prevClick.x, pos.y - prevClick.y) < 6
         ) {
-          // The first of these two clicks already committed a vertex at
-          // ~this same spot — drop it so we don't close on a degenerate
-          // zero-length edge.
+          // El primer clic del doble clic ya puso un vértice acá: es el
+          // último punto y se conserva. Solo se descarta si quedó repetido
+          // encima del anterior (doble clic sobre el último vértice ya puesto).
           // Doble clic: polígono cerrado; muro y curva abiertos. (El arco
           // termina solo con su tercer clic.)
           if (activeTool !== 'arc') {
-            finalizePolygon(pts.slice(0, -1), activeTool === 'polygon')
+            const n = pts.length
+            const dup = n >= 2 && Math.hypot(pts[n - 1].x - pts[n - 2].x, pts[n - 1].y - pts[n - 2].y) < 6 / viewport.scale
+            finalizePolygon(dup ? pts.slice(0, -1) : pts, activeTool === 'polygon')
             return
           }
         }
