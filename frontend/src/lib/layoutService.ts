@@ -212,11 +212,18 @@ export const layoutService = {
     if (error) throw error
   },
 
+  // Archivar ("Eliminar"). Si la RLS no deja (rol sin "borrar"), el UPDATE
+  // no falla: afecta 0 filas. Por eso se pide la fila de vuelta y, si no
+  // vuelve, se trata como rechazo de permisos.
   async delete(id: string): Promise<void> {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('layouts')
       .update({ is_archived: true })
       .eq('id', id)
+      .select('id')
     if (error) throw error
+    if (!data || data.length === 0) {
+      throw { code: '42501', message: 'LAYOUT_PERM: no tienes permiso para borrar planos' }
+    }
   }
 }
