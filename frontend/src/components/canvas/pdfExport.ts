@@ -194,7 +194,11 @@ export function buildLayoutPdf(p: LayoutPdfParams): LayoutPdfResult | null {
     if (!isPolygon && !isWall && w > 7 && h > 3.5) {
       const name = getAssetName(p.lang, el.name)
       const size = Math.min(3, Math.max(1.4, Math.min(w, h) / 4))
-      const fs = fitSize(doc, name, size, w * (isCircle || isOval || isTree ? 0.68 : 0.9), true)
+      const maxW = w * (isCircle || isOval || isTree ? 0.68 : 0.9)
+      const fs = fitSize(doc, name, size, maxW, true)
+      // Si ni con la letra mínima entra, mejor sin nombre que encimado.
+      doc.setFontSize(fs * PT_PER_MM)
+      if (doc.getTextWidth(name) > maxW) continue
       const [cx, cy] = toPage(w / 2, h / 2)
       let ang = ((el.rotation % 360) + 360) % 360
       if (ang > 90 && ang < 270) ang -= 180
@@ -203,7 +207,11 @@ export function buildLayoutPdf(p: LayoutPdfParams): LayoutPdfResult | null {
         const [nx, ny] = toPage(w / 2, h / 2 - fs * 0.6)
         const [dx, dy] = toPage(w / 2, h / 2 + fs * 0.75)
         labels.push({ s: name, x: nx, y: ny, size: fs, angle: ang, bold: true, color })
-        labels.push({ s: `${el.width}m × ${el.height}m`, x: dx, y: dy, size: Math.max(1.3, fs - 0.4), angle: ang, bold: false, color: isTree ? '#f1f5f9' : '#555555' })
+        const dims = `${el.width}m × ${el.height}m`
+        const ds = Math.max(1.3, fs - 0.4)
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(ds * PT_PER_MM)
+        if (doc.getTextWidth(dims) <= maxW) labels.push({ s: dims, x: dx, y: dy, size: ds, angle: ang, bold: false, color: isTree ? '#f1f5f9' : '#555555' })
       } else {
         labels.push({ s: name, x: cx, y: cy, size: fs, angle: ang, bold: true, color })
       }
