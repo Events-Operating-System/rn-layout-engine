@@ -707,6 +707,45 @@ Recorriendo con W a la altura de una persona:
 
 **Nada grande ni irreversible quedó decidido.** Lo único que requiere a Javier es volver a iniciar sesión en QA para repetir las pruebas en la app.
 
+### Parte A del pedido del 2026-11-01 — Recorte del fondo, alturas 3D, luz y mantel
+
+**1. Recortar el plano del local.** En "Plano del local" → **✂ Recortar**: se arrastra sobre la imagen original para quedarse con el área útil (sin cajetín, logos ni márgenes del arquitecto). "Quitar recorte" vuelve a la imagen entera.
+- El archivo original no se toca: el recorte (0–1 de la imagen) va en `meta.background.crop`, así que entra en las versiones. La parte recortada queda **en el mismo lugar del plano** (recortar no mueve el dibujo; volver a recortar parte siempre de la imagen entera; calibrar un fondo recortado conserva el recorte).
+- Se aplica en el editor, el PNG, el PDF (el JPEG del fondo se toma del recorte) y el 3D (textura recortada).
+
+**2. Alturas reales en 3D.** Cada pieza tiene un **tipo** (mesa, silla, tarima, pista, barra, pantalla, muro, carpa, módulo de servicio, valla, torre/truss, vehículo, otra pieza) y la altura de cada tipo es **ajuste de la org** (Administración → Organización → Layout → "Alturas en la vista 3D"; migración `20261101090000`, claves `h3d_*`, desde la versión viva de `org_settings_schema()` con candado md5; ROLLBACK: valores por defecto, owner guarda, negativo y texto rechazados, viewer rechazado, otros grupos idénticos). En **Propiedades → Altura 3D** se puede escribir otra para una pieza (vacío = la del tipo, que se muestra como sugerencia).
+- Por defecto (m): mesa 0,75 · silla 0,9 (asiento 0,45) · tarima 0,6 · pista 0,05 · barra 1,1 · pantalla 3 · muro 3 · carpa 3 (translúcida) · servicios 2,6 · vallas 1,1 · torres 6 · vehículos 3 · otras 0,9.
+- El tipo sale de la forma, la categoría y palabras del nombre en español e inglés ("Mesa de dulces" → mesa, "Escenario 23 x 5" → tarima, "Pantalla Led" → pantalla, "Camion" → vehículo, "Torre" → torre).
+- **Las zonas grandes** (estructuras de más de 150 m², como las "Zona 1/2/3" de 107 × 37 m del plano más grande de JBD) y las formas sueltas quedan como **marcas en el piso** en lugar de bloques de 3 m. Era el "bloque grande" demasiado alto.
+
+**3. Luz del 3D.** Cielo gris azulado claro, luz de ambiente pareja con un sol suave y piso claro con la grilla bien visible. El plano del local en el piso con más presencia.
+
+**4. Color de mesas → mantel.** El 3D pintaba **todas las mesas con un gris fijo** (`#e5e7eb`) e ignoraba su color: corregido.
+- El color de una mesa es el color del **MANTEL**: en Propiedades de la mesa, sección **"Mantel"** con color y **tipo/tela** opcional (sugerencias: Hasta el piso, Corto, Lino, Satén, Spandex…). En 3D, el mantel largo llega al piso y el corto deja ver el pie. El color sale en el canvas, PNG y PDF.
+- **Sillas:** sección **"Silla"** con **tipo** (Tiffany, Crossback, Plegable, Phoenix, Ghost… o texto libre) y color.
+- **Un conjunto mesa + sillas se cambia entero:** al elegir la mesa de un conjunto (o una selección), aparece "Mesas: N · sillas: M. Se cambian todas de una vez" con mantel (color, tipo/tela) y sillas (tipo, color). Una entrada de deshacer.
+
+**Pruebas:** 13 tests nuevos (alturas por tipo con nombres reales, zonas como piso, altura de la org y la escrita a mano, mantel y sillas del conjunto, lo bloqueado no cambia, recorte en el mismo lugar, quitar recorte, recorte que es la imagen entera, calibrar recortado). Total en Layout: 120; Administración: 119.
+- **En la app real** (la sesión del navegador ahora es la cuenta de Javier en JBD, así que **solo mirando**, sin guardar nada):
+  - `/3d/` del plano más grande de JBD: escena clara, zonas planas en el piso, vehículos a 3 m, 120 cuadros por segundo.
+  - Plano nuevo **sin guardar** (no escribe en la base): mesa de 10 con sillas → mantel blanco "Satén corto", sillas Tiffany moradas desde la sección del conjunto → en 2D y en "Ver en 3D" la mesa sale blanca y las sillas moradas.
+  - De paso, **el diálogo de exportar y el PNG/PDF de la selección en la app real** (pendiente del bloque 8): A4 apaisado por defecto, "Lo seleccionado (11)", "Layout - v1.pdf" de 6 KB y "Layout - v1.png" de 131 KB, sin errores.
+- **El recorte** se probó con páginas locales que montan los módulos reales (canvas, PDF, 3D y el diálogo) con el fondo del plano QA, porque subir un fondo en la sesión de JBD sería escribir en JBD. Falta probarlo de punta a punta en QA cuando vuelva esa sesión.
+
+Capturas:
+
+![3D: luz clara y alturas (plano más grande de JBD)](img/bloqueA-3d-luz-alturas.jpg)
+
+![3D: mantel blanco y sillas moradas](img/bloqueA-3d-mantel.jpg)
+
+![Recortar el plano del local](img/bloqueA-recorte-dialogo.jpg)
+
+![Fondo recortado en el editor](img/bloqueA-recorte-canvas.jpg)
+
+![Fondo recortado en el PDF](img/bloqueA-recorte-pdf.jpg)
+
+**Decidido sin preguntar (menor, revisar):** el color de la mesa *es* el del mantel (no un campo aparte); tipo de silla y tipo/tela del mantel como texto libre con sugerencias (no una lista cerrada); "corto" en el texto del mantel cambia el 3D; las zonas de más de 150 m² se dibujan en el piso; el tipo de pieza se deduce del nombre.
+
 ---
 
 ## 6.1 Decisiones de Javier sobre los bloques 1 y 2 (2026-10-31, segunda tanda)
@@ -740,7 +779,7 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 | `clientHide*` (Vista cliente) | técnica y notas | 6 |
 | `pdf_a3` / `pdf_landscape` (hoja del PDF) | A4 apaisado | 8 |
 
-**Siguiente:** bloque 9, pasos siguientes del 3D (modelos CC0 para piezas especiales, choques, cotas en 3D). Bloques 3 a 8 y el primer paso del 9 hechos (ver §6 y el reporte §6.2).
+**Siguiente:** espera el OK de Javier sobre la §8 (lista de materiales). Hechos: bloques 3 a 8, primer paso del 9 y la parte A del 2026-11-01 (recorte, alturas 3D, luz, mantel).
 
 ---
 
@@ -799,3 +838,52 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 - **Datos:** consultas de solo lectura y en agregado (conteos por nombre, forma, categoría, rotación, vértices y dibujos) sobre `public.layouts`, `custom_assets` y `eventos.events` del proyecto `rn-layout-engine-v2`. Ningún UPDATE ni INSERT en JBD.
 - **Navegador:** sitio de producción con la cuenta QA (`jbambaren@mettal.io`, org "QA Superadmin — Aprobar"). El plano de prueba no se guardó. La sesión se cerró al terminar.
 - **No medido:** el rendimiento real con 900+ piezas (QA no tiene un plano de ese tamaño). Queda como tarea del punto 12 de §4.
+
+---
+
+## 8. Del plano a la lista de materiales — auditoría y propuesta (2026-11-01, SIN CONSTRUIR, espera OK de Javier)
+
+**Objetivo:** que el plano cuente lo que hay (sillas por tipo y color, mesas por tipo, manteles por color y tela, tarimas y pista en m², barras en metros, etc.) y arme la lista que va a **Inventarios** (reserva para el evento) y a **Ventas** (presupuesto).
+
+### 8.1 Qué hay hoy (revisado en la base, solo lectura)
+
+| Módulo | Qué existe | Lo que importa para esto |
+|---|---|---|
+| **Layout** | Piezas con nombre libre (`elements` en `public.layouts`), categoría, medidas, y desde hoy tipo de silla, mantel (color + tipo/tela) y conjuntos mesa+sillas. Biblioteca por org (`custom_assets`). Versiones (`layout_versions`, v1, v2…). El plano se vincula a un evento (`eventos.events.layout_id`). | **Ninguna pieza está vinculada a un ítem de Inventarios.** Los nombres varían por org ("Round Table 8" usado como silla, "Mesa de dulces", "Camion"). |
+| **Inventarios** | `inventarios.items` (stock total/actual, fuera de servicio, `unit`, `precio_alquiler`, proveedor), `reservations` (por ítem y evento, con fechas; estados pending / confirmed / returned / cancelled / expired), `movements`, `providers`. La base **rechaza una reserva sin stock** (trigger `check_reservation_availability`, error INV020 con quién tiene comprometidas las unidades) y calcula disponibilidad por fechas con días de margen (`calc_disponibilidad`, ajuste `reservation_buffer_days`). Confirmar una reserva hace la salida (`cambiar_estado_reserva`). | Ya resuelve stock y conflictos de fechas. **Las reservas no guardan de dónde vienen** (no hay columna de origen), así que no se puede saber cuáles creó un plano. |
+| **Ventas** | `ventas.quotes` con código y **versión** (borrador / enviado / aprobado / rechazado), `quote_items` (cantidad, precio unitario, sección, `origen`), foto del aprobado (`quote_approvals`), historial (`quote_change_log`). **El aprobado está bloqueado en la base** (VEN030/VEN031: "crea una versión nueva"). El evento apunta a su presupuesto (`events.quote_id`). | El bloqueo ya existe: Layout nunca podría tocar un aprobado aunque quisiera. Hay que **proponer una versión nueva**. |
+| **Eventos** | Orden de trabajo (`work_order_sections/items`, con proveedor). | Destino natural de lo que se alquila a terceros y del armado. |
+
+### 8.2 Propuesta
+
+**a. Pieza → ítem de Inventarios (mapeo por org).** Sí hace falta: los nombres de Layout no son los de Inventarios y cambian entre orgs.
+- Tabla nueva **`public.layout_item_links`** (por org): *qué pieza* (pieza del catálogo, asset de la biblioteca de la org, o una regla "silla tipo X color Y" / "mantel color X tela Y, mesa de 1,8 m") → *qué ítem* (`inventarios.items.id`) y *cuánto por pieza* (1 silla; un conjunto "mesa de 10" = 1 mesa + 10 sillas + 1 mantel; la tarima por m²; la barra por metro lineal).
+- **Dónde se configura:** en Layout, biblioteca → "Vincular con Inventarios", con sugerencias por nombre parecido. Lo puede editar quien tenga Layout "editar" **e** Inventarios "ver" (para elegir ítems). Las piezas sin vincular aparecen en la lista como "sin vincular", nunca se descartan.
+
+**b. Si no alcanza el stock.** Se usa `calc_disponibilidad` para las fechas del evento (con los días de margen de la org) y se muestra *necesario / disponible / falta*, con quién tiene comprometidas las unidades (ya lo da la base). Para lo que falta: **"Alquilar a proveedor"** (elegir de `inventarios.providers`, con su precio de alquiler). Esa línea **no se reserva** en el inventario propio: va a Ventas como costo y a la orden de trabajo del evento con el proveedor. La base ya impide reservar de más (INV020), así que nunca quedaría stock negativo por un plano.
+
+**c. Versiones del plano (v3 → v4) sin duplicar.** Una **lista de materiales por evento**, atada a la versión del plano que la generó (`layout_material_lists` + líneas). Cada reserva creada desde la lista guarda su origen (**requiere una columna nueva en `inventarios.reservations`**: `origen = 'layout'` + id de la línea). Al pasar a v4 se calcula la **diferencia** contra la lista confirmada: se **ajusta la cantidad** de la reserva existente (o se cancela la que sobra), nunca se crea otra para el mismo ítem. Si la reserva ya salió del almacén (confirmada), no se toca: se avisa para que Inventarios decida.
+
+**d. Ventas.** Desde la lista: "Enviar a presupuesto".
+- Si el presupuesto del evento está en **borrador**: se agregan o actualizan las líneas con `origen = 'layout'` (cantidades del plano; los precios los pone Ventas con sus reglas).
+- Si está **aprobado** (bloqueado): se ofrece **"Crear versión nueva del presupuesto"** (copia del aprobado + las diferencias, en borrador), mostrando qué cambia. **Nunca se toca el aprobado**; la base ya lo impide (VEN030).
+
+**e. Quién confirma.** Nada se reserva solo. La lista nace en **borrador**; alguien con permiso la revisa y toca **"Confirmar y reservar"**. Propongo que lo pueda hacer quien tenga Inventarios **"crear"** (reservas); Layout solo arma y propone. Las reservas se crean como **pendientes**: la salida del almacén la sigue confirmando Inventarios como hoy.
+
+### 8.3 Bloques propuestos
+
+| # | Bloque | Qué incluye | Toca otros módulos | Esfuerzo |
+|---|---|---|---|---|
+| L1 | **Conteo en el plano** | Panel "Materiales": sillas por tipo y color, mesas por tipo y tamaño, manteles por color, tela y tamaño, tarimas y pista en m², barras en metros, el resto por pieza. Exportar en el PDF (hoja de materiales) y a CSV. Solo lee el plano. | No | 1 sesión |
+| L2 | **Vincular con Inventarios** | `layout_item_links`, pantalla de vínculos en la biblioteca, sugerencias por nombre, permisos. | Lee Inventarios | 1–2 sesiones |
+| L3 | **Disponibilidad y faltantes** | Necesario / disponible / falta para las fechas del evento; "alquilar a proveedor". | Lee Inventarios | 1 sesión |
+| L4 | **Lista confirmada y reservas** | Lista por evento y versión del plano, "Confirmar y reservar" (pendientes), diferencias v3 → v4 sin duplicar. | **Escribe en Inventarios** (columna de origen en reservas; coordinar con la sesión de Inventarios) | 2 sesiones |
+| L5 | **Presupuesto** | Líneas al borrador o versión nueva si está aprobado; orden de trabajo para proveedores. | **Escribe en Ventas y Eventos** (coordinar) | 1–2 sesiones |
+
+**Decisiones que necesito antes de construir:**
+1. ¿Empezamos por L1 (solo contar, sin tocar otros módulos)? *Recomiendo: sí.*
+2. ¿Quién confirma la lista y reserva: Inventarios "crear", o una facultad nueva en Layout? *Recomiendo: Inventarios "crear".*
+3. Unidades de tarima/pista/barra: ¿m² y metro lineal, o piezas estándar (tarima de 1,22 × 2,44 m)? *Recomiendo: lo dice el vínculo de cada ítem (por pieza, m² o metro).*
+4. Lo que falta: ¿se alquila a proveedor desde Layout o solo se avisa y lo resuelve Inventarios? *Recomiendo: Layout propone, Inventarios/Producción confirma.*
+5. Los cambios en Inventarios (columna de origen en reservas) y en Ventas (líneas con origen 'layout'): ¿los hago yo coordinando con esas sesiones, o los pido a cada módulo? *Recomiendo: los pide Layout y los hace cada módulo, para no pisar trabajo en curso.*
+
