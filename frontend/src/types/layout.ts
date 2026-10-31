@@ -29,7 +29,13 @@ export const CATEGORY_LABELS: Record<AssetCategory, string> = {
   primitive: 'Shapes',
 }
 
-export type ElementShape = 'rect' | 'circle' | 'oval' | 'rounded-rect' | 'tree' | 'polygon' | 'wall'
+export type ElementShape = 'rect' | 'circle' | 'oval' | 'rounded-rect' | 'tree' | 'polygon' | 'wall' | 'path'
+
+// Cómo es cada lado de una pieza con vértices (bloque 7, lib/curves.ts).
+export type Segment =
+  | { kind: 'line' }
+  | { kind: 'arc'; bulge: number }
+  | { kind: 'bezier'; c1: [number, number]; c2: [number, number] }
 
 export interface LayoutElement {
   id: string
@@ -66,6 +72,10 @@ export interface LayoutElement {
   groupId?: string
   // Capa elegida a mano. Sin definir: la que toca por categoría (lib/layers).
   layer?: LayerId
+  // Lados curvos (polígono, muro o curva 'path'). Sin definir: todos rectos.
+  // shape 'path' = curva libre o arco: abierta se dibuja como trazo de
+  // `thickness`; cerrada, con relleno.
+  segments?: Segment[]
 }
 
 // Capas fijas (bloque 6): perímetro/estructura, mobiliario, decoración,
@@ -96,6 +106,7 @@ export interface AssetTemplate {
   // restored instead of a plain bounding-box rectangle.
   points?: number[]
   seats?: number
+  segments?: Segment[]
 }
 
 // One piece inside a composite ('group') custom asset. dx/dy are meters
@@ -121,11 +132,14 @@ export interface GroupChild {
   points?: number[]
   seats?: number
   layer?: LayerId
+  segments?: Segment[]
+  closed?: boolean
+  thickness?: number
 }
 
 // ── Drawing primitives ────────────────────────────────────────────────────────
 
-export type DrawingTool = 'pointer' | 'hand' | 'line' | 'arrow' | 'text' | 'polygon' | 'measure' | 'wall' | 'dimension' | 'calibrate'
+export type DrawingTool = 'pointer' | 'hand' | 'line' | 'arrow' | 'text' | 'polygon' | 'measure' | 'wall' | 'dimension' | 'calibrate' | 'arc' | 'curve'
 
 export interface DrawingPrimitive {
   id: string

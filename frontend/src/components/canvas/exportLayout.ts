@@ -4,6 +4,7 @@
 import type Konva from 'konva'
 import jsPDF from 'jspdf'
 import type { LayoutElement, DrawingPrimitive, LayoutMeta, VenueBackground } from '@/types/layout'
+import { flattenPath, sideInfo } from '@/lib/curves'
 import { formatMeters } from '@/lib/dimension'
 import { FOOTER_HEIGHT_PX } from '@/components/FooterLegend'
 import { exportFileName } from '@/lib/layoutVersion'
@@ -144,8 +145,9 @@ export function exportLayoutPdf(params: {
       const isTree = el.shape === 'tree'
       const isCircle = el.shape === 'circle'
       const isOval = el.shape === 'oval'
-      const isPolygon = el.shape === 'polygon'
-      const isWall = el.shape === 'wall'
+      // Curva cerrada = polígono con relleno; abierta = trazo como un muro.
+      const isPolygon = el.shape === 'polygon' || (el.shape === 'path' && !!el.closed)
+      const isWall = el.shape === 'wall' || (el.shape === 'path' && !el.closed)
 
       // Color: árbol=verde, color custom respetado, resto blanco
       const DEFAULT_COLORS = ['#6366f1','#0891b2','#f59e0b','#ef4444','#22c55e','#a855f7','#16a34a']
@@ -182,14 +184,14 @@ export function exportLayoutPdf(params: {
         ctx.fill()
         ctx.stroke()
       } else if (isWall && el.points && el.points.length >= 4) {
-        // Muro: trazo negro con el grosor real + medida de cada tramo.
-        const pts = el.points.map(v => v * PPM)
-        const n = pts.length / 2
-        const closed = !!el.closed && n >= 3
+        // Muro: trazo negro con el grosor real + medida de cada tramo (con
+        // sus curvas: polilínea fina y el largo real de cada lado).
+        const closed = !!el.closed && el.points.length >= 6
+        const pts = flattenPath(el.points, el.segments, closed).map(v => v * PPM)
         ctx.strokeStyle = '#111111'
         ctx.lineWidth = Math.max(1, (el.thickness ?? 0.15) * PPM)
-        ctx.lineJoin = 'miter'
-        ctx.lineCap = 'square'
+        ctx.lineJoin = el.segments ? 'round' : 'miter'
+        ctx.lineCap = el.segments ? 'round' : 'square'
         ctx.beginPath()
         ctx.moveTo(pts[0], pts[1])
         for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1])
@@ -199,30 +201,28 @@ export function exportLayoutPdf(params: {
         ctx.font = '9px ui-monospace, monospace'
         ctx.textAlign = 'center'
         ctx.textBaseline = 'middle'
-        const segs = closed ? n : n - 1
-        for (let i = 0; i < segs; i++) {
-          const j = (i + 1) % n
-          const x1 = pts[i * 2], y1 = pts[i * 2 + 1], x2 = pts[j * 2], y2 = pts[j * 2 + 1]
-          const len = Math.hypot(x2 - x1, y2 - y1)
-          if (len < 20) continue
+        for (const side of sideInfo(el.points, el.segments, closed)) {
+          if (side.length * PPM < 20) continue
           const off = ctx.lineWidth / 2 + 7
-          // Rotada a lo largo del tramo (nunca cabeza abajo), como en pantalla.
-          let ang = Math.atan2(y2 - y1, x2 - x1)
+          // Rotada a lo largo del lado (nunca cabeza abajo), como en pantalla.
+          let ang = side.angle
           if (ang > Math.PI / 2 || ang < -Math.PI / 2) ang += Math.PI
           ctx.save()
-          ctx.translate((x1 + x2) / 2 - ((y2 - y1) / len) * off, (y1 + y2) / 2 + ((x2 - x1) / len) * off)
+          ctx.translate(side.mx * PPM - Math.sin(side.angle) * off, side.my * PPM + Math.cos(side.angle) * off)
           ctx.rotate(ang)
-          ctx.fillText(formatMeters(len / PPM, decimals), 0, 0)
+          ctx.fillText(formatMeters(side.length, decimals), 0, 0)
           ctx.restore()
         }
-      } else if (isPolygon && el.points && el.points.length >= 6) {
+      } else if (isPolygon && el.points && el.points.length >= 4) {
         // el.points are meter offsets relative to (x,y) — same convention
         // as w/h above, so *PPM gives the same local pixel space already
-        // established by the translate/rotate/flip block.
+        // established by the translate/rotate/flip block. Con lados curvos,
+        // la polilínea fina (la misma que en pantalla).
+        const fp = flattenPath(el.points, el.segments, true)
         ctx.beginPath()
-        ctx.moveTo(el.points[0] * PPM, el.points[1] * PPM)
-        for (let i = 2; i < el.points.length; i += 2) {
-          ctx.lineTo(el.points[i] * PPM, el.points[i + 1] * PPM)
+        ctx.moveTo(fp[0] * PPM, fp[1] * PPM)
+        for (let i = 2; i < fp.length; i += 2) {
+          ctx.lineTo(fp[i] * PPM, fp[i + 1] * PPM)
         }
         ctx.closePath()
         ctx.fill()

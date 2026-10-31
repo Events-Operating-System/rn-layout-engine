@@ -4,6 +4,7 @@ import { Rect, Circle, Ellipse, Text, Group, Shape, Line } from 'react-konva'
 import type { LayoutElement } from '@/types/layout'
 import { elementAreaMeters } from '@/lib/drawingMath'
 import { formatMeters } from '@/lib/dimension'
+import { flattenPath, sideInfo } from '@/lib/curves'
 import { PIXELS_PER_METER } from './constants'
 
 // ── Individual placed asset ───────────────────────────────────────────────────
@@ -37,8 +38,10 @@ export default function AssetShape({
   const isOval = element.shape === 'oval'
   const isRoundedRect = element.shape === 'rounded-rect'
   const isTree = element.shape === 'tree'
-  const isPolygon = element.shape === 'polygon'
-  const isWall = element.shape === 'wall'
+  // Curva cerrada: se dibuja como polígono (relleno); abierta, como trazo.
+  const isPath = element.shape === 'path'
+  const isPolygon = element.shape === 'polygon' || (isPath && !!element.closed)
+  const isWall = element.shape === 'wall' || (isPath && !element.closed)
   const radius = Math.min(pw, ph) / 2
   const fontSize = Math.min(13, Math.max(8, Math.min(pw, ph) / 4))
   // Bounding-box dims would be misleading printed over an irregular
@@ -55,7 +58,7 @@ export default function AssetShape({
     node.scaleX(1)
     node.scaleY(1)
     // Un muro recto puede tener caja de ancho o alto ~0: no se fuerza a 0,5 m.
-    const minSize = isWall ? 0.01 : 0.5
+    const minSize = isWall || isPath ? 0.01 : 0.5
     const newW = Math.max(minSize, Math.round((element.width * scaleX) * 100) / 100)
     const newH = Math.max(minSize, Math.round((element.height * scaleY) * 100) / 100)
     onTransformEnd(
@@ -64,7 +67,7 @@ export default function AssetShape({
       newW, newH,
       Math.round(node.rotation()),
     )
-  }, [element.width, element.height, onTransformEnd, isWall])
+  }, [element.width, element.height, onTransformEnd, isWall, isPath])
 
   const shapeStyle = {
     fill: element.color,
@@ -110,7 +113,7 @@ export default function AssetShape({
         ) : isWall ? (
           <WallShape element={element} isSelected={isSelected} decimals={decimals} displayName={displayName} />
         ) : isPolygon ? (
-          <Line points={(element.points ?? []).map(v => v * PIXELS_PER_METER)} closed {...shapeStyle} />
+          <Line points={flattenPath(element.points ?? [], element.segments, true).map(v => v * PIXELS_PER_METER)} closed {...shapeStyle} />
         ) : isTree ? (
           <Group>
             <Circle x={pw / 2} y={ph / 2} radius={radius} {...shapeStyle} />
@@ -172,23 +175,21 @@ function WallShape({ element, isSelected, decimals, displayName }: {
   decimals: number
   displayName: string
 }) {
-  const pts = (element.points ?? []).map(v => v * PIXELS_PER_METER)
+  const raw = element.points ?? []
+  const closed = !!element.closed && raw.length >= 6
+  // Con lados curvos se dibuja la polilínea fina; las medidas van en el
+  // medio de cada lado (sobre la curva) con su largo real.
+  const pts = flattenPath(raw, element.segments, closed).map(v => v * PIXELS_PER_METER)
   const thick = (element.thickness ?? 0.15) * PIXELS_PER_METER
-  const closed = !!element.closed && pts.length >= 6
-  const n = pts.length / 2
-  const segs = closed ? n : n - 1
   const labels: { x: number; y: number; rot: number; text: string }[] = []
-  for (let i = 0; i < segs; i++) {
-    const j = (i + 1) % n
-    const x1 = pts[i * 2], y1 = pts[i * 2 + 1], x2 = pts[j * 2], y2 = pts[j * 2 + 1]
-    const len = Math.hypot(x2 - x1, y2 - y1)
-    if (len < 20) continue
-    let ang = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI
+  for (const side of sideInfo(raw, element.segments, closed)) {
+    if (side.length * PIXELS_PER_METER < 20) continue
+    let ang = (side.angle * 180) / Math.PI
     if (ang > 90 || ang < -90) ang += 180
-    // corrido hacia afuera del trazo, perpendicular al tramo
-    const nx = -(y2 - y1) / len, ny = (x2 - x1) / len
+    // corrido hacia afuera del trazo, perpendicular al lado
+    const nx = -Math.sin(side.angle), ny = Math.cos(side.angle)
     const off = thick / 2 + 7
-    labels.push({ x: (x1 + x2) / 2 + nx * off, y: (y1 + y2) / 2 + ny * off, rot: ang, text: formatMeters(len / PIXELS_PER_METER, decimals) })
+    labels.push({ x: side.mx * PIXELS_PER_METER + nx * off, y: side.my * PIXELS_PER_METER + ny * off, rot: ang, text: formatMeters(side.length, decimals) })
   }
   return (
     <Group>
@@ -197,8 +198,8 @@ function WallShape({ element, isSelected, decimals, displayName }: {
         closed={closed}
         stroke={element.color}
         strokeWidth={Math.max(1, thick)}
-        lineJoin="miter"
-        lineCap="square"
+        lineJoin={element.segments ? 'round' : 'miter'}
+        lineCap={element.segments ? 'round' : 'square'}
         fillEnabled={false}
         opacity={element.opacity ?? 1}
         hitStrokeWidth={Math.max(12, thick)}

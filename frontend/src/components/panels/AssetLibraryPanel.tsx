@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { CATEGORY_COLORS } from '@/types/layout'
 import type { LayoutSettings } from '@/lib/layoutSettings'
 import { DEFAULT_LAYOUT_SETTINGS } from '@/lib/layoutSettings'
+import { halfMoon } from '@/lib/curves'
 import { roundTableWithChairs, rectTableWithChairs, rectTableSeats, CHAIR_NAME } from '@/lib/seating'
 import type { AssetCategory, AssetTemplate, GroupChild } from '@/types/layout'
 import { useLang, getCategoryLabel, getAssetName } from '@/context/LangContext'
@@ -42,6 +43,12 @@ function withOrgSizes(templates: AssetTemplate[], s: LayoutSettings): AssetTempl
   return out
 }
 
+// Media luna (bloque 7): polígono con el lado curvo en arco exacto.
+function moon(w: number): Pick<AssetTemplate, 'defaultWidth' | 'defaultHeight' | 'shape' | 'points' | 'segments'> {
+  const h = halfMoon(w)
+  return { defaultWidth: h.width, defaultHeight: h.height, shape: 'polygon', points: h.points, segments: h.segments }
+}
+
 const ASSET_TEMPLATES: AssetTemplate[] = [
   // Stage
   { name: 'Main Stage',       category: 'stage',       defaultWidth: 20,  defaultHeight: 12  },
@@ -52,6 +59,7 @@ const ASSET_TEMPLATES: AssetTemplate[] = [
   { name: 'DJ Booth PRO',     category: 'stage',       defaultWidth: 4,   defaultHeight: 3   },
   { name: 'DJ Booth',         category: 'stage',       defaultWidth: 3,   defaultHeight: 2   },
   { name: 'Podium',           category: 'stage',       defaultWidth: 1.2, defaultHeight: 0.8 },
+  { name: 'Half-Moon Stage',  category: 'stage',       ...moon(8) },
   // Structure
   { name: 'Tent 10×10',       category: 'structure',   defaultWidth: 10,  defaultHeight: 10  },
   { name: 'Tent 20×20',       category: 'structure',   defaultWidth: 20,  defaultHeight: 20  },
@@ -89,6 +97,7 @@ const ASSET_TEMPLATES: AssetTemplate[] = [
   { name: 'Rounded Box',      category: 'primitive',   defaultWidth: 6,   defaultHeight: 4,  shape: 'rounded-rect' },
   { name: 'Tree',             category: 'primitive',   defaultWidth: 3,   defaultHeight: 3,  shape: 'tree',        defaultColor: '#16a34a' },
   { name: 'Square',           category: 'primitive',   defaultWidth: 4,   defaultHeight: 4,  shape: 'rect'         },
+  { name: 'Half Moon',        category: 'primitive',   ...moon(6) },
 ]
 
 const CATEGORY_ORDER: AssetCategory[] = [

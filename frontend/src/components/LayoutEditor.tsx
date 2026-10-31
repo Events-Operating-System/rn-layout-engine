@@ -10,7 +10,7 @@ import { useBackgroundImage } from '@/hooks/useBackgroundImage'
 import { calibrate as calibrateBackground } from '@/lib/venueBackground'
 import { formatMeters } from '@/lib/dimension'
 import LayoutCanvas, { type LayoutCanvasHandle } from '@/components/canvas/LayoutCanvas'
-import { useLang } from '@/context/LangContext'
+import { useLang, getAssetName } from '@/context/LangContext'
 import { useCanvasState } from '@/hooks/useCanvasState'
 import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
 import { useLayoutAutosave } from '@/hooks/useLayoutAutosave'
@@ -58,9 +58,12 @@ function buildGroupAsset(els: LayoutElement[]): {
     flipX: e.flipX,
     flipY: e.flipY,
     notes: e.notes || undefined,
-    points: e.shape === 'polygon' && e.points ? e.points.map(round2) : undefined,
+    points: (e.shape === 'polygon' || e.shape === 'wall' || e.shape === 'path') && e.points ? e.points.map(round2) : undefined,
     seats: e.seats || undefined,
     layer: e.layer,
+    segments: e.segments,
+    closed: e.closed,
+    thickness: e.thickness,
   }))
   return { width: round2(maxX - minX), height: round2(maxY - minY), children }
 }
@@ -80,7 +83,7 @@ interface Props {
 }
 
 export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLayoutForked, permissions = NO_LAYOUT_PERMISSIONS }: Props) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const canvasRef = useRef<LayoutCanvasHandle>(null)
   const [mobilePanel, setMobilePanel] = useState<'library' | 'properties' | null>(null)
   const [userId, setUserId] = useState<string>('')
@@ -116,7 +119,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     elements, selectedId, selectedIds, selectedElement,
     selectedDrawingId, selectedDrawing,
     viewport, selectElement, toggleSelectElement, selectElements, selectDrawing,
-    updateElement, updateElements, updateViewport, addElement, addGroup, addPolygon, addWall,
+    updateElement, updateElements, updateViewport, addElement, addGroup, addPolygon, addWall, addPath,
     deleteElement, deleteElements, duplicateElement, duplicateElements,
     bringToFront, sendToBack, rotateElements, alignElements, distributeElements, repeatInGrid,
     ungroupElements, groupTablesWithChairs, addTemplate,
@@ -436,9 +439,17 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   // element.name directo. Un polígono recién dibujado se llama 'Polígono'
   // (literal) — se ofrece vacío para forzar un nombre real.
   const handleRequestSaveAsAsset = useCallback((element: LayoutElement) => {
+    // Lados curvos, muros y curvas se guardan como conjunto de una pieza:
+    // así no se pierden segments, closed ni thickness.
+    if (element.segments || element.shape === 'wall' || element.shape === 'path') {
+      const { width, height, children } = buildGroupAsset([element])
+      setAssetTarget({ kind: 'group', count: 1, width, height, children })
+      setAssetName(getAssetName(lang, element.name))
+      return
+    }
     setAssetTarget({ kind: 'shape', element })
     setAssetName(element.name === 'Polígono' ? '' : element.name)
-  }, [])
+  }, [lang])
 
   // Guardar la selección múltiple como un asset compuesto ('group').
   const handleRequestSaveGroupAsAsset = useCallback(() => {
@@ -618,6 +629,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
       else if (e.key === 'a') setTool('arrow')
       else if (e.key === 't') setTool('text')
       else if (e.key === 'p') setTool('polygon')
+      else if (e.key === 'r') setTool('arc')
+      else if (e.key === 'b') setTool('curve')
       else if (e.key === 'm') setTool('measure')
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -829,6 +842,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onUpdateViewport={updateViewport}
             onAddPolygon={addPolygon}
             onAddWall={w => addWall(w, layoutSettings.wallThickness)}
+            onAddPath={addPath}
             dimensionDecimals={layoutSettings.dimensionDecimals}
             background={layoutMeta.background}
             backgroundImage={backgroundImage}

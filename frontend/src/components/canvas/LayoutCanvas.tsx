@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState, forwardRef, useImperativeHandle } from 'react'
+import { useRef, useCallback, useEffect, useState, useMemo, forwardRef, useImperativeHandle } from 'react'
 import { Stage, Layer, Line, Arrow, Rect, Circle, Ellipse, Text, Group, Shape, Transformer, Image as KonvaImage } from 'react-konva'
 import type Konva from 'konva'
 import type { LayoutElement, CanvasViewport, DrawingPrimitive, DrawingTool, LayoutMeta, VenueBackground } from '@/types/layout'
@@ -10,12 +10,16 @@ import { useLang, getAssetName } from '@/context/LangContext'
 import { fitViewportToContent } from '@/lib/fitViewport'
 import { PIXELS_PER_METER, RESIZE_ANCHORS, GRID_TOTAL_PX, MIN_SCALE, MAX_SCALE, CANVAS_CENTER_PX, DRAW_COLOR, DRAW_STROKE } from './constants'
 import { dragSet } from '@/lib/grouping'
+import { scaleSegments, bulgeFromThreePoints, smoothSegments, normalizePath, flattenPath, type NewPath } from '@/lib/curves'
 import { computeAlignmentGuides, findElementId } from './geometry'
 import { exportLayoutPng, exportLayoutPdf } from './exportLayout'
 import GridLines from './GridLines'
 import { DrawingShape, DrawingPreview } from './DrawingShape'
 import AssetShape from './AssetShape'
 import CanvasHud, { type DrawingReadout, type MeasurementResult } from './CanvasHud'
+
+// Herramientas que se dibujan clic a clic (vértices).
+const isVertexTool = (t: string) => t === 'polygon' || t === 'wall' || t === 'arc' || t === 'curve'
 
 // Se reexporta para quien ya lo importaba desde acá (PropertiesPanel).
 export { PIXELS_PER_METER }
@@ -56,6 +60,8 @@ interface LayoutCanvasProps {
   // Muro / perímetro del local (bloque 5): mismos puntos que el polígono;
   // closed = se cerró tocando el primer punto.
   onAddWall?: (wall: { x: number; y: number; width: number; height: number; points: number[]; closed: boolean }) => void
+  // Arco por 3 puntos o curva libre (bloque 7).
+  onAddPath?: (path: NewPath) => void
   // Decimales de las medidas de muros y cotas (ajuste de la org).
   dimensionDecimals?: number
   // Fondo del plano del local: ubicación (meta.background) + la imagen ya bajada.
@@ -84,7 +90,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       onSelect, onToggleSelect, onSelectMultiple, onUpdateElement, onUpdateElements, onUpdateViewport,
       onDeleteElement, onDeleteElements,
       activeTool, measureMode, drawings, onAddDrawing, onAddPolygon, layoutMeta, versionNumber,
-      onAddWall, dimensionDecimals = 2, background, backgroundImage, onUpdateBackground, onCalibrate,
+      onAddWall, onAddPath, dimensionDecimals = 2, background, backgroundImage, onUpdateBackground, onCalibrate,
       selectedDrawingId, onSelectDrawing, onDeleteDrawing, onUpdateDrawing,
       onPushHistory,
     }: LayoutCanvasProps,
@@ -418,7 +424,23 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
     const finalizePolygon = useCallback((pts: Point[], closed = true) => {
       const isWall = activeTool === 'wall'
-      if (pts.length >= (isWall ? 2 : 3)) {
+      const toM = (p: Point) => [p.x / PIXELS_PER_METER, p.y / PIXELS_PER_METER]
+      if (activeTool === 'arc') {
+        // inicio, fin y punto por donde pasa
+        if (pts.length === 3) {
+          const [a, b, m] = pts
+          const bulge = bulgeFromThreePoints(a, b, m)
+          if (Math.hypot(b.x - a.x, b.y - a.y) > 4) {
+            onAddPath?.({ kind: 'arc', closed: false, ...normalizePath([...toM(a), ...toM(b)], [{ kind: 'arc', bulge }], false) })
+          }
+        }
+      } else if (activeTool === 'curve') {
+        const isClosed = closed && pts.length >= 3
+        if (pts.length >= 2) {
+          const abs = pts.flatMap(toM)
+          onAddPath?.({ kind: 'curve', closed: isClosed, ...normalizePath(abs, smoothSegments(abs, isClosed), isClosed) })
+        }
+      } else if (pts.length >= (isWall ? 2 : 3)) {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
         for (const p of pts) {
           minX = Math.min(minX, p.x); minY = Math.min(minY, p.y)
@@ -443,7 +465,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       setPolygonPreviewEnd(null)
       setDrawingReadout(null)
       lastPolygonClickRef.current = null
-    }, [onAddPolygon, onAddWall, activeTool])
+    }, [onAddPolygon, onAddWall, onAddPath, activeTool])
 
     // ── Mouse down — pan OR drawing start ────────────────────────────────────
 
@@ -451,7 +473,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       const stage = stageRef.current
       if (!stage) return
 
-      if (activeTool === 'polygon' || activeTool === 'wall') {
+      if (isVertexTool(activeTool)) {
         const pos = stage.getRelativePointerPosition()
         if (!pos) return
         const pts = polygonPointsRef.current
@@ -470,9 +492,12 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           // The first of these two clicks already committed a vertex at
           // ~this same spot — drop it so we don't close on a degenerate
           // zero-length edge.
-          // Doble clic: polígono cerrado; muro abierto.
-          finalizePolygon(pts.slice(0, -1), activeTool !== 'wall')
-          return
+          // Doble clic: polígono cerrado; muro y curva abiertos. (El arco
+          // termina solo con su tercer clic.)
+          if (activeTool !== 'arc') {
+            finalizePolygon(pts.slice(0, -1), activeTool === 'polygon')
+            return
+          }
         }
         lastPolygonClickRef.current = { x: pos.x, y: pos.y, time: now }
 
@@ -481,9 +506,14 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           setPolygonPoints([pos])
           return
         }
+        // Arco: el tercer clic es el punto por donde pasa (sin snap de ángulo).
+        if (activeTool === 'arc' && pts.length === 2) {
+          finalizePolygon([...pts, pos], false)
+          return
+        }
         const first = pts[0]
         const closeThresholdPx = 10 / viewport.scale
-        if (pts.length >= 3 && Math.hypot(pos.x - first.x, pos.y - first.y) <= closeThresholdPx) {
+        if (activeTool !== 'arc' && pts.length >= 3 && Math.hypot(pos.x - first.x, pos.y - first.y) <= closeThresholdPx) {
           finalizePolygon(pts, true)
           return
         }
@@ -611,7 +641,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       const stage = stageRef.current
       if (!stage) return
 
-      if ((activeTool === 'polygon' || activeTool === 'wall') && polygonPointsRef.current.length > 0) {
+      if (isVertexTool(activeTool) && polygonPointsRef.current.length > 0) {
         const pos = stage.getRelativePointerPosition()
         if (pos) {
           const pts = polygonPointsRef.current
@@ -801,6 +831,20 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     )
 
     const cursor = activeTool === 'hand' ? 'grab' : activeTool !== 'pointer' ? 'crosshair' : 'default'
+    // Vista previa de arco y curva: la curva que quedaría con el cursor.
+    const curvePreview = useMemo(() => {
+      if (activeTool !== 'arc' && activeTool !== 'curve') return null
+      const pts = polygonPreviewEnd ? [...polygonPoints, polygonPreviewEnd] : polygonPoints
+      if (activeTool === 'arc') {
+        if (pts.length < 3) return null
+        const [a, b, m] = pts
+        return flattenPath([a.x, a.y, b.x, b.y], [{ kind: 'arc', bulge: bulgeFromThreePoints(a, b, m) }], false)
+      }
+      if (pts.length < 3) return null
+      const flat = pts.flatMap(p => [p.x, p.y])
+      return flattenPath(flat, smoothSegments(flat, false), false)
+    }, [activeTool, polygonPoints, polygonPreviewEnd])
+
     const elementInteractive = activeTool === 'pointer'
     const drawingsInteractive = activeTool === 'pointer' && !drawingsLocked
 
@@ -995,10 +1039,12 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                   // normalized to width/height), so a resize has to rescale
                   // them explicitly or the shape would snap back to its
                   // original size once the Transformer's scale resets to 1.
-                  if ((el.shape === 'polygon' || el.shape === 'wall') && el.points && el.points.length >= 4) {
+                  if ((el.shape === 'polygon' || el.shape === 'wall' || el.shape === 'path') && el.points && el.points.length >= 4) {
                     const scaleX = el.width !== 0 ? w / el.width : 1
                     const scaleY = el.height !== 0 ? h / el.height : 1
                     updates.points = el.points.map((v, i) => (i % 2 === 0 ? v * scaleX : v * scaleY))
+                    // Manijas de las curvas libres también; los arcos siguen siendo arcos.
+                    if (el.segments) updates.segments = scaleSegments(el.segments, scaleX, scaleY)
                   }
                   onUpdateElement(el.id, updates)
                 }}
@@ -1041,13 +1087,13 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
             {polygonPoints.length > 0 && (
               <>
                 <Line
-                  points={polygonPoints.flatMap(p => [p.x, p.y])}
+                  points={curvePreview ?? polygonPoints.flatMap(p => [p.x, p.y])}
                   stroke={DRAW_COLOR}
                   strokeWidth={DRAW_STROKE}
                   lineJoin="round"
                   listening={false}
                 />
-                {polygonPreviewEnd && (
+                {polygonPreviewEnd && !curvePreview && (
                   <Line
                     points={[
                       polygonPoints[polygonPoints.length - 1].x,

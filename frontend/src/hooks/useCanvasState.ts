@@ -5,6 +5,7 @@ import { alignUpdates, distributeUpdates, gridCopies, type AlignMode } from '@/l
 import { ungroupIds, detectTableChairGroups, groupIdsForCopy } from '@/lib/grouping'
 import { instantiateTemplate, type TemplatePayload } from '@/lib/templates'
 import { layerForNewPiece } from '@/lib/layers'
+import type { NewPath } from '@/lib/curves'
 
 const PIXELS_PER_METER = 20
 const MAX_HISTORY = 50
@@ -158,6 +159,7 @@ export function useCanvasState() {
         // Restored for custom polygon assets (see AssetTemplate.points);
         // undefined for every built-in template.
         ...(template.shape === 'polygon' && template.points ? { points: template.points } : {}),
+        ...(template.segments ? { segments: template.segments } : {}),
         ...(template.seats ? { seats: template.seats } : {}),
         ...(layerForNewPiece(template.name) ? { layer: layerForNewPiece(template.name) } : {}),
       }
@@ -204,7 +206,10 @@ export function useCanvasState() {
         ...(c.opacity !== undefined ? { opacity: c.opacity } : {}),
         ...(c.flipX ? { flipX: true } : {}),
         ...(c.flipY ? { flipY: true } : {}),
-        ...(c.shape === 'polygon' && c.points ? { points: c.points } : {}),
+        ...((c.shape === 'polygon' || c.shape === 'wall' || c.shape === 'path') && c.points ? { points: c.points } : {}),
+        ...(c.segments ? { segments: c.segments } : {}),
+        ...(c.closed !== undefined ? { closed: c.closed } : {}),
+        ...(c.thickness ? { thickness: c.thickness } : {}),
         ...(c.seats ? { seats: c.seats } : {}),
         ...((c.layer ?? layerForNewPiece(c.name)) ? { layer: c.layer ?? layerForNewPiece(c.name) } : {}),
         ...(groupId ? { groupId } : {}),
@@ -476,6 +481,31 @@ export function useCanvasState() {
     setSelectedDrawingId(null)
   }, [pushHistory])
 
+  // Arco o curva libre (bloque 7). Abierta: trazo de 10 cm; cerrada: con
+  // relleno, como un polígono.
+  const addPath = useCallback((p: NewPath) => {
+    pushHistory()
+    const id = `el-${Date.now()}`
+    const newEl: LayoutElement = {
+      id,
+      name: p.kind === 'arc' ? 'Arc' : 'Curve',
+      category: 'primitive',
+      x: p.x, y: p.y, width: p.width, height: p.height,
+      rotation: 0,
+      color: p.closed ? CATEGORY_COLORS.primitive : '#e2e8f0',
+      locked: false,
+      notes: '',
+      shape: 'path',
+      points: p.points,
+      ...(p.segments ? { segments: p.segments } : {}),
+      closed: p.closed,
+      ...(p.closed ? {} : { thickness: 0.1, opacity: 1 }),
+    }
+    setElements(prev => [...prev, newEl])
+    setSelectedIds(new Set([id]))
+    setSelectedDrawingId(null)
+  }, [pushHistory])
+
   const addDrawing = useCallback((primitive: Omit<DrawingPrimitive, 'id'>) => {
     pushHistory()
     const id = `drw-${Date.now()}`
@@ -529,6 +559,7 @@ export function useCanvasState() {
     addGroup,
     addPolygon,
     addWall,
+    addPath,
     deleteElement,
     deleteElements,
     duplicateElement,

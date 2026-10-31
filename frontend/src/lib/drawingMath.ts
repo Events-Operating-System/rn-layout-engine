@@ -2,7 +2,8 @@
 // measurement tool all share this module — keep it framework-agnostic, no
 // React/Konva imports here; only type-only imports are allowed).
 
-import type { ElementShape } from '@/types/layout'
+import type { ElementShape, Segment } from '@/types/layout'
+import { hasCurves, pathArea, pathLength } from './curves'
 
 export interface Point {
   x: number
@@ -82,16 +83,27 @@ export function polylineLengthMeters(points: number[], closed: boolean): number 
 
 // Real (not bounding-box) area for a placed element, in m² — used by both
 // the measurement tool and the Properties panel so the two never disagree.
-export function elementAreaMeters(el: { shape?: ElementShape; width: number; height: number; points?: number[]; closed?: boolean }): number {
-  if (el.shape === 'polygon' && el.points && el.points.length >= 6) {
-    return polygonAreaMeters(el.points)
+// Con lados curvos (bloque 7) usa pathArea: exacta para arcos.
+type AreaInput = { shape?: ElementShape; width: number; height: number; points?: number[]; closed?: boolean; segments?: Segment[] }
+export function elementAreaMeters(el: AreaInput): number {
+  if (el.shape === 'polygon' && el.points && el.points.length >= 4) {
+    if (hasCurves(el.segments)) return pathArea(el.points, el.segments)
+    return el.points.length >= 6 ? polygonAreaMeters(el.points) : 0
   }
-  // Muro: un perímetro cerrado encierra un área; un muro abierto no.
-  if (el.shape === 'wall') {
-    return el.closed && el.points && el.points.length >= 6 ? polygonAreaMeters(el.points) : 0
+  // Muro y curva: cerrados encierran un área; abiertos no.
+  if (el.shape === 'wall' || el.shape === 'path') {
+    if (!el.closed || !el.points || el.points.length < 4) return 0
+    return hasCurves(el.segments) ? pathArea(el.points, el.segments) : polygonAreaMeters(el.points)
   }
   if (el.shape === 'circle' || el.shape === 'oval') {
     return Math.PI * (el.width / 2) * (el.height / 2)
   }
   return el.width * el.height
+}
+
+// Largo del contorno o del trazo (muro, curva, polígono), con sus curvas.
+export function elementLengthMeters(el: { shape?: ElementShape; points?: number[]; closed?: boolean; segments?: Segment[] }): number {
+  if (!el.points || el.points.length < 4) return 0
+  const closed = el.shape === 'polygon' ? true : !!el.closed
+  return hasCurves(el.segments) ? pathLength(el.points, el.segments, closed) : polylineLengthMeters(el.points, closed)
 }

@@ -3,7 +3,9 @@ import type { LayoutElement, DrawingPrimitive, LayerId } from '@/types/layout'
 import { LAYERS, layerOf } from '@/lib/layers'
 import { useLang, getCategoryLabel, getAssetName } from '@/context/LangContext'
 import { PIXELS_PER_METER } from '@/components/canvas/LayoutCanvas'
-import { lengthMeters, angleDegrees, pointFromLengthAngle, elementAreaMeters, polylineLengthMeters } from '@/lib/drawingMath'
+import { lengthMeters, angleDegrees, pointFromLengthAngle, elementAreaMeters, elementLengthMeters } from '@/lib/drawingMath'
+import { sidesOf, sideInfo, withSegments, arcFromBulge, sagittaFromBulge, bulgeFromSagitta } from '@/lib/curves'
+import type { Segment } from '@/types/layout'
 import type { AlignMode } from '@/lib/arrange'
 
 interface PropertiesPanelProps {
@@ -115,6 +117,91 @@ export default function PropertiesPanel({
         </>
       )}
     </aside>
+  )
+}
+
+// Lados de una pieza con vértices (bloque 7): cada uno recto, en arco (con
+// su flecha en metros: cuánto se separa el centro del arco de la cuerda) o
+// curva libre. El largo y el radio se ven al lado.
+const MAX_SIDES = 40
+function SidesSection({ element, onUpdate }: {
+  element: LayoutElement
+  onUpdate: (id: string, updates: Partial<LayoutElement>) => void
+}) {
+  const { t } = useLang()
+  const pts = element.points ?? []
+  const closed = element.shape === 'polygon' ? true : !!element.closed
+  const sides = sidesOf(pts, element.segments, closed)
+  if (sides.length > MAX_SIDES) return null
+  const info = sideInfo(pts, element.segments, closed)
+  const n = pts.length / 2
+  const chord = (i: number) => {
+    const j = (i + 1) % n
+    return Math.hypot(pts[j * 2] - pts[i * 2], pts[j * 2 + 1] - pts[i * 2 + 1])
+  }
+  const set = (i: number, seg: Segment) => {
+    const next = sides.map((s, k) => (k === i ? seg : s))
+    onUpdate(element.id, withSegments(element, next))
+  }
+  const toKind = (i: number, kind: Segment['kind']) => {
+    const c = chord(i)
+    if (kind === 'line') return set(i, { kind: 'line' })
+    if (kind === 'arc') return set(i, { kind: 'arc', bulge: bulgeFromSagitta(Math.max(0.1, c * 0.15), c) })
+    // curva libre: manijas a 1/3 y 2/3 de la cuerda, corridas hacia un lado
+    const j = (i + 1) % n
+    const ax = pts[i * 2], ay = pts[i * 2 + 1], bx = pts[j * 2], by = pts[j * 2 + 1]
+    const nx = -(by - ay) / (c || 1), ny = (bx - ax) / (c || 1), off = c * 0.25
+    set(i, { kind: 'bezier', c1: [ax + (bx - ax) / 3 + nx * off, ay + (by - ay) / 3 + ny * off], c2: [ax + (2 * (bx - ax)) / 3 + nx * off, ay + (2 * (by - ay)) / 3 + ny * off] })
+  }
+  const r2 = (v: number) => Math.round(v * 100) / 100
+  return (
+    <Section label={t.sSides}>
+      <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+        {sides.map((seg, i) => {
+          const c = chord(i)
+          const arc = seg.kind === 'arc' ? arcFromBulge({ x: pts[i * 2], y: pts[i * 2 + 1] }, { x: pts[((i + 1) % n) * 2], y: pts[((i + 1) % n) * 2 + 1] }, seg.bulge) : null
+          return (
+            <div key={i} className="rounded border border-slate-700/70 p-1.5 space-y-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-mono text-slate-500 w-6">L{i + 1}</span>
+                <select
+                  value={seg.kind}
+                  onChange={e => toKind(i, e.target.value as Segment['kind'])}
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded px-1 py-0.5 text-[11px] text-slate-200"
+                  aria-label={`L${i + 1}`}
+                >
+                  <option value="line">{t.sideLine}</option>
+                  <option value="arc">{t.sideArc}</option>
+                  <option value="bezier">{t.sideCurve}</option>
+                </select>
+                <span className="text-[10px] font-mono text-slate-400 w-14 text-right">{r2(info[i]?.length ?? c)} m</span>
+              </div>
+              {seg.kind === 'arc' && (
+                <div className="flex items-center gap-1.5 pl-7">
+                  <label className="text-[10px] text-slate-500 whitespace-nowrap">{t.sideSagitta}</label>
+                  <div className="w-16">
+                    <NumberInput
+                      value={r2(Math.abs(sagittaFromBulge(seg.bulge, c)))}
+                      step={0.1}
+                      min={0}
+                      onChange={v => set(i, { kind: 'arc', bulge: (Math.sign(seg.bulge) || 1) * bulgeFromSagitta(Math.max(0, v), c) })}
+                    />
+                  </div>
+                  <button
+                    onClick={() => set(i, { kind: 'arc', bulge: -seg.bulge })}
+                    title={t.sideFlip}
+                    aria-label={`L${i + 1} · ${t.sideFlip}`}
+                    className="text-[11px] text-slate-400 hover:text-slate-100 px-1"
+                  >⇅</button>
+                  {arc && <span className="text-[10px] font-mono text-slate-500 ml-auto">R {r2(arc.r)}</span>}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <p className="text-[10px] text-slate-500 mt-1 leading-snug">{t.sidesHint}</p>
+    </Section>
   )
 }
 
@@ -339,20 +426,24 @@ function ElementProperties({
         </div>
       </Section>
 
-      {element.shape === 'wall' && (
-        <Section label={t.sWall}>
+      {(element.shape === 'wall' || (element.shape === 'path' && !element.closed)) && (
+        <Section label={element.shape === 'wall' ? t.sWall : t.sStroke}>
           <Field label={t.wallThickness}>
             <NumberInput value={element.thickness ?? 0.15} step={0.05} min={0.01} onChange={v => onUpdate(element.id, { thickness: v })} />
           </Field>
           <p className="text-[10px] text-slate-400 mt-1">
-            {t.wallLength}: {Math.round(polylineLengthMeters(element.points ?? [], !!element.closed) * 100) / 100} m
+            {t.wallLength}: {Math.round(elementLengthMeters(element) * 100) / 100} m
             {element.closed ? ` · ${t.wallClosed}` : ''}
           </p>
         </Section>
       )}
 
+      {(element.shape === 'polygon' || element.shape === 'wall' || element.shape === 'path') && (element.points?.length ?? 0) >= 4 && (
+        <SidesSection element={element} onUpdate={onUpdate} />
+      )}
+
       <Section label={t.sDimensions}>
-        {element.shape === 'polygon' || element.shape === 'wall' ? (
+        {element.shape === 'polygon' || element.shape === 'wall' || element.shape === 'path' ? (
           // Width/height are just the polygon's bounding box — editing them
           // as plain numbers would desync `points` (the actual shape) from
           // them. Resize by dragging the Transformer handles instead, which
