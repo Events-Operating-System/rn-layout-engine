@@ -14,6 +14,7 @@ import { useCustomAssets } from '@/hooks/useCustomAssets'
 import { supabase } from '@/lib/supabase'
 import { layoutService, type LayoutData, type LayoutVersion } from '@/lib/layoutService'
 import { draftService, type LayoutDraft } from '@/lib/draftService'
+import { normalizeLayoutMeta } from '@/lib/layoutMeta'
 import type { AssetTemplate, LayoutElement, GroupChild } from '@/types/layout'
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -80,6 +81,11 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   const [assetTarget, setAssetTarget] = useState<AssetSaveTarget | null>(null)
   const [assetName, setAssetName] = useState('')
   const [versionsOpen, setVersionsOpen] = useState(false)
+  // Cliente del evento vinculado (eventos.events.client_name). Si hay, la
+  // casilla CLIENTE lo muestra y no se edita a mano.
+  const [eventClient, setEventClient] = useState<string | null>(null)
+  const eventClientRef = useRef<string | null>(null)
+  eventClientRef.current = eventClient
 
   const {
     elements, selectedId, selectedIds, selectedElement,
@@ -142,13 +148,24 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     setBootstrapped(false)
     setRecovery(null)
     load(layoutIdToLoad).then(async data => {
+      // El cliente del evento se resuelve ANTES de aplicar el contenido: así
+      // entra en la misma carga y no dispara un autoguardado al abrir.
+      const linkedEventId = data.eventId ?? eventId ?? null
+      let client: string | null = null
+      if (linkedEventId) {
+        try {
+          client = (await layoutService.getEventInfo(linkedEventId)).clientName
+        } catch (err) {
+          console.error('[LayoutEditor] getEventInfo error:', err)
+        }
+      }
+      setEventClient(client)
       if (data.elements) setElements(data.elements)
       if (data.drawings) setDrawings(data.drawings)
       if (data.viewport) setViewport(data.viewport)
-      if (data.meta) {
-        setLayoutMeta(data.meta)
-        if (data.meta.cliente) setInputName(data.meta.cliente)
-      }
+      const meta = normalizeLayoutMeta(data.meta, data.name, client)
+      setLayoutMeta(meta)
+      setInputName(meta.proyecto || 'Sin título')
       // Recuperación: ¿hay un draft de autosave más nuevo que la fila real?
       try {
         const draft = await draftService.get(layoutIdToLoad)
@@ -174,26 +191,25 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   }, [layoutIdToLoad, userId])
 
   // Layout nuevo creado desde la ficha de un evento en Eventos (?event_id=
-  // en la URL, sin layoutIdToLoad): hereda el nombre del evento como título
-  // inicial en vez de quedarse en "Sin título". Solo aplica a la creación —
-  // si se está cargando un layout existente, el nombre guardado (arriba)
-  // manda siempre. Sigue editable después, no se bloquea.
+  // en la URL, sin layoutIdToLoad): hereda el nombre del evento como
+  // PROYECTO inicial (sigue editable) y el cliente del evento como CLIENTE.
+  // Si se está cargando un layout existente, manda lo guardado (arriba).
   useEffect(() => {
     if (!eventId || layoutIdToLoad) return
-    layoutService.getEventName(eventId)
-      .then(name => {
-        if (!name) return
-        setInputName(name)
-        updateMeta({ cliente: name })
+    layoutService.getEventInfo(eventId)
+      .then(({ name, clientName }) => {
+        setEventClient(clientName)
+        if (name) setInputName(name)
+        updateMeta({ ...(name ? { proyecto: name } : {}), cliente: clientName ?? '' })
       })
-      .catch(err => console.error('[LayoutEditor] getEventName error:', err))
+      .catch(err => console.error('[LayoutEditor] getEventInfo error:', err))
   }, [eventId, layoutIdToLoad])
 
   useEffect(() => {
-    if (layoutMeta.cliente !== undefined && layoutMeta.cliente !== inputName) {
-      setInputName(layoutMeta.cliente)
+    if (layoutMeta.proyecto !== undefined && layoutMeta.proyecto !== inputName) {
+      setInputName(layoutMeta.proyecto)
     }
-  }, [layoutMeta.cliente])
+  }, [layoutMeta.proyecto])
 
   const elementsRef = useRef(elements)
   const drawingsRef = useRef(drawings)
@@ -208,13 +224,13 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   inputNameRef.current = inputName
 
   // Snapshot siempre-actual para el autosave. El nombre vive en
-  // meta.cliente (igual que en handleSave). El viewport va en el payload
+  // meta.proyecto (igual que en handleSave). El viewport va en el payload
   // pero NO en dirtyKey — pan/zoom no debe disparar autosave.
   const snapshotRef = useRef<LayoutData>({ elements, drawings, meta: layoutMeta, viewport })
   snapshotRef.current = {
     elements,
     drawings,
-    meta: { ...layoutMeta, cliente: inputName },
+    meta: { ...layoutMeta, proyecto: inputName },
     viewport,
   }
 
@@ -235,7 +251,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     if (!userId) return
     setSaveStatus('saving')
     const currentName = inputNameRef.current
-    const currentMeta = { ...layoutMetaRef.current, cliente: currentName }
+    const currentMeta = { ...layoutMetaRef.current, proyecto: currentName }
     const payload = {
       elements: elementsRef.current,
       drawings: drawingsRef.current,
@@ -266,7 +282,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         {
           elements: original.elements,
           drawings: original.drawings,
-          meta: { ...original.meta, cliente: newName },
+          meta: { ...normalizeLayoutMeta(original.meta, original.name, eventClientRef.current), proyecto: newName },
           viewport: original.viewport,
         },
         layoutId
@@ -291,7 +307,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         {
           elements: elementsRef.current,
           drawings: drawingsRef.current,
-          meta: { ...layoutMetaRef.current, cliente: newName },
+          meta: { ...layoutMetaRef.current, proyecto: newName },
           viewport: viewportRef.current,
         },
         layoutId
@@ -359,11 +375,27 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     if (recovery.drawings) setDrawings(recovery.drawings)
     if (recovery.viewport) setViewport(recovery.viewport)
     if (recovery.meta) {
-      setLayoutMeta(recovery.meta)
-      if (recovery.meta.cliente) setInputName(recovery.meta.cliente)
+      const meta = normalizeLayoutMeta(recovery.meta, inputNameRef.current, eventClientRef.current)
+      setLayoutMeta(meta)
+      setInputName(meta.proyecto)
     }
     setRecovery(null)
   }, [recovery, pushHistory, setElements, setDrawings, setViewport, setLayoutMeta])
+
+  // Exportar sin selección ni recuadros de edición (Transformer, sombra de
+  // seleccionado): se limpia la selección, se espera a que el canvas se
+  // redibuje y después se devuelve tal cual estaba.
+  const exportClean = useCallback((kind: 'png' | 'pdf') => {
+    const prevIds = [...selectedIds]
+    const prevDrawing = selectedDrawingId
+    selectElement(null)
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (kind === 'png') canvasRef.current?.exportPNG()
+      else canvasRef.current?.exportPDF()
+      if (prevDrawing) selectDrawing(prevDrawing)
+      else if (prevIds.length) selectElements(prevIds)
+    }))
+  }, [selectedIds, selectedDrawingId, selectElement, selectDrawing, selectElements])
 
   const openVersions = useCallback(() => {
     // Sin selección en el editor mientras el panel/visor está abierto: así
@@ -380,10 +412,9 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     setElements(content.elements ?? [])
     setDrawings(content.drawings ?? [])
     if (content.viewport) setViewport(content.viewport)
-    const name = content.meta?.cliente || content.name
-    const meta = { ...content.meta, cliente: name }
+    const meta = normalizeLayoutMeta(content.meta, content.name, eventClientRef.current)
     setLayoutMeta(meta)
-    setInputName(name)
+    setInputName(meta.proyecto)
     setVersionNumber(newVersion)
     if (layoutId) void draftService.clear(layoutId).catch(() => {})
     markDraftSaved({ elements: content.elements ?? [], drawings: content.drawings ?? [], meta, viewport: content.viewport })
@@ -448,8 +479,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         measureMode={measureMode}
         onSetMeasureMode={setMeasureMode}
         onClearDrawings={clearDrawings}
-        onExport={() => canvasRef.current?.exportPNG()}
-        onExportPDF={() => canvasRef.current?.exportPDF()}
+        onExport={() => exportClean('png')}
+        onExportPDF={() => exportClean('pdf')}
         onToggleLibrary={() => toggleMobilePanel('library')}
         onToggleProperties={() => toggleMobilePanel('properties')}
         libraryOpen={mobilePanel === 'library'}
@@ -465,7 +496,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
           value={inputName}
           onChange={e => {
             setInputName(e.target.value)
-            updateMeta({ cliente: e.target.value })
+            updateMeta({ proyecto: e.target.value })
           }}
           className="bg-slate-800 text-sm text-slate-100 font-medium outline-none border border-slate-600 focus:border-indigo-500 rounded px-3 py-1 flex-1 min-w-0 sm:flex-none sm:w-64 placeholder:text-slate-500 transition-colors"
           placeholder={t.layoutNamePlaceholder}
@@ -604,7 +635,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         )}
       </div>
 
-      <FooterLegend meta={layoutMeta} versionNumber={versionNumber} onUpdate={updateMeta} />
+      <FooterLegend meta={layoutMeta} versionNumber={versionNumber} onUpdate={updateMeta} clienteFromEvent={!!eventClient} />
 
       {versionsOpen && (
         <VersionHistory

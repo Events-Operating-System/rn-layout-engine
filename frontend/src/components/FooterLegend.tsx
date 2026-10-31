@@ -8,11 +8,13 @@ interface FooterLegendProps {
   versionNumber: number
   onUpdate: (updates: Partial<LayoutMeta>) => void
   readOnly?: boolean
+  // CLIENTE viene del evento vinculado: se muestra, no se edita acá.
+  clienteFromEvent?: boolean
 }
 
 export const FOOTER_HEIGHT_PX = 88
 
-export default function FooterLegend({ meta, versionNumber, onUpdate, readOnly = false }: FooterLegendProps) {
+export default function FooterLegend({ meta, versionNumber, onUpdate, readOnly = false, clienteFromEvent = false }: FooterLegendProps) {
   const { t } = useLang()
   return (
     <div
@@ -29,15 +31,18 @@ export default function FooterLegend({ meta, versionNumber, onUpdate, readOnly =
       {/* Right — metadata grid (overflow-x-auto so it scrolls rather than squashes on narrow viewports) */}
       <div className="flex-1 overflow-x-auto">
       <div className="grid grid-cols-5 divide-x divide-slate-700/60 h-full min-w-[480px]">
+        {/* Mismo orden que el cajetín del PNG/PDF (titleBlockColumns). */}
         <Column>
-          <MetaField label="CLIENTE"      value={meta.cliente}      readOnly={readOnly} onChange={v => onUpdate({ cliente: v })} />
+          {/* PROYECTO = nombre del layout; se edita en la barra de arriba. */}
+          <MetaField label="PROYECTO"     value={meta.proyecto}     readOnly onChange={() => {}} />
+          <MetaField label="CLIENTE"      value={meta.cliente}      readOnly={readOnly || clienteFromEvent} onChange={v => onUpdate({ cliente: v })} />
+        </Column>
+        <Column>
           <MetaField label="LUGAR EVENTO" value={meta.lugarEvento}  readOnly={readOnly} onChange={v => onUpdate({ lugarEvento: v })} />
-        </Column>
-        <Column>
           <MetaField label="FECHA EVENTO"   value={meta.fechaEvento} readOnly={readOnly} onChange={v => onUpdate({ fechaEvento: v })} />
-          <MetaField label="PAX / INVITADOS" value={meta.pax}       readOnly={readOnly} onChange={v => onUpdate({ pax: v })} />
         </Column>
         <Column>
+          <MetaField label="PAX / INVITADOS" value={meta.pax}       readOnly={readOnly} onChange={v => onUpdate({ pax: v })} />
           <VersionField
             versionNumber={versionNumber}
             note={readOnly ? versionNote(meta.version) : meta.version === 'v1.0' ? '' : meta.version}
@@ -45,13 +50,13 @@ export default function FooterLegend({ meta, versionNumber, onUpdate, readOnly =
             readOnly={readOnly}
             onChange={v => onUpdate({ version: v })}
           />
+        </Column>
+        <Column>
           <MetaField label="FECHA DEL PLANO"   value={meta.fechaPlano}  readOnly={readOnly} onChange={v => onUpdate({ fechaPlano: v })} />
-        </Column>
-        <Column>
           <MetaField label="CONTACTO"  value={meta.contacto}  readOnly={readOnly} onChange={v => onUpdate({ contacto: v })} />
-          <MetaField label="TELEFONO"  value={meta.telefono}  readOnly={readOnly} onChange={v => onUpdate({ telefono: v })} />
         </Column>
         <Column>
+          <MetaField label="TELEFONO"  value={meta.telefono}  readOnly={readOnly} onChange={v => onUpdate({ telefono: v })} />
           <MetaField label="CORREO" value={meta.correo} readOnly={readOnly} onChange={v => onUpdate({ correo: v })} />
         </Column>
       </div>

@@ -8,6 +8,7 @@ import LangToggle from '@/components/LangToggle'
 import CallbackScreen from '@/components/CallbackScreen'
 import { LangProvider, useLang } from '@/context/LangContext'
 import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
+import { normalizeLayoutMeta } from '@/lib/layoutMeta'
 import { useOrgStatus } from '@/hooks/useOrgStatus'
 import { layoutService } from '@/lib/layoutService'
 import { withTimeout } from '@/lib/withTimeout'
@@ -310,7 +311,7 @@ export default function App() {
       {
         elements: original.elements,
         drawings: original.drawings,
-        meta: { ...original.meta, cliente: newName },
+        meta: { ...normalizeLayoutMeta(original.meta, original.name), proyecto: newName },
         viewport: original.viewport,
       },
       id

@@ -39,15 +39,15 @@ export const layoutService = {
     return data ?? []
   },
 
-  async load(id: string): Promise<LayoutData & { versionNumber: number }> {
+  async load(id: string): Promise<LayoutData & { versionNumber: number; name: string; eventId: string | null }> {
     const { data, error } = await supabase
       .from('layouts')
-      .select('elements, drawings, meta, viewport, version_number')
+      .select('elements, drawings, meta, viewport, version_number, name, event_id')
       .eq('id', id)
       .single()
     if (error) throw error
-    const { version_number, ...rest } = data
-    return { ...(rest as LayoutData), versionNumber: version_number ?? 1 }
+    const { version_number, name, event_id, ...rest } = data
+    return { ...(rest as LayoutData), versionNumber: version_number ?? 1, name: name ?? '', eventId: event_id ?? null }
   },
 
   // version_number lo decide la base: sube solo si cambió el plano.
@@ -139,15 +139,15 @@ export const layoutService = {
     return data as number
   },
 
-  async getEventName(eventId: string): Promise<string | null> {
+  async getEventInfo(eventId: string): Promise<{ name: string | null; clientName: string | null }> {
     const { data, error } = await supabase
       .schema('eventos')
       .from('events')
-      .select('name')
+      .select('name, client_name')
       .eq('id', eventId)
       .maybeSingle()
     if (error) throw error
-    return data?.name ?? null
+    return { name: data?.name ?? null, clientName: data?.client_name?.trim() || null }
   },
 
   async getEventLayoutId(eventId: string): Promise<string | null> {

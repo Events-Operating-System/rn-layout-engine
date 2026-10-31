@@ -434,7 +434,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
         const link = document.createElement('a')
         link.href = canvas.toDataURL('image/png')
-        link.download = exportFileName(layoutMeta.cliente, versionNumber, 'png')
+        link.download = exportFileName(layoutMeta.proyecto, versionNumber, 'png')
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -649,7 +649,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         format: [canvasW, canvasH],
       })
       pdf.addImage(imgData, 'PNG', 0, 0, canvasW, canvasH)
-      pdf.save(exportFileName(layoutMeta.cliente, versionNumber, 'pdf'))
+      pdf.save(exportFileName(layoutMeta.proyecto, versionNumber, 'pdf'))
     }, [containerSize, elements, drawings, layoutMeta, versionNumber])
 
     useImperativeHandle(ref, () => ({ exportPNG, exportPDF }), [exportPNG, exportPDF])
@@ -1732,6 +1732,17 @@ function fillTextAdaptive(
   ctx.font = baseFont
 }
 
+// Mismo orden que FooterLegend (pantalla): 5 columnas × 2 filas.
+function titleBlockColumns(meta: LayoutMeta, versionNumber: number) {
+  return [
+    [{ label: 'PROYECTO', value: meta.proyecto }, { label: 'CLIENTE', value: meta.cliente }],
+    [{ label: 'LUGAR EVENTO', value: meta.lugarEvento }, { label: 'FECHA EVENTO', value: meta.fechaEvento }],
+    [{ label: 'PAX / INVITADOS', value: meta.pax }, { label: 'VERSION DEL PLANO', value: versionLabel(versionNumber, meta.version) }],
+    [{ label: 'FECHA DEL PLANO', value: meta.fechaPlano }, { label: 'CONTACTO', value: meta.contacto }],
+    [{ label: 'TELEFONO', value: meta.telefono }, { label: 'CORREO', value: meta.correo }],
+  ]
+}
+
 function renderFooterToCanvas(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -1785,13 +1796,7 @@ function renderFooterToCanvas(
   const colW = rightW / 5
   const rowH = footerHeight / 2
 
-  const cols = [
-    [{ label: 'CLIENTE', value: meta.cliente }, { label: 'LUGAR EVENTO', value: meta.lugarEvento }],
-    [{ label: 'FECHA EVENTO', value: meta.fechaEvento }, { label: 'PAX / INVITADOS', value: meta.pax }],
-    [{ label: 'VERSION DEL PLANO', value: versionLabel(versionNumber, meta.version) }, { label: 'FECHA DEL PLANO', value: meta.fechaPlano }],
-    [{ label: 'CONTACTO', value: meta.contacto }, { label: 'TELEFONO', value: meta.telefono }],
-    [{ label: 'CORREO', value: meta.correo }, { label: '', value: '' }],
-  ]
+  const cols = titleBlockColumns(meta, versionNumber)
 
   ctx.textAlign = 'left'
 
@@ -1873,28 +1878,7 @@ function renderFooterPDF(
   ctx.font = '7px ui-monospace, monospace'
   ctx.fillText('by Reality Near', leftW / 2, yOffset + footerHeight * 0.76)
 
-  const cols = [
-    [
-      { label: 'CLIENTE', value: meta.cliente },
-      { label: 'LUGAR EVENTO', value: meta.lugarEvento },
-    ],
-    [
-      { label: 'FECHA EVENTO', value: meta.fechaEvento },
-      { label: 'FECHA DEL PLANO', value: meta.fechaPlano },
-    ],
-    [
-      { label: 'PAX / INVITADOS', value: meta.pax },
-      { label: 'VERSION DEL PLANO', value: versionLabel(versionNumber, meta.version) },
-    ],
-    [
-      { label: 'CONTACTO', value: meta.contacto },
-      { label: 'TELEFONO', value: meta.telefono },
-    ],
-    [
-      { label: 'CORREO', value: meta.correo },
-      { label: '', value: '' },
-    ],
-  ]
+  const cols = titleBlockColumns(meta, versionNumber)
 
   cols.forEach((col, ci) => {
     const cx = leftW + ci * colW

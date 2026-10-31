@@ -118,6 +118,9 @@ export interface DrawingPrimitive {
 
 export interface LayoutMeta {
   company: string
+  // Nombre del layout (= barra de arriba y layouts.name). Casilla PROYECTO.
+  proyecto: string
+  // Cliente: del evento vinculado (eventos.events.client_name) o a mano.
   cliente: string
   lugarEvento: string
   fechaEvento: string
@@ -133,6 +136,7 @@ export interface LayoutMeta {
 
 export const DEFAULT_LAYOUT_META: LayoutMeta = {
   company: 'Reality Near',
+  proyecto: '',
   cliente: '',
   lugarEvento: '',
   fechaEvento: '',
