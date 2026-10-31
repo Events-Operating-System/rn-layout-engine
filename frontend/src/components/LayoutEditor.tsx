@@ -702,6 +702,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
               state={layerState}
               counts={layerCounts}
               canLock={!readOnly}
+              clientViewHidden={layoutSettings.clientViewHidden}
               onChange={setLayers}
               onClose={() => setLayersOpen(false)}
             />

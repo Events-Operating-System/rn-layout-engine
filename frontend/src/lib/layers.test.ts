@@ -64,3 +64,21 @@ describe('plantillas', () => {
     expect(instantiateTemplate(null, i => `${i}`, i => `${i}`)).toEqual({ elements: [], drawings: [] })
   })
 })
+
+describe('ajustes de capas', () => {
+  it('Cocina y Baños nuevos van a perímetro/estructura; lo viejo no cambia', async () => {
+    const { layerForNewPiece } = await import('./layers')
+    expect(layerForNewPiece('Kitchen')).toBe('structure')
+    expect(layerForNewPiece('Restrooms')).toBe('structure')
+    expect(layerForNewPiece('Generator')).toBeUndefined()
+    // Una cocina guardada antes (sin capa) sigue en técnica.
+    expect(layerOf(el('k', { name: 'Kitchen', category: 'utility' }))).toBe('technical')
+    expect(layerOf(el('k', { name: 'Kitchen', category: 'utility', layer: 'structure' }))).toBe('structure')
+  })
+  it('Vista cliente sale de los ajustes de la org', async () => {
+    const { parseLayoutSettings } = await import('./layoutSettings')
+    expect(parseLayoutSettings({}).clientViewHidden).toEqual(['technical', 'notes'])
+    expect(parseLayoutSettings({ layout: { client_hide_decor: true, client_hide_notes: false } }).clientViewHidden).toEqual(['decor', 'technical'])
+    expect(parseLayoutSettings({ layout: { client_hide_technical: 'si' } }).clientViewHidden).toEqual(['technical', 'notes'])
+  })
+})

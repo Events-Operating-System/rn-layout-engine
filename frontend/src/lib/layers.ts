@@ -8,8 +8,14 @@ import type { LayoutElement, LayerId, LayerState } from '@/types/layout'
 
 export const LAYERS: LayerId[] = ['structure', 'furniture', 'decor', 'technical', 'notes']
 
-// Vista para el cliente: sin técnica ni notas.
-export const CLIENT_VIEW_HIDDEN: LayerId[] = ['technical', 'notes']
+// Piezas nuevas que van en perímetro/estructura aunque su categoría diga
+// otra cosa (decisión 2026-10-31: Cocina y Baños se ven en "Vista cliente").
+// Se guarda la capa en la pieza al crearla: los planos existentes no cambian.
+const NEW_STRUCTURE_NAMES = new Set(['Kitchen', 'Restrooms'])
+
+export function layerForNewPiece(name: string): LayerId | undefined {
+  return NEW_STRUCTURE_NAMES.has(name) ? 'structure' : undefined
+}
 
 const TECH_NAMES = new Set(['LED Wall', 'Screen', 'DJ Booth', 'DJ Booth PRO', 'Generator'])
 

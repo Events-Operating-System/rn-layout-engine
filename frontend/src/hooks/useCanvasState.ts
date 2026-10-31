@@ -4,6 +4,7 @@ import { CATEGORY_COLORS, DEFAULT_LAYOUT_META } from '@/types/layout'
 import { alignUpdates, distributeUpdates, gridCopies, type AlignMode } from '@/lib/arrange'
 import { ungroupIds, detectTableChairGroups, groupIdsForCopy } from '@/lib/grouping'
 import { instantiateTemplate, type TemplatePayload } from '@/lib/templates'
+import { layerForNewPiece } from '@/lib/layers'
 
 const PIXELS_PER_METER = 20
 const MAX_HISTORY = 50
@@ -158,6 +159,7 @@ export function useCanvasState() {
         // undefined for every built-in template.
         ...(template.shape === 'polygon' && template.points ? { points: template.points } : {}),
         ...(template.seats ? { seats: template.seats } : {}),
+        ...(layerForNewPiece(template.name) ? { layer: layerForNewPiece(template.name) } : {}),
       }
       return [...prev, newEl]
     })
@@ -204,7 +206,7 @@ export function useCanvasState() {
         ...(c.flipY ? { flipY: true } : {}),
         ...(c.shape === 'polygon' && c.points ? { points: c.points } : {}),
         ...(c.seats ? { seats: c.seats } : {}),
-        ...(c.layer ? { layer: c.layer } : {}),
+        ...((c.layer ?? layerForNewPiece(c.name)) ? { layer: c.layer ?? layerForNewPiece(c.name) } : {}),
         ...(groupId ? { groupId } : {}),
       }))
       return [...prev, ...newEls]

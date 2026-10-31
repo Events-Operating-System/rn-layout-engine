@@ -1,3 +1,5 @@
+import type { LayerId } from '@/types/layout'
+
 // Ajustes de Layout de la organización (organizations.settings.layout,
 // migración 20261031220000). Se editan en Administración → Organización; acá
 // solo se leen, con estos valores por defecto si la org no los cambió.
@@ -16,6 +18,8 @@ export interface LayoutSettings {
   dimensionDecimals: number
   backgroundImage: boolean
   backgroundPdf: boolean
+  // Capas que oculta "Vista cliente" (client_hide_*).
+  clientViewHidden: LayerId[]
 }
 
 export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
@@ -31,12 +35,21 @@ export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
   dimensionDecimals: 2,
   backgroundImage: true,
   backgroundPdf: true,
+  clientViewHidden: ['technical', 'notes'],
 }
 
 const num = (v: unknown, fallback: number, min: number) => {
   const n = typeof v === 'number' ? v : Number(v)
   return Number.isFinite(n) && n >= min ? n : fallback
 }
+
+const CLIENT_KEYS: [string, LayerId][] = [
+  ['client_hide_structure', 'structure'],
+  ['client_hide_furniture', 'furniture'],
+  ['client_hide_decor', 'decor'],
+  ['client_hide_technical', 'technical'],
+  ['client_hide_notes', 'notes'],
+]
 
 // org_settings(org) → { layout: { chair_size, ... }, ... }
 export function parseLayoutSettings(data: unknown): LayoutSettings {
@@ -55,5 +68,8 @@ export function parseLayoutSettings(data: unknown): LayoutSettings {
     dimensionDecimals: Math.min(4, Math.round(num(l.dimension_decimals, d.dimensionDecimals, 0))),
     backgroundImage: typeof l.background_image === 'boolean' ? l.background_image : d.backgroundImage,
     backgroundPdf: typeof l.background_pdf === 'boolean' ? l.background_pdf : d.backgroundPdf,
+    clientViewHidden: CLIENT_KEYS.filter(([key, id]) =>
+      typeof l[key] === 'boolean' ? l[key] : d.clientViewHidden.includes(id),
+    ).map(([, id]) => id),
   }
 }

@@ -1,6 +1,6 @@
 import { useLang } from '@/context/LangContext'
 import type { LayerId, LayerState } from '@/types/layout'
-import { LAYERS, CLIENT_VIEW_HIDDEN, toggleLayer } from '@/lib/layers'
+import { LAYERS, toggleLayer } from '@/lib/layers'
 
 // Capas fijas (bloque 6): mostrar u ocultar y bloquear cada una. Lo oculto
 // no sale en el PNG ni en el PDF: así se exporta el plano técnico (todo) o
@@ -9,11 +9,13 @@ interface Props {
   state: LayerState
   counts: Record<LayerId, number>
   canLock: boolean
+  // Capas que oculta "Vista cliente" (ajuste de la org).
+  clientViewHidden: LayerId[]
   onChange: (next: LayerState) => void
   onClose: () => void
 }
 
-export default function LayersPanel({ state, counts, canLock, onChange, onClose }: Props) {
+export default function LayersPanel({ state, counts, canLock, clientViewHidden, onChange, onClose }: Props) {
   const { t } = useLang()
   const names: Record<LayerId, string> = {
     structure: t.layerStructure, furniture: t.layerFurniture, decor: t.layerDecor, technical: t.layerTechnical, notes: t.layerNotes,
@@ -59,7 +61,7 @@ export default function LayersPanel({ state, counts, canLock, onChange, onClose 
       </ul>
       <div className="flex gap-2">
         <button onClick={() => onChange({ ...state, hidden: [] })} className={btn}>{t.layersShowAll}</button>
-        <button onClick={() => onChange({ ...state, hidden: [...CLIENT_VIEW_HIDDEN] })} className={btn}>{t.layersClientView}</button>
+        <button onClick={() => onChange({ ...state, hidden: [...clientViewHidden] })} className={btn} title={clientViewHidden.map(l => names[l]).join(', ') || '—'}>{t.layersClientView}</button>
       </div>
       <p className="text-[10px] text-slate-500 leading-relaxed">{t.layersHint}</p>
     </div>
