@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import type { LayoutElement, CanvasViewport, AssetTemplate, DrawingPrimitive, DrawingTool, LayoutMeta, GroupChild } from '@/types/layout'
 import { CATEGORY_COLORS, DEFAULT_LAYOUT_META } from '@/types/layout'
 import { alignUpdates, distributeUpdates, gridCopies, type AlignMode } from '@/lib/arrange'
+import { ungroupIds, detectTableChairGroups, groupIdsForCopy } from '@/lib/grouping'
 
 const PIXELS_PER_METER = 20
 const MAX_HISTORY = 50
@@ -239,7 +240,10 @@ export function useCanvasState() {
     setElements(prev => {
       const el = prev.find(e => e.id === id)
       if (!el) return prev
-      return [...prev, { ...el, id: newId, x: el.x + 2, y: el.y + 2 }]
+      // Una pieza sola copiada queda suelta (no entra al conjunto original).
+      const { groupId: _g, ...rest } = el
+      void _g
+      return [...prev, { ...rest, id: newId, x: el.x + 2, y: el.y + 2 }]
     })
     setSelectedIds(new Set([newId]))
     setSelectedDrawingId(null)
@@ -253,12 +257,13 @@ export function useCanvasState() {
     const idSet = new Set(ids)
     const timestamp = Date.now()
     const source = elementsRef.current.filter(el => idSet.has(el.id))
-    const duplicates = source.map((el, i) => ({
-      ...el,
-      id: `el-${timestamp}-${i}`,
-      x: el.x + 2,
-      y: el.y + 2,
-    }))
+    const groups = groupIdsForCopy(source, elementsRef.current, i => `grp-${timestamp}-d${i}`)
+    const duplicates = source.map((el, i) => {
+      const { groupId: _g, ...rest } = el
+      void _g
+      const groupId = groups.get(el.id)
+      return { ...rest, id: `el-${timestamp}-${i}`, x: el.x + 2, y: el.y + 2, ...(groupId ? { groupId } : {}) }
+    })
     setElements(prev => [...prev, ...duplicates])
     setSelectedIds(new Set(duplicates.map(d => d.id)))
     setSelectedDrawingId(null)
@@ -294,6 +299,31 @@ export function useCanvasState() {
     setElements(prev => [...prev, ...copies])
     setSelectedIds(new Set([...originals.map(o => o.id), ...copies.map(c => c.id)]))
     setSelectedDrawingId(null)
+  }, [pushHistory])
+
+  // Desagrupar: el conjunto entero de cada pieza elegida queda suelto.
+  const ungroupElements = useCallback((ids: string[]) => {
+    const target = new Set(ungroupIds(ids, elementsRef.current))
+    if (!target.size) return
+    pushHistory()
+    setElements(prev => prev.map(el => {
+      if (!target.has(el.id)) return el
+      const { groupId: _drop, ...rest } = el
+      void _drop
+      return rest
+    }))
+  }, [pushHistory])
+
+  // Planos viejos: agrupa cada mesa suelta con las sillas sueltas que tiene
+  // alrededor. Una sola entrada de deshacer; devuelve cuántas encontró.
+  const groupTablesWithChairs = useCallback((s: { chairGap: number; chairSize: number }) => {
+    const ts = Date.now()
+    const r = detectTableChairGroups(elementsRef.current, s, i => `grp-${ts}-a${i}`)
+    if (r.tables > 0) {
+      pushHistory()
+      setElements(prev => prev.map(el => (r.assign[el.id] ? { ...el, groupId: r.assign[el.id] } : el)))
+    }
+    return { tables: r.tables, chairs: r.chairs }
   }, [pushHistory])
 
   // Z-order — render/stacking order is simply the `elements` array order
@@ -491,6 +521,8 @@ export function useCanvasState() {
     alignElements,
     distributeElements,
     repeatInGrid,
+    ungroupElements,
+    groupTablesWithChairs,
     activeTool,
     setTool,
     measureMode,

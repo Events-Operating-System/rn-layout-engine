@@ -23,6 +23,11 @@ interface PropertiesPanelProps {
   onRepeatGrid: (ids: string[], rows: number, cols: number, gap: number) => void
   // Separación por defecto entre copias (ajuste de la org table_spacing).
   defaultSpacing: number
+  // Conjuntos: piezas de la selección que pertenecen a uno (mesa con sillas).
+  groupedCount: number
+  onUngroup: (ids: string[]) => void
+  // Planos viejos: agrupa las sillas sueltas con su mesa (sin selección).
+  onGroupTablesWithChairs: () => { tables: number; chairs: number }
 }
 
 const COLOR_PRESETS = [
@@ -42,6 +47,7 @@ export default function PropertiesPanel({
   selectedDrawing, onUpdateDrawing, onDeleteDrawing,
   selectedIds, onBringToFront, onSendToBack, onSaveGroupAsAsset, onRotateGroup,
   onAlign, onDistribute, onRepeatGrid, defaultSpacing,
+  groupedCount, onUngroup, onGroupTablesWithChairs,
 }: PropertiesPanelProps) {
   const { t } = useLang()
   const isMultiSelect = element === null && selectedDrawing === null && selectedIds.size > 1
@@ -56,10 +62,13 @@ export default function PropertiesPanel({
       </div>
 
       {!hasSelection ? (
-        <div className="flex-1 flex items-center justify-center px-6">
-          <p className="text-[11px] text-slate-600 text-center leading-relaxed">
-            {t.selectHint}
-          </p>
+        <div className="flex-1 flex flex-col px-6">
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-[11px] text-slate-600 text-center leading-relaxed">
+              {t.selectHint}
+            </p>
+          </div>
+          <GroupTablesTool onRun={onGroupTablesWithChairs} />
         </div>
       ) : selectedDrawing !== null ? (
         <DrawingProperties
@@ -68,6 +77,8 @@ export default function PropertiesPanel({
           onDelete={onDeleteDrawing}
         />
       ) : element !== null ? (
+        <>
+        {groupedCount > 0 && <GroupSection count={groupedCount} onUngroup={() => onUngroup([element.id])} />}
         <ElementProperties
           element={element}
           onUpdate={onUpdate}
@@ -78,7 +89,10 @@ export default function PropertiesPanel({
           onRepeatGrid={(rows, cols, gap) => onRepeatGrid([element.id], rows, cols, gap)}
           defaultSpacing={defaultSpacing}
         />
+        </>
       ) : (
+        <>
+        {groupedCount > 0 && <GroupSection count={groupedCount} onUngroup={() => onUngroup([...selectedIds])} />}
         <MultiSelectProperties
           count={selectedIds.size}
           onBringToFront={() => onBringToFront([...selectedIds])}
@@ -90,8 +104,51 @@ export default function PropertiesPanel({
           onRepeatGrid={(rows, cols, gap) => onRepeatGrid([...selectedIds], rows, cols, gap)}
           defaultSpacing={defaultSpacing}
         />
+        </>
       )}
     </aside>
+  )
+}
+
+// La selección es parte de un conjunto (mesa con sus sillas): se puede
+// desarmar. Arrastrar la mesa mueve el conjunto; una silla se mueve sola.
+function GroupSection({ count, onUngroup }: { count: number; onUngroup: () => void }) {
+  const { t } = useLang()
+  return (
+    <div className="flex-none px-4 pt-4 -mb-2">
+      <div className="rounded border border-slate-700 bg-slate-800/60 p-2.5 space-y-2">
+        <p className="text-[10px] text-slate-400 leading-snug">{t.groupInfo.replace('{n}', String(count))}</p>
+        <button
+          onClick={onUngroup}
+          className="w-full h-7 rounded text-[10px] text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border border-slate-600 transition-colors font-mono uppercase tracking-wider"
+        >
+          {t.ungroup}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// Planos viejos: busca las sillas sueltas alrededor de cada mesa suelta y
+// las agrupa. Se deshace en un paso (Cmd+Z). No corre solo al abrir.
+function GroupTablesTool({ onRun }: { onRun: () => { tables: number; chairs: number } }) {
+  const { t } = useLang()
+  const [msg, setMsg] = useState<string | null>(null)
+  return (
+    <div className="flex-none pb-5 space-y-2">
+      <button
+        onClick={() => {
+          const r = onRun()
+          setMsg(r.tables
+            ? t.groupTablesDone.replace('{t}', String(r.tables)).replace('{c}', String(r.chairs))
+            : t.groupTablesNone)
+        }}
+        className="w-full h-8 rounded text-[10px] text-slate-300 hover:text-slate-100 hover:bg-slate-700/60 border border-slate-600 transition-colors font-mono uppercase tracking-wider"
+      >
+        {t.groupTables}
+      </button>
+      <p className="text-[10px] text-slate-500 leading-snug">{msg ?? t.groupTablesHint}</p>
+    </div>
   )
 }
 

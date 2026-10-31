@@ -106,6 +106,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     updateElement, updateElements, updateViewport, addElement, addGroup, addPolygon, addWall,
     deleteElement, deleteElements, duplicateElement, duplicateElements,
     bringToFront, sendToBack, rotateElements, alignElements, distributeElements, repeatInGrid,
+    ungroupElements, groupTablesWithChairs,
     activeTool, setTool, measureMode, setMeasureMode,
     drawings, addDrawing, deleteDrawing, updateDrawing,
     clearDrawings, layoutMeta, updateMeta,
@@ -161,6 +162,11 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
   // Medidas de mesas/sillas y separación entre mesas de la org.
   const layoutSettings = useLayoutSettings(orgId)
+  // Piezas de los conjuntos tocados por la selección (para "Desagrupar").
+  const groupedCount = useMemo(() => {
+    const groups = new Set(elements.filter(e => selectedIds.has(e.id) && e.groupId).map(e => e.groupId))
+    return groups.size ? elements.filter(e => e.groupId && groups.has(e.groupId)).length : 0
+  }, [elements, selectedIds])
   // PAX automático: la casilla muestra los asientos dibujados (o lo escrito
   // a mano). Va igual en pantalla, PNG y PDF.
   const displayMeta = useMemo(
@@ -741,6 +747,9 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onDistribute={distributeElements}
             onRepeatGrid={repeatInGrid}
             defaultSpacing={layoutSettings.tableSpacing}
+            groupedCount={groupedCount}
+            onUngroup={ungroupElements}
+            onGroupTablesWithChairs={() => groupTablesWithChairs(layoutSettings)}
           />
         </div>}
 

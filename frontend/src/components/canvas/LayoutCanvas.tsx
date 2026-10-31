@@ -9,6 +9,7 @@ import { exportFileName, versionLabel } from '@/lib/layoutVersion'
 import { useLang, getAssetName } from '@/context/LangContext'
 import { fitViewportToContent } from '@/lib/fitViewport'
 import { PIXELS_PER_METER, RESIZE_ANCHORS, GRID_TOTAL_PX, MIN_SCALE, MAX_SCALE, CANVAS_CENTER_PX, DRAW_COLOR, DRAW_STROKE } from './constants'
+import { dragSet } from '@/lib/grouping'
 import { computeAlignmentGuides, findElementId } from './geometry'
 import { exportLayoutPng, exportLayoutPdf } from './exportLayout'
 import GridLines from './GridLines'
@@ -906,18 +907,16 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 onSelect={(shiftKey) => (shiftKey ? onToggleSelect(el.id) : onSelect(el.id))}
                 onDragStart={() => {
                   isDraggingElement.current = true
-                  // Dragging a node that's part of a >1 selection moves the
-                  // whole group together — capture everyone's starting
-                  // world position so onDragMove/onDragEnd can apply the
-                  // same delta to all of them. Locked elements (which
-                  // can't be dragged individually either) are excluded.
-                  if (selectedIds.size > 1 && selectedIds.has(el.id)) {
+                  // Lo que se mueve junto: la selección (si la pieza está en
+                  // una selección múltiple) y, para cada pieza que no sea
+                  // silla, su conjunto entero (mesa con sus sillas). Una
+                  // silla arrastrada sola se mueve sola. Lo bloqueado queda.
+                  const ids = dragSet(el.id, selectedIds, elements)
+                  if (ids.length > 1) {
                     const origin = new Map<string, { x: number; y: number }>()
-                    for (const id of selectedIds) {
+                    for (const id of ids) {
                       const other = elements.find(e => e.id === id)
-                      if (other && !other.locked) {
-                        origin.set(id, { x: other.x * PIXELS_PER_METER, y: other.y * PIXELS_PER_METER })
-                      }
+                      if (other) origin.set(id, { x: other.x * PIXELS_PER_METER, y: other.y * PIXELS_PER_METER })
                     }
                     groupDragOrigin.current = origin
                   } else {
@@ -956,10 +955,17 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                     const dy = y - start.y
                     onPushHistory()
                     const updates: Record<string, Partial<LayoutElement>> = {}
-                    for (const [id, startPos] of origin) {
+                    // El desplazamiento va redondeado a 10 cm y se suma a la
+                    // posición exacta de cada pieza: así las sillas no se
+                    // corren respecto de su mesa al redondear.
+                    const mdx = Math.round((dx / PIXELS_PER_METER) * 10) / 10
+                    const mdy = Math.round((dy / PIXELS_PER_METER) * 10) / 10
+                    for (const id of origin.keys()) {
+                      const cur = elements.find(e => e.id === id)
+                      if (!cur) continue
                       updates[id] = {
-                        x: Math.round(((startPos.x + dx) / PIXELS_PER_METER) * 10) / 10,
-                        y: Math.round(((startPos.y + dy) / PIXELS_PER_METER) * 10) / 10,
+                        x: Math.round((cur.x + mdx) * 1000) / 1000,
+                        y: Math.round((cur.y + mdy) * 1000) / 1000,
                       }
                     }
                     onUpdateElements(updates)
