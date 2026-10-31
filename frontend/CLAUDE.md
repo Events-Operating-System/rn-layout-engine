@@ -1,3 +1,7 @@
+## Regla de commits y pruebas (2026-10-31)
+
+Commits: cada sesión hace commit SOLO de los archivos que cambió ella (git add con rutas, nunca -A ni '.'). Si encuentra cambios ajenos sin commit, no los toca y avisa. Nunca cerrar sesión en el navegador durante pruebas; solo cerrar pestañas.
+
 @AGENTS.md
 
 ---
