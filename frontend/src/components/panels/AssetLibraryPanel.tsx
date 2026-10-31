@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { CATEGORY_COLORS } from '@/types/layout'
 import type { LayoutSettings } from '@/lib/layoutSettings'
 import { DEFAULT_LAYOUT_SETTINGS } from '@/lib/layoutSettings'
@@ -14,9 +14,15 @@ interface AssetLibraryPanelProps {
   customAssets: CustomAsset[]
   selectedElement: LayoutElement | null
   onSaveAsAsset: (element: LayoutElement) => void
-  onDeleteAsset: (id: string) => void
+  onDeleteAsset: (id: string) => Promise<void>
   // Medidas de mesas y sillas de la org (organizations.settings.layout).
   settings?: LayoutSettings
+  // Biblioteca de la org (bloque 6).
+  userId: string
+  canShare: boolean
+  onSetShared: (id: string, shared: boolean) => Promise<void>
+  onSaveTemplate: () => void
+  onUseTemplate: (asset: CustomAsset) => void
 }
 
 // Mesas y silla del catálogo con las medidas de la org.
@@ -92,8 +98,18 @@ const CATEGORY_ORDER: AssetCategory[] = [
 export default function AssetLibraryPanel({
   onAddElement, onAddGroup, customAssets, selectedElement, onSaveAsAsset, onDeleteAsset,
   settings = DEFAULT_LAYOUT_SETTINGS,
+  userId, canShare, onSetShared, onSaveTemplate, onUseTemplate,
 }: AssetLibraryPanelProps) {
   const { t, lang } = useLang()
+  const [libError, setLibError] = useState<string | null>(null)
+  const orgShared = customAssets.filter(a => a.shared && a.kind !== 'template')
+  const templatesList = customAssets.filter(a => a.kind === 'template')
+  const mine = customAssets.filter(a => !a.shared && a.kind !== 'template' && a.created_by === userId)
+
+  async function run(fn: () => Promise<void>) {
+    setLibError(null)
+    try { await fn() } catch { setLibError(t.libNoPermission) }
+  }
   const templates = useMemo(() => withOrgSizes(ASSET_TEMPLATES, settings), [settings])
   // Mesas que se colocan con sus sillas alrededor (un grupo: mesa + sillas).
   const tableSets = useMemo(() => [
@@ -184,75 +200,146 @@ export default function AssetLibraryPanel({
           )
         })}
 
-        {/* Mis Assets */}
-        <div className="px-3 py-2 border-t border-slate-700/60 mt-1">
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-sm flex-none bg-indigo-400" />
-              <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">
-                Mis Assets
-              </span>
-            </div>
-            {selectedElement && (
-              <button
-                onClick={() => onSaveAsAsset(selectedElement)}
-                title="Guardar elemento seleccionado como asset"
-                className="text-indigo-400 hover:text-indigo-300 transition-colors"
-              >
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                  <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-              </button>
-            )}
-          </div>
+        {libError && <p className="mx-3 mt-2 text-[10px] text-amber-400">{libError}</p>}
 
-          {customAssets.length === 0 ? (
-            <p className="text-[9px] text-slate-600 px-2 leading-relaxed">
-              Selecciona un elemento y toca + para guardarlo.
-            </p>
-          ) : (
-            <div className="space-y-0.5">
-              {customAssets.map(asset => (
-                <div
-                  key={asset.id}
-                  className="group flex items-center justify-between px-2 py-1.5 rounded text-xs text-slate-300 hover:bg-slate-700/40 cursor-pointer transition-colors"
-                  onClick={() => handleAddCustomAsset(asset)}
-                >
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span
-                      className="w-2 h-2 rounded-sm flex-none"
-                      style={{ backgroundColor: asset.default_color ?? '#6366f1' }}
-                    />
-                    <span className="truncate">
-                      {asset.name}
-                      {asset.kind === 'group' && (
-                        <span className="text-slate-500"> ({asset.children?.length ?? 0} piezas)</span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 flex-none">
-                    <span className="text-slate-600 text-[9px] font-mono">
-                      {asset.default_width}×{asset.default_height}
-                    </span>
-                    <button
-                      onClick={e => { e.stopPropagation(); onDeleteAsset(asset.id) }}
-                      className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 transition-all p-0.5"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                        <path d="M2 3h8M4.5 3V2h3v1M4 4.5l.5 5M8 4.5l-.5 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        {/* Biblioteca de la org: lo que alguien con "Compartir" publicó */}
+        <LibSection title={t.libOrg} dot="bg-emerald-400">
+          {orgShared.length === 0 ? (
+            <p className="text-[9px] text-slate-600 px-2 leading-relaxed">{t.libOrgEmpty}</p>
+          ) : orgShared.map(asset => (
+            <AssetRow
+              key={asset.id}
+              asset={asset}
+              mine={asset.created_by === userId}
+              onClick={() => handleAddCustomAsset(asset)}
+              onUnshare={canShare ? () => run(() => onSetShared(asset.id, false)) : undefined}
+              onDelete={canShare ? () => run(() => onDeleteAsset(asset.id)) : undefined}
+            />
+          ))}
+        </LibSection>
+
+        {/* Plantillas de plano */}
+        <LibSection
+          title={t.libTemplates}
+          dot="bg-sky-400"
+          action={<PlusButton title={t.libSaveTemplate} onClick={onSaveTemplate} />}
+        >
+          {templatesList.length === 0 ? (
+            <p className="text-[9px] text-slate-600 px-2 leading-relaxed">{t.libTemplatesEmpty}</p>
+          ) : templatesList.map(asset => {
+            const own = asset.created_by === userId
+            return (
+              <AssetRow
+                key={asset.id}
+                asset={asset}
+                mine={own}
+                onClick={() => onUseTemplate(asset)}
+                onShare={canShare && own && !asset.shared ? () => run(() => onSetShared(asset.id, true)) : undefined}
+                onUnshare={canShare && asset.shared ? () => run(() => onSetShared(asset.id, false)) : undefined}
+                onDelete={(own && !asset.shared) || (asset.shared && canShare) ? () => run(() => onDeleteAsset(asset.id)) : undefined}
+              />
+            )
+          })}
+        </LibSection>
+
+        {/* Mis assets: personales (solo los ve quien los creó) */}
+        <LibSection
+          title={t.libMine}
+          dot="bg-indigo-400"
+          action={selectedElement ? <PlusButton title={t.libSaveSelected} onClick={() => onSaveAsAsset(selectedElement)} /> : undefined}
+        >
+          {mine.length === 0 ? (
+            <p className="text-[9px] text-slate-600 px-2 leading-relaxed">{t.libMineEmpty}</p>
+          ) : mine.map(asset => (
+            <AssetRow
+              key={asset.id}
+              asset={asset}
+              mine
+              onClick={() => handleAddCustomAsset(asset)}
+              onShare={canShare ? () => run(() => onSetShared(asset.id, true)) : undefined}
+              onDelete={() => run(() => onDeleteAsset(asset.id))}
+            />
+          ))}
+        </LibSection>
       </div>
 
       <div className="px-4 py-2 border-t border-slate-700/60 flex-none">
         <p className="text-[9px] text-slate-600">{t.libraryHint}</p>
       </div>
     </aside>
+  )
+}
+
+function LibSection({ title, dot, action, children }: { title: string; dot: string; action?: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="px-3 py-2 border-t border-slate-700/60 mt-1">
+      <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-sm flex-none ${dot}`} />
+          <span className="text-[10px] font-medium text-slate-500 uppercase tracking-widest">{title}</span>
+        </div>
+        {action}
+      </div>
+      <div className="space-y-0.5">{children}</div>
+    </div>
+  )
+}
+
+function PlusButton({ title, onClick }: { title: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} title={title} aria-label={title} className="text-indigo-400 hover:text-indigo-300 transition-colors">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    </button>
+  )
+}
+
+function AssetRow({ asset, mine, onClick, onShare, onUnshare, onDelete }: {
+  asset: CustomAsset
+  mine: boolean
+  onClick: () => void
+  onShare?: () => void
+  onUnshare?: () => void
+  onDelete?: () => void
+}) {
+  const { t } = useLang()
+  const count = asset.kind === 'group' ? asset.children?.length ?? 0
+    : asset.kind === 'template' ? (asset.payload?.elements?.length ?? 0) : 0
+  const iconBtn = 'opacity-0 group-hover:opacity-100 focus:opacity-100 text-slate-500 transition-all p-0.5 text-[10px] leading-none'
+  return (
+    <div
+      className="group flex items-center justify-between px-2 py-1.5 rounded text-xs text-slate-300 hover:bg-slate-700/40 cursor-pointer transition-colors"
+      onClick={onClick}
+      title={asset.kind === 'template' ? t.libUseTemplate : undefined}
+    >
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className="w-2 h-2 rounded-sm flex-none" style={{ backgroundColor: asset.default_color ?? '#6366f1' }} />
+        <span className="truncate">
+          {asset.name}
+          {count > 0 && <span className="text-slate-500"> ({count} {t.libPieces})</span>}
+          {asset.shared && asset.kind === 'template' && <span className="text-emerald-500"> · {t.libOrgBadge}</span>}
+          {asset.shared && mine && asset.kind !== 'template' && <span className="text-slate-500"> · {t.libMineBadge}</span>}
+        </span>
+      </div>
+      <div className="flex items-center gap-1 flex-none">
+        {asset.kind !== 'template' && (
+          <span className="text-slate-600 text-[9px] font-mono">{asset.default_width}×{asset.default_height}</span>
+        )}
+        {onShare && (
+          <button onClick={e => { e.stopPropagation(); onShare() }} title={t.libShare} aria-label={t.libShare} className={`${iconBtn} hover:text-emerald-400`}>⇪</button>
+        )}
+        {onUnshare && (
+          <button onClick={e => { e.stopPropagation(); onUnshare() }} title={t.libUnshare} aria-label={t.libUnshare} className={`${iconBtn} hover:text-amber-400`}>⇩</button>
+        )}
+        {onDelete && (
+          <button onClick={e => { e.stopPropagation(); onDelete() }} title={t.libDelete} aria-label={t.libDelete} className={`${iconBtn} hover:text-red-400`}>
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path d="M2 3h8M4.5 3V2h3v1M4 4.5l.5 5M8 4.5l-.5 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
   )
 }

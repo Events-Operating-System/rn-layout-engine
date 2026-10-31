@@ -64,6 +64,17 @@ export interface LayoutElement {
   // Conjunto al que pertenece (una mesa con sus sillas, un asset compuesto).
   // Alinear, distribuir y repetir lo tratan como un solo bloque.
   groupId?: string
+  // Capa elegida a mano. Sin definir: la que toca por categoría (lib/layers).
+  layer?: LayerId
+}
+
+// Capas fijas (bloque 6): perímetro/estructura, mobiliario, decoración,
+// técnica y notas (dibujos y cotas).
+export type LayerId = 'structure' | 'furniture' | 'decor' | 'technical' | 'notes'
+
+export interface LayerState {
+  hidden: LayerId[]
+  locked: LayerId[]
 }
 
 export interface CanvasViewport {
@@ -109,6 +120,7 @@ export interface GroupChild {
   notes?: string
   points?: number[]
   seats?: number
+  layer?: LayerId
 }
 
 // ── Drawing primitives ────────────────────────────────────────────────────────
@@ -143,6 +155,8 @@ export interface LayoutMeta {
   paxAuto?: boolean
   // Plano del local de fondo (imagen guardada en el bucket layout-backgrounds).
   background?: VenueBackground
+  // Capas ocultas y bloqueadas en este plano (bloque 6).
+  layers?: LayerState
   // Nota libre de versión escrita a mano. El número lo pone la base
   // (layouts.version_number); esto solo se muestra al lado.
   version: string

@@ -25,6 +25,7 @@ export { PIXELS_PER_METER }
 export interface LayoutCanvasHandle {
   exportPNG: () => void
   exportPDF: () => void
+  fitToScreen: () => void
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -33,6 +34,9 @@ interface LayoutCanvasProps {
   elements: LayoutElement[]
   selectedId: string | null
   selectedIds: Set<string>
+  // Capas bloqueadas (bloque 6): piezas visibles que no se eligen ni mueven.
+  inertIds?: Set<string>
+  drawingsLocked?: boolean
   viewport: CanvasViewport
   onSelect: (id: string | null) => void
   onToggleSelect: (id: string) => void
@@ -76,7 +80,7 @@ interface LayoutCanvasProps {
 const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
   function LayoutCanvas(
     {
-      elements, selectedId, selectedIds, viewport,
+      elements, selectedId, selectedIds, viewport, inertIds, drawingsLocked,
       onSelect, onToggleSelect, onSelectMultiple, onUpdateElement, onUpdateElements, onUpdateViewport,
       onDeleteElement, onDeleteElements,
       activeTool, measureMode, drawings, onAddDrawing, onAddPolygon, layoutMeta, versionNumber,
@@ -319,6 +323,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
               const rLeft = rect.x, rRight = rect.x + rect.width
               const rTop = rect.y, rBottom = rect.y + rect.height
               const hitIds = elements
+                .filter(el => !inertIds?.has(el.id))
                 .filter(el => {
                   const elL = el.x * PIXELS_PER_METER
                   const elT = el.y * PIXELS_PER_METER
@@ -343,7 +348,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         window.removeEventListener('mouseup', onUp)
         window.removeEventListener('touchend', onUp)
       }
-    }, [onUpdateViewport, onAddDrawing, elements, onSelectMultiple])
+    }, [onUpdateViewport, onAddDrawing, elements, onSelectMultiple, inertIds])
 
     // ── Export PNG ────────────────────────────────────────────────────────────
 
@@ -355,7 +360,6 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       exportLayoutPdf({ containerSize, elements, drawings, layoutMeta, versionNumber, lang, dimensionDecimals, background, backgroundImage })
     }, [containerSize, elements, drawings, layoutMeta, versionNumber, lang, dimensionDecimals, background, backgroundImage])
 
-    useImperativeHandle(ref, () => ({ exportPNG, exportPDF }), [exportPNG, exportPDF])
 
     // ── Ajustar a pantalla ────────────────────────────────────────────────────
 
@@ -375,6 +379,8 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       window.addEventListener('keydown', onKey)
       return () => window.removeEventListener('keydown', onKey)
     }, [fitToScreen])
+
+    useImperativeHandle(ref, () => ({ exportPNG, exportPDF, fitToScreen }), [exportPNG, exportPDF, fitToScreen])
 
     // ── Zoom (wheel) ──────────────────────────────────────────────────────────
 
@@ -796,7 +802,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
 
     const cursor = activeTool === 'hand' ? 'grab' : activeTool !== 'pointer' ? 'crosshair' : 'default'
     const elementInteractive = activeTool === 'pointer'
-    const drawingsInteractive = activeTool === 'pointer'
+    const drawingsInteractive = activeTool === 'pointer' && !drawingsLocked
 
     // Cap pixelRatio at 2 — prevents canvas memory exhaustion on iPhone (DPR=3)
     // At DPR=3 two Konva layers = ~33MB which exceeds iOS Safari's canvas budget
@@ -903,7 +909,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 displayName={getAssetName(lang, el.name)}
                 decimals={dimensionDecimals}
                 isSelected={selectedIds.has(el.id)}
-                interactive={elementInteractive}
+                interactive={elementInteractive && !inertIds?.has(el.id)}
                 onSelect={(shiftKey) => (shiftKey ? onToggleSelect(el.id) : onSelect(el.id))}
                 onDragStart={() => {
                   isDraggingElement.current = true
@@ -911,7 +917,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                   // una selección múltiple) y, para cada pieza que no sea
                   // silla, su conjunto entero (mesa con sus sillas). Una
                   // silla arrastrada sola se mueve sola. Lo bloqueado queda.
-                  const ids = dragSet(el.id, selectedIds, elements)
+                  const ids = dragSet(el.id, selectedIds, elements).filter(id => !inertIds?.has(id))
                   if (ids.length > 1) {
                     const origin = new Map<string, { x: number; y: number }>()
                     for (const id of ids) {

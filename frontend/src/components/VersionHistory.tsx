@@ -8,6 +8,7 @@ import type { CanvasViewport } from '@/types/layout'
 import { normalizeLayoutMeta } from '@/lib/layoutMeta'
 import { effectivePax } from '@/lib/seating'
 import { useBackgroundImage } from '@/hooks/useBackgroundImage'
+import { applyLayers } from '@/lib/layers'
 
 const DATE_LOCALE: Record<Lang, string> = { es: 'es-PE', en: 'en-US', pt: 'pt-BR' }
 const noop = () => {}
@@ -200,6 +201,8 @@ function VersionViewer({ version, canRestore, onRestore, onClose }: {
   const normalized = normalizeLayoutMeta(version.meta, version.name)
   const meta = { ...normalized, pax: effectivePax(normalized, version.elements ?? []) }
   const backgroundImage = useBackgroundImage(meta.background?.path)
+  // Se ve como se guardó: con las capas ocultas de esa versión.
+  const view = applyLayers(version.elements ?? [], meta.layers)
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">
@@ -236,7 +239,7 @@ function VersionViewer({ version, canRestore, onRestore, onClose }: {
       <main className="flex-1 flex flex-col overflow-hidden min-w-0">
         <LayoutCanvas
           ref={canvasRef}
-          elements={version.elements ?? []}
+          elements={view.elements}
           selectedId={null}
           selectedIds={EMPTY_IDS}
           viewport={viewport}
@@ -251,7 +254,7 @@ function VersionViewer({ version, canRestore, onRestore, onClose }: {
           onDeleteElements={noop}
           activeTool="hand"
           measureMode="distance"
-          drawings={version.drawings ?? []}
+          drawings={view.showDrawings ? version.drawings ?? [] : []}
           onAddDrawing={noop}
           layoutMeta={meta}
           versionNumber={version.version_number}

@@ -19,12 +19,17 @@ import { supabase } from '@/lib/supabase'
 import { layoutService, type LayoutData, type LayoutVersion } from '@/lib/layoutService'
 import { draftService, type LayoutDraft } from '@/lib/draftService'
 import { normalizeLayoutMeta } from '@/lib/layoutMeta'
+import { buildTemplate, type TemplatePayload } from '@/lib/templates'
+import { applyLayers, normalizeLayers, countByLayer, layerOf } from '@/lib/layers'
+import LayersPanel from '@/components/LayersPanel'
+import type { CustomAsset } from '@/lib/assetService'
 import { useLayoutSettings } from '@/hooks/useLayoutSettings'
 import { effectivePax, isPaxAuto } from '@/lib/seating'
 import { isPermissionError, NO_LAYOUT_PERMISSIONS, type LayoutPermissions } from '@/lib/layoutPermissions'
-import type { AssetTemplate, LayoutElement, GroupChild } from '@/types/layout'
+import type { AssetTemplate, LayoutElement, GroupChild, DrawingPrimitive, LayerId } from '@/types/layout'
 
 const round2 = (n: number) => Math.round(n * 100) / 100
+const NO_DRAWINGS: DrawingPrimitive[] = []
 
 // Combined bounding box of a multi-selection + each element's offset from
 // its top-left origin, ready to store as a 'group' custom asset. Same
@@ -55,6 +60,7 @@ function buildGroupAsset(els: LayoutElement[]): {
     notes: e.notes || undefined,
     points: e.shape === 'polygon' && e.points ? e.points.map(round2) : undefined,
     seats: e.seats || undefined,
+    layer: e.layer,
   }))
   return { width: round2(maxX - minX), height: round2(maxY - minY), children }
 }
@@ -62,6 +68,7 @@ function buildGroupAsset(els: LayoutElement[]): {
 type AssetSaveTarget =
   | { kind: 'shape'; element: LayoutElement }
   | { kind: 'group'; count: number; width: number; height: number; children: GroupChild[] }
+  | { kind: 'template'; count: number; width: number; height: number; payload: TemplatePayload }
 
 interface Props {
   layoutIdToLoad?: string | null
@@ -90,6 +97,12 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   // nombre + nombre tipeado en el modal.
   const [assetTarget, setAssetTarget] = useState<AssetSaveTarget | null>(null)
   const [assetName, setAssetName] = useState('')
+  const [assetError, setAssetError] = useState<string | null>(null)
+  // "Compartir con la org" al guardar (solo con la facultad Compartir).
+  const [assetShare, setAssetShare] = useState(false)
+  // Aviso corto de la biblioteca (plantilla usada, plano vacío…).
+  const [templateMsg, setTemplateMsg] = useState<string | null>(null)
+  const [layersOpen, setLayersOpen] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
   // La base rechazó una operación por permisos → aviso "No tienes permiso".
   const [permissionDenied, setPermissionDenied] = useState(false)
@@ -106,7 +119,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     updateElement, updateElements, updateViewport, addElement, addGroup, addPolygon, addWall,
     deleteElement, deleteElements, duplicateElement, duplicateElements,
     bringToFront, sendToBack, rotateElements, alignElements, distributeElements, repeatInGrid,
-    ungroupElements, groupTablesWithChairs,
+    ungroupElements, groupTablesWithChairs, addTemplate,
     activeTool, setTool, measureMode, setMeasureMode,
     drawings, addDrawing, deleteDrawing, updateDrawing,
     clearDrawings, layoutMeta, updateMeta,
@@ -159,9 +172,43 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     if (readOnly) setTool('hand')
   }, [readOnly, setTool])
 
-  const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
+  const { assets: customAssets, createAsset, deleteAsset, setShared } = useCustomAssets(userId, orgId)
   // Medidas de mesas/sillas y separación entre mesas de la org.
   const layoutSettings = useLayoutSettings(orgId)
+  // Capas (bloque 6): lo oculto no se dibuja ni se exporta; lo bloqueado no
+  // se elige ni se mueve. El PAX cuenta todo igual.
+  const layerState = useMemo(() => normalizeLayers(layoutMeta.layers), [layoutMeta.layers])
+  const layerView = useMemo(() => applyLayers(elements, layerState), [elements, layerState])
+  const layerCounts = useMemo(() => countByLayer(elements, drawings.length), [elements, drawings.length])
+  useEffect(() => {
+    if (!templateMsg) return
+    const id = setTimeout(() => setTemplateMsg(null), 4000)
+    return () => clearTimeout(id)
+  }, [templateMsg])
+
+  const setLayers = useCallback((next: typeof layerState) => {
+    // Lo que queda oculto o bloqueado deja de estar seleccionado.
+    selectElement(null)
+    selectDrawing(null)
+    updateMeta({ layers: next })
+  }, [selectElement, selectDrawing, updateMeta])
+
+  // Cambiar de capa: la selección y el conjunto entero de cada pieza. Una
+  // entrada de deshacer.
+  const setLayerFor = useCallback((ids: string[], layer: LayerId) => {
+    const groups = new Set(elements.filter(e => ids.includes(e.id) && e.groupId).map(e => e.groupId))
+    const target = elements.filter(e => ids.includes(e.id) || (e.groupId && groups.has(e.groupId)))
+    if (!target.length) return
+    pushHistory()
+    updateElements(Object.fromEntries(target.map(e => [e.id, { layer }])))
+    // Si la capa está oculta o bloqueada, la pieza deja de estar elegida.
+    if (layerState.hidden.includes(layer) || layerState.locked.includes(layer)) selectElement(null)
+  }, [elements, pushHistory, updateElements, layerState, selectElement])
+  const selectionLayer = useMemo(() => {
+    const ls = new Set(elements.filter(e => selectedIds.has(e.id)).map(layerOf))
+    return ls.size === 1 ? [...ls][0] : null
+  }, [elements, selectedIds])
+
   // Piezas de los conjuntos tocados por la selección (para "Desagrupar").
   const groupedCount = useMemo(() => {
     const groups = new Set(elements.filter(e => selectedIds.has(e.id) && e.groupId).map(e => e.groupId))
@@ -399,11 +446,50 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     setAssetName('')
   }, [elements, selectedIds])
 
+  // Guardar el plano entero como plantilla de la org.
+  const handleRequestSaveTemplate = useCallback(() => {
+    if (!elements.length && !drawings.length) { setTemplateMsg(t.libTemplateEmptyPlan); return }
+    const { payload, width, height } = buildTemplate(elements, drawings, layoutMeta.background, layoutMeta.layers)
+    setAssetTarget({ kind: 'template', count: elements.length + drawings.length, width, height, payload })
+    setAssetName(inputName)
+    setAssetShare(permissions.canShare)
+  }, [elements, drawings, layoutMeta.background, layoutMeta.layers, inputName, permissions.canShare, t])
+
+  // Usar una plantilla: suma sus piezas al plano (se deshace con Cmd+Z) y,
+  // si el plano no tiene plano del local, toma el de la plantilla.
+  const handleUseTemplate = useCallback((asset: CustomAsset) => {
+    const n = addTemplate(asset.payload)
+    if (!n) { setTemplateMsg(t.libTemplateBroken); return }
+    if (asset.payload?.background && !layoutMeta.background) updateMeta({ background: asset.payload.background })
+    setTemplateMsg(t.libTemplateUsed.replace('{name}', asset.name))
+    requestAnimationFrame(() => requestAnimationFrame(() => canvasRef.current?.fitToScreen()))
+  }, [addTemplate, layoutMeta.background, updateMeta, t])
+
+  const closeAssetModal = useCallback(() => {
+    setAssetTarget(null)
+    setAssetName('')
+    setAssetError(null)
+    setAssetShare(false)
+  }, [])
+
   const handleConfirmSaveAsAsset = useCallback(async () => {
     if (!assetTarget) return
     const name = assetName.trim()
     if (!name) return
-    if (assetTarget.kind === 'shape') {
+    setAssetError(null)
+    const shared = permissions.canShare && assetShare
+    try {
+    if (assetTarget.kind === 'template') {
+      await createAsset({
+        name,
+        category: 'template',
+        kind: 'template',
+        default_width: assetTarget.width,
+        default_height: assetTarget.height,
+        payload: assetTarget.payload,
+        shared,
+      })
+    } else if (assetTarget.kind === 'shape') {
       const el = assetTarget.element
       await createAsset({
         name,
@@ -416,6 +502,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         // Solo los polígonos guardan su geometría; el resto de las formas
         // se reconstruyen de width/height. Redondeado a 2 decimales (1cm).
         points: el.shape === 'polygon' && el.points ? el.points.map(round2) : undefined,
+        shared,
       })
     } else {
       await createAsset({
@@ -425,11 +512,15 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         default_width: assetTarget.width,
         default_height: assetTarget.height,
         children: assetTarget.children,
+        shared,
       })
     }
-    setAssetTarget(null)
-    setAssetName('')
-  }, [assetTarget, assetName, createAsset])
+    } catch (err) {
+      setAssetError(isPermissionError(err) ? t.noPermission : t.libSaveError)
+      return
+    }
+    closeAssetModal()
+  }, [assetTarget, assetName, assetShare, permissions.canShare, createAsset, closeAssetModal, t])
 
   const handleRecoverDraft = useCallback(() => {
     if (!recovery) return
@@ -595,10 +686,28 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         {/* Acciones secundarias — ocultas < sm para que "Guardar" nunca
             quede fuera de pantalla en móvil. Duplicar sigue disponible
             desde las tarjetas del dashboard. */}
+        <div className="relative flex-none">
+          <button
+            onClick={() => { setLayersOpen(o => !o); setVenueOpen(false) }}
+            className={`h-7 px-2 sm:px-3 rounded text-xs font-semibold border transition-colors whitespace-nowrap ${layersOpen ? 'text-white bg-indigo-600 border-indigo-500' : (layerState.hidden.length || layerState.locked.length) ? 'text-amber-300 bg-slate-800 hover:bg-slate-700 border-amber-700/60' : 'text-slate-300 bg-slate-800 hover:bg-slate-700 border-slate-600'}`}
+            title={t.layersTitle}
+          >
+            ▤<span className="hidden md:inline"> {t.layersTitle}</span>
+          </button>
+          {layersOpen && (
+            <LayersPanel
+              state={layerState}
+              counts={layerCounts}
+              canLock={!readOnly}
+              onChange={setLayers}
+              onClose={() => setLayersOpen(false)}
+            />
+          )}
+        </div>
         {!readOnly && (
           <div className="relative flex-none">
             <button
-              onClick={() => setVenueOpen(o => !o)}
+              onClick={() => { setVenueOpen(o => !o); setLayersOpen(false) }}
               className={`h-7 px-2 sm:px-3 rounded text-xs font-semibold border transition-colors whitespace-nowrap ${venueOpen ? 'text-white bg-indigo-600 border-indigo-500' : 'text-slate-300 bg-slate-800 hover:bg-slate-700 border-slate-600'}`}
               title={t.venueTitle}
             >
@@ -686,13 +795,25 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onSaveAsAsset={handleRequestSaveAsAsset}
             onDeleteAsset={deleteAsset}
             settings={layoutSettings}
+            userId={userId}
+            canShare={permissions.canShare}
+            onSetShared={setShared}
+            onSaveTemplate={handleRequestSaveTemplate}
+            onUseTemplate={handleUseTemplate}
           />
         </div>}
 
-        <main className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <main className="relative flex-1 flex flex-col overflow-hidden min-w-0">
+          {templateMsg && (
+            <div role="status" className="absolute left-1/2 -translate-x-1/2 top-3 z-30 max-w-sm px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-xs text-slate-200 shadow-xl">
+              {templateMsg}
+            </div>
+          )}
           <LayoutCanvas
             ref={canvasRef}
-            elements={elements}
+            elements={layerView.elements}
+            inertIds={layerView.inertIds}
+            drawingsLocked={layerView.drawingsLocked}
             selectedId={selectedId}
             selectedIds={selectedIds}
             viewport={viewport}
@@ -713,7 +834,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onDeleteElements={deleteElements}
             activeTool={effectiveTool}
             measureMode={measureMode}
-            drawings={drawings}
+            drawings={layerView.showDrawings ? drawings : NO_DRAWINGS}
             onAddDrawing={addDrawing}
             layoutMeta={displayMeta}
             versionNumber={versionNumber}
@@ -750,6 +871,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             groupedCount={groupedCount}
             onUngroup={ungroupElements}
             onGroupTablesWithChairs={() => groupTablesWithChairs(layoutSettings)}
+            onSetLayer={setLayerFor}
+            selectionLayer={selectionLayer}
           />
         </div>}
 
@@ -819,7 +942,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm">
             <h3 className="text-sm font-semibold text-slate-100 mb-2">
-              {assetTarget.kind === 'group' ? t.saveGroupAsAssetTitle : t.saveAsAssetTitle}
+              {assetTarget.kind === 'template' ? t.libSaveTemplate : assetTarget.kind === 'group' ? t.saveGroupAsAssetTitle : t.saveAsAssetTitle}
             </h3>
             <p className="text-xs text-slate-400 mb-4">
               {t.assetNameHint}
@@ -830,21 +953,30 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
               onChange={e => setAssetName(e.target.value)}
               onKeyDown={e => {
                 if (e.key === 'Enter') void handleConfirmSaveAsAsset()
-                if (e.key === 'Escape') { setAssetTarget(null); setAssetName('') }
+                if (e.key === 'Escape') closeAssetModal()
               }}
               placeholder={t.assetNamePlaceholder}
               className="w-full bg-slate-800 border border-slate-600 focus:border-indigo-500 rounded px-3 py-2 text-sm text-slate-100 outline-none"
             />
-            <p className="text-[10px] text-slate-500 mt-2 mb-5">
-              {assetTarget.kind === 'group'
+            <p className="text-[10px] text-slate-500 mt-2 mb-3">
+              {assetTarget.kind !== 'shape'
                 ? `${assetTarget.count} ${t.assetPiecesUnit} · ${assetTarget.width}m × ${assetTarget.height}m`
                 : `${round2(assetTarget.element.width)}m × ${round2(assetTarget.element.height)}m${
                     assetTarget.element.shape === 'polygon' ? t.assetDimsPolygonNote : ''
                   }`}
             </p>
+            {permissions.canShare ? (
+              <label className="flex items-start gap-2 text-[11px] text-slate-300 mb-4">
+                <input type="checkbox" className="mt-0.5" checked={assetShare} onChange={e => setAssetShare(e.target.checked)} />
+                <span>{t.libShareOnSave}</span>
+              </label>
+            ) : (
+              <p className="text-[10px] text-slate-500 mb-4">{t.libPersonalNote}</p>
+            )}
+            {assetError && <p className="text-[11px] text-amber-400 mb-3">{assetError}</p>}
             <div className="flex gap-3">
               <button
-                onClick={() => { setAssetTarget(null); setAssetName('') }}
+                onClick={closeAssetModal}
                 className="flex-1 py-2 rounded-lg border border-slate-700 text-xs text-slate-400 hover:bg-slate-800 transition-colors"
               >
                 {t.cancel}

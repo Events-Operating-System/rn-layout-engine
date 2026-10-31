@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { LayoutElement, DrawingPrimitive } from '@/types/layout'
+import type { LayoutElement, DrawingPrimitive, LayerId } from '@/types/layout'
+import { LAYERS, layerOf } from '@/lib/layers'
 import { useLang, getCategoryLabel, getAssetName } from '@/context/LangContext'
 import { PIXELS_PER_METER } from '@/components/canvas/LayoutCanvas'
 import { lengthMeters, angleDegrees, pointFromLengthAngle, elementAreaMeters, polylineLengthMeters } from '@/lib/drawingMath'
@@ -28,6 +29,10 @@ interface PropertiesPanelProps {
   onUngroup: (ids: string[]) => void
   // Planos viejos: agrupa las sillas sueltas con su mesa (sin selección).
   onGroupTablesWithChairs: () => { tables: number; chairs: number }
+  // Capa de la selección (el conjunto entero de cada pieza).
+  onSetLayer: (ids: string[], layer: LayerId) => void
+  // Capa común de la selección múltiple, o null si hay varias.
+  selectionLayer: LayerId | null
 }
 
 const COLOR_PRESETS = [
@@ -47,7 +52,7 @@ export default function PropertiesPanel({
   selectedDrawing, onUpdateDrawing, onDeleteDrawing,
   selectedIds, onBringToFront, onSendToBack, onSaveGroupAsAsset, onRotateGroup,
   onAlign, onDistribute, onRepeatGrid, defaultSpacing,
-  groupedCount, onUngroup, onGroupTablesWithChairs,
+  groupedCount, onUngroup, onGroupTablesWithChairs, onSetLayer, selectionLayer,
 }: PropertiesPanelProps) {
   const { t } = useLang()
   const isMultiSelect = element === null && selectedDrawing === null && selectedIds.size > 1
@@ -79,6 +84,7 @@ export default function PropertiesPanel({
       ) : element !== null ? (
         <>
         {groupedCount > 0 && <GroupSection count={groupedCount} onUngroup={() => onUngroup([element.id])} />}
+        <LayerSelect value={layerOf(element)} onChange={l => onSetLayer([element.id], l)} />
         <ElementProperties
           element={element}
           onUpdate={onUpdate}
@@ -93,6 +99,7 @@ export default function PropertiesPanel({
       ) : (
         <>
         {groupedCount > 0 && <GroupSection count={groupedCount} onUngroup={() => onUngroup([...selectedIds])} />}
+        <LayerSelect value={selectionLayer} onChange={l => onSetLayer([...selectedIds], l)} />
         <MultiSelectProperties
           count={selectedIds.size}
           onBringToFront={() => onBringToFront([...selectedIds])}
@@ -107,6 +114,29 @@ export default function PropertiesPanel({
         </>
       )}
     </aside>
+  )
+}
+
+// Capa de la pieza (o de toda la selección). Un conjunto va entero.
+function LayerSelect({ value, onChange }: { value: LayerId | null; onChange: (l: LayerId) => void }) {
+  const { t } = useLang()
+  const names: Record<LayerId, string> = {
+    structure: t.layerStructure, furniture: t.layerFurniture, decor: t.layerDecor, technical: t.layerTechnical, notes: t.layerNotes,
+  }
+  return (
+    <div className="flex-none px-4 pt-4 -mb-2">
+      <label className="flex items-center justify-between gap-2 text-[10px] text-slate-500 uppercase tracking-widest">
+        {t.fLayer}
+        <select
+          value={value ?? ''}
+          onChange={e => onChange(e.target.value as LayerId)}
+          className="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs text-slate-100 normal-case tracking-normal"
+        >
+          {value === null && <option value="">{t.layerMixed}</option>}
+          {LAYERS.filter(l => l !== 'notes').map(l => <option key={l} value={l}>{names[l]}</option>)}
+        </select>
+      </label>
+    </div>
   )
 }
 

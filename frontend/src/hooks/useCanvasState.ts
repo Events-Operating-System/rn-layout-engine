@@ -3,6 +3,7 @@ import type { LayoutElement, CanvasViewport, AssetTemplate, DrawingPrimitive, Dr
 import { CATEGORY_COLORS, DEFAULT_LAYOUT_META } from '@/types/layout'
 import { alignUpdates, distributeUpdates, gridCopies, type AlignMode } from '@/lib/arrange'
 import { ungroupIds, detectTableChairGroups, groupIdsForCopy } from '@/lib/grouping'
+import { instantiateTemplate, type TemplatePayload } from '@/lib/templates'
 
 const PIXELS_PER_METER = 20
 const MAX_HISTORY = 50
@@ -203,6 +204,7 @@ export function useCanvasState() {
         ...(c.flipY ? { flipY: true } : {}),
         ...(c.shape === 'polygon' && c.points ? { points: c.points } : {}),
         ...(c.seats ? { seats: c.seats } : {}),
+        ...(c.layer ? { layer: c.layer } : {}),
         ...(groupId ? { groupId } : {}),
       }))
       return [...prev, ...newEls]
@@ -299,6 +301,20 @@ export function useCanvasState() {
     setElements(prev => [...prev, ...copies])
     setSelectedIds(new Set([...originals.map(o => o.id), ...copies.map(c => c.id)]))
     setSelectedDrawingId(null)
+  }, [pushHistory])
+
+  // Plantilla de la org: agrega sus piezas y dibujos (ids nuevos, mismas
+  // posiciones) a lo que ya hay. Una sola entrada de deshacer.
+  const addTemplate = useCallback((payload: TemplatePayload | null | undefined) => {
+    const ts = Date.now()
+    const { elements: els, drawings: drws } = instantiateTemplate(payload, i => `el-${ts}-t${i}`, i => `grp-${ts}-t${i}`)
+    if (!els.length && !drws.length) return 0
+    pushHistory()
+    setElements(prev => [...prev, ...els])
+    setDrawings(prev => [...prev, ...drws])
+    setSelectedIds(new Set(els.map(e => e.id)))
+    setSelectedDrawingId(null)
+    return els.length + drws.length
   }, [pushHistory])
 
   // Desagrupar: el conjunto entero de cada pieza elegida queda suelto.
@@ -523,6 +539,7 @@ export function useCanvasState() {
     repeatInGrid,
     ungroupElements,
     groupTablesWithChairs,
+    addTemplate,
     activeTool,
     setTool,
     measureMode,

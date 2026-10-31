@@ -3,19 +3,19 @@ import { isPermissionError, parseLayoutPermissions } from './layoutPermissions'
 
 describe('parseLayoutPermissions', () => {
   it('owner con el módulo: todo', () => {
-    expect(parseLayoutPermissions({ modules: ['layout'], can: { layout: { crear: true, editar: true, borrar: true } } }))
-      .toEqual({ canCreate: true, canEdit: true, canDelete: true })
+    expect(parseLayoutPermissions({ modules: ['layout'], can: { layout: { crear: true, editar: true, borrar: true, compartir: true } } }))
+      .toEqual({ canCreate: true, canEdit: true, canDelete: true, canShare: true })
   })
   it('rol sin borrar', () => {
     expect(parseLayoutPermissions({ modules: ['layout'], can: { layout: { crear: true, editar: true, borrar: false } } }))
-      .toEqual({ canCreate: true, canEdit: true, canDelete: false })
+      .toEqual({ canCreate: true, canEdit: true, canDelete: false, canShare: false })
   })
   it('sin el módulo: nada, aunque las acciones digan true', () => {
     expect(parseLayoutPermissions({ modules: ['eventos'], can: { layout: { crear: true, editar: true, borrar: true } } }))
-      .toEqual({ canCreate: false, canEdit: false, canDelete: false })
+      .toEqual({ canCreate: false, canEdit: false, canDelete: false, canShare: false })
   })
   it('respuesta rara: falla cerrado', () => {
-    expect(parseLayoutPermissions(null)).toEqual({ canCreate: false, canEdit: false, canDelete: false })
+    expect(parseLayoutPermissions(null)).toEqual({ canCreate: false, canEdit: false, canDelete: false, canShare: false })
   })
 })
 

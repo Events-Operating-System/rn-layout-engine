@@ -8,24 +8,27 @@ export interface LayoutPermissions {
   canCreate: boolean
   canEdit: boolean
   canDelete: boolean
+  // Publicar en la biblioteca de la org o sacar de ella (bloque 6).
+  canShare: boolean
 }
 
 export const NO_LAYOUT_PERMISSIONS: LayoutPermissions = {
-  loading: false, canCreate: false, canEdit: false, canDelete: false,
+  loading: false, canCreate: false, canEdit: false, canDelete: false, canShare: false,
 }
 
-// get_my_permissions → { role, modules, can: { layout: { crear, editar, borrar } } }
+// get_my_permissions → { role, modules, can: { layout: { crear, editar, borrar, compartir } } }
 // Sin el módulo 'layout' no hay ninguna facultad. Ante cualquier forma
 // inesperada, falla cerrado.
 export function parseLayoutPermissions(data: unknown): Omit<LayoutPermissions, 'loading'> {
   const d = data as { modules?: unknown; can?: { layout?: Record<string, unknown> } } | null
   const modules = Array.isArray(d?.modules) ? (d?.modules as unknown[]) : []
-  if (!modules.includes('layout')) return { canCreate: false, canEdit: false, canDelete: false }
+  if (!modules.includes('layout')) return { canCreate: false, canEdit: false, canDelete: false, canShare: false }
   const can = d?.can?.layout ?? {}
   return {
     canCreate: can.crear === true,
     canEdit: can.editar === true,
     canDelete: can.borrar === true,
+    canShare: can.compartir === true,
   }
 }
 
