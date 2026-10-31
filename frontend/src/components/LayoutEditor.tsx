@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { layoutService, type LayoutData, type LayoutVersion } from '@/lib/layoutService'
 import { draftService, type LayoutDraft } from '@/lib/draftService'
 import { normalizeLayoutMeta } from '@/lib/layoutMeta'
+import { isPermissionError, NO_LAYOUT_PERMISSIONS, type LayoutPermissions } from '@/lib/layoutPermissions'
 import type { AssetTemplate, LayoutElement, GroupChild } from '@/types/layout'
 
 const round2 = (n: number) => Math.round(n * 100) / 100
@@ -60,9 +61,11 @@ interface Props {
   eventId?: string | null
   orgId?: string
   onLayoutForked?: (newId: string) => void
+  // Facultades de Layout del rol (Administración → Roles y permisos).
+  permissions?: LayoutPermissions
 }
 
-export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLayoutForked }: Props) {
+export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLayoutForked, permissions = NO_LAYOUT_PERMISSIONS }: Props) {
   const { t } = useLang()
   const canvasRef = useRef<LayoutCanvasHandle>(null)
   const [mobilePanel, setMobilePanel] = useState<'library' | 'properties' | null>(null)
@@ -81,6 +84,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   const [assetTarget, setAssetTarget] = useState<AssetSaveTarget | null>(null)
   const [assetName, setAssetName] = useState('')
   const [versionsOpen, setVersionsOpen] = useState(false)
+  // La base rechazó una operación por permisos → aviso "No tienes permiso".
+  const [permissionDenied, setPermissionDenied] = useState(false)
   // Cliente del evento vinculado (eventos.events.client_name). Si hay, la
   // casilla CLIENTE lo muestra y no se edita a mano.
   const [eventClient, setEventClient] = useState<string | null>(null)
@@ -133,6 +138,17 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
 
   const persistence = useLayoutPersistence(userId, eventId)
   const { save, load, layoutId, versionNumber, setVersionNumber } = persistence
+
+  // Guardar un plano existente pide "editar"; el primer Guardar de uno nuevo
+  // pide "crear". Sin eso, el editor queda en solo lectura (se puede mirar,
+  // medir y exportar). La base igual rechaza cualquier escritura sin permiso.
+  // Mientras se cargan las facultades no se pasa a solo lectura (evita el
+  // parpadeo); Guardar igual queda oculto hasta saberlas.
+  const canSave = layoutId ? permissions.canEdit : permissions.canCreate
+  const readOnly = !permissions.loading && !canSave
+  useEffect(() => {
+    if (readOnly) setTool('hand')
+  }, [readOnly, setTool])
 
   const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
 
@@ -244,11 +260,11 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     orgId,
     snapshotRef,
     dirtyKey,
-    enabled: !!layoutId && !!orgId && bootstrapped && saveStatus !== 'saving',
+    enabled: !!layoutId && !!orgId && bootstrapped && saveStatus !== 'saving' && permissions.canEdit,
   })
 
   const handleSave = useCallback(async () => {
-    if (!userId) return
+    if (!userId || !canSave) return
     setSaveStatus('saving')
     const currentName = inputNameRef.current
     const currentMeta = { ...layoutMetaRef.current, proyecto: currentName }
@@ -258,7 +274,13 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
       meta: currentMeta,
       viewport: viewportRef.current,
     }
-    await save(payload, currentName)
+    try {
+      await save(payload, currentName)
+    } catch (err) {
+      setSaveStatus('idle')
+      if (isPermissionError(err)) { setPermissionDenied(true); return }
+      throw err
+    }
     // El "Guardar" manual es la única vía que pisa la fila real: el draft
     // de autosave ya no aplica.
     if (layoutId) void draftService.clear(layoutId).catch(() => {})
@@ -266,7 +288,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     setRecovery(null)
     setSaveStatus('saved')
     setTimeout(() => setSaveStatus('idle'), 2000)
-  }, [userId, save, layoutId, markDraftSaved])
+  }, [userId, canSave, save, layoutId, markDraftSaved])
 
   // "Duplicar" — forks the layout's last SAVED content (re-reads from DB,
   // ignores any unsaved edits currently on the canvas). Original untouched.
@@ -288,6 +310,9 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         layoutId
       )
       onLayoutForked?.(newId)
+    } catch (err) {
+      if (isPermissionError(err)) setPermissionDenied(true)
+      else throw err
     } finally {
       setDuplicating(false)
     }
@@ -313,6 +338,9 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         layoutId
       )
       onLayoutForked?.(newId)
+    } catch (err) {
+      if (isPermissionError(err)) setPermissionDenied(true)
+      else throw err
     } finally {
       setSavingAsCopy(false)
     }
@@ -431,6 +459,13 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
       if (versionsOpen) return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+      // Solo lectura: nada que cambie el plano (mano y medir sí).
+      if (readOnly) {
+        if (e.ctrlKey || e.metaKey) return
+        if (e.key === 'h') setTool('hand')
+        else if (e.key === 'm') setTool('measure')
+        return
+      }
       if (e.ctrlKey || e.metaKey) {
         if (e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); redo(); return }
         if (e.key === 'z') { e.preventDefault(); undo(); return }
@@ -454,7 +489,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedId, selectedIds, duplicateElement, duplicateElements, setTool, undo, redo, handleSave, versionsOpen])
+  }, [selectedId, selectedIds, duplicateElement, duplicateElements, setTool, undo, redo, handleSave, versionsOpen, readOnly])
 
   function toggleMobilePanel(panel: 'library' | 'properties') {
     setMobilePanel(prev => (prev === panel ? null : panel))
@@ -489,11 +524,13 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         onRedo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
+        readOnly={readOnly}
       />
 
       <div className="flex-none h-9 bg-slate-900 border-b border-slate-700/60 flex items-center px-3 sm:px-4 gap-2 sm:gap-3">
         <input
           value={inputName}
+          readOnly={readOnly}
           onChange={e => {
             setInputName(e.target.value)
             updateMeta({ proyecto: e.target.value })
@@ -527,30 +564,43 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
           <span className="font-mono text-slate-100">v{versionNumber}</span>
           <span className="hidden sm:inline"> · {t.versionsBtn}</span>
         </button>
-        <button
+        {permissions.canCreate && <button
           onClick={handleSaveAsCopy}
           disabled={!userId || savingAsCopy}
           title={t.saveAsCopyTitle}
           className="hidden sm:block flex-none h-7 px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 disabled:opacity-40 transition-colors"
         >
           {savingAsCopy ? t.savingCopy : t.saveAsCopy}
-        </button>
-        <button
+        </button>}
+        {permissions.canCreate && <button
           onClick={handleDuplicate}
           disabled={!layoutId || duplicating}
           title={layoutId ? t.duplicateTitleReady : t.duplicateTitleUnsaved}
           className="hidden sm:block flex-none h-7 px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 disabled:opacity-40 transition-colors"
         >
           {duplicating ? t.duplicating : t.duplicate}
-        </button>
-        <button
+        </button>}
+        {canSave && <button
           onClick={handleSave}
           disabled={!userId || saveStatus === 'saving'}
           className="flex-none h-7 px-4 rounded text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 transition-colors"
         >
           {t.saveBtn}
-        </button>
+        </button>}
       </div>
+
+      {readOnly && (
+        <div className="flex-none bg-slate-800/80 border-b border-slate-700 px-4 py-1.5 text-[11px] text-slate-300">
+          {t.readOnlyBanner}
+        </div>
+      )}
+
+      {permissionDenied && (
+        <div className="flex-none bg-amber-950/70 border-b border-amber-800/60 px-4 py-2 flex items-center gap-3 text-xs text-amber-100">
+          <span className="flex-1">{t.noPermission}</span>
+          <button onClick={() => setPermissionDenied(false)} className="flex-none text-amber-300 hover:text-amber-100">✕</button>
+        </div>
+      )}
 
       {recovery && (
         <RecoveryBanner
@@ -561,7 +611,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
       )}
 
       <div className="flex-1 flex overflow-hidden relative">
-        <div className={
+        {!readOnly && <div className={
           mobilePanel === 'library'
             ? 'absolute inset-y-0 left-0 z-20 shadow-2xl flex flex-none lg:static lg:shadow-none'
             : 'hidden lg:flex lg:flex-none'
@@ -574,7 +624,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onSaveAsAsset={handleRequestSaveAsAsset}
             onDeleteAsset={deleteAsset}
           />
-        </div>
+        </div>}
 
         <main className="flex-1 flex flex-col overflow-hidden min-w-0">
           <LayoutCanvas
@@ -606,7 +656,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
           />
         </main>
 
-        <div className={
+        {!readOnly && <div className={
           mobilePanel === 'properties'
             ? 'absolute inset-y-0 right-0 z-20 shadow-2xl flex flex-none lg:static lg:shadow-none'
             : 'hidden lg:flex lg:flex-none'
@@ -625,7 +675,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             onSaveGroupAsAsset={handleRequestSaveGroupAsAsset}
             onRotateGroup={rotateElements}
           />
-        </div>
+        </div>}
 
         {mobilePanel !== null && (
           <div
@@ -635,12 +685,13 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         )}
       </div>
 
-      <FooterLegend meta={layoutMeta} versionNumber={versionNumber} onUpdate={updateMeta} clienteFromEvent={!!eventClient} />
+      <FooterLegend meta={layoutMeta} versionNumber={versionNumber} onUpdate={updateMeta} clienteFromEvent={!!eventClient} readOnly={readOnly} />
 
       {versionsOpen && (
         <VersionHistory
           layoutId={layoutId}
           currentVersion={versionNumber}
+          canRestore={permissions.canEdit}
           onClose={() => setVersionsOpen(false)}
           onRestored={handleVersionRestored}
         />

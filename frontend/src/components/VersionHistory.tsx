@@ -3,6 +3,7 @@ import LayoutCanvas, { type LayoutCanvasHandle } from '@/components/canvas/Layou
 import FooterLegend from '@/components/FooterLegend'
 import { useLang, type Lang } from '@/context/LangContext'
 import { layoutService, type LayoutVersion, type LayoutVersionSummary } from '@/lib/layoutService'
+import { isPermissionError } from '@/lib/layoutPermissions'
 import type { CanvasViewport } from '@/types/layout'
 import { normalizeLayoutMeta } from '@/lib/layoutMeta'
 
@@ -20,6 +21,8 @@ function formatWhen(iso: string, lang: Lang) {
 interface Props {
   layoutId: string | null
   currentVersion: number
+  // Restaurar crea una versión nueva: pide permiso de editar.
+  canRestore: boolean
   onClose: () => void
   // La base ya creó la versión nueva; el editor carga su contenido.
   onRestored: (newVersion: number, content: LayoutVersion) => void
@@ -28,7 +31,7 @@ interface Props {
 // Panel "Versiones": lista el historial (layout_versions), abre una versión
 // en solo lectura (con exportar PDF/PNG con su propio número) y la restaura
 // creando una versión nueva.
-export default function VersionHistory({ layoutId, currentVersion, onClose, onRestored }: Props) {
+export default function VersionHistory({ layoutId, currentVersion, canRestore, onClose, onRestored }: Props) {
   const { t, lang } = useLang()
   const [versions, setVersions] = useState<LayoutVersionSummary[] | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -36,7 +39,7 @@ export default function VersionHistory({ layoutId, currentVersion, onClose, onRe
   const [opening, setOpening] = useState<number | null>(null)
   const [confirming, setConfirming] = useState<number | null>(null)
   const [restoring, setRestoring] = useState(false)
-  const [restoreError, setRestoreError] = useState(false)
+  const [restoreError, setRestoreError] = useState<false | 'permission' | 'other'>(false)
 
   useEffect(() => {
     if (!layoutId) return
@@ -82,8 +85,8 @@ export default function VersionHistory({ layoutId, currentVersion, onClose, onRe
       setConfirming(null)
       setViewing(null)
       onClose()
-    } catch {
-      setRestoreError(true)
+    } catch (err) {
+      setRestoreError(isPermissionError(err) ? 'permission' : 'other')
     } finally {
       setRestoring(false)
     }
@@ -124,7 +127,7 @@ export default function VersionHistory({ layoutId, currentVersion, onClose, onRe
               >
                 {opening === v.version_number ? '…' : t.versionView}
               </button>
-              {v.version_number !== currentVersion && (
+              {canRestore && v.version_number !== currentVersion && (
                 <button
                   onClick={() => { setRestoreError(false); setConfirming(v.version_number) }}
                   className="flex-none h-7 px-2.5 rounded text-[11px] font-semibold text-indigo-300 bg-slate-800 hover:bg-slate-700 border border-indigo-700/60"
@@ -140,7 +143,7 @@ export default function VersionHistory({ layoutId, currentVersion, onClose, onRe
       {viewing && (
         <VersionViewer
           version={viewing}
-          canRestore={viewing.version_number !== currentVersion}
+          canRestore={canRestore && viewing.version_number !== currentVersion}
           onRestore={() => { setRestoreError(false); setConfirming(viewing.version_number) }}
           onClose={() => setViewing(null)}
         />
@@ -155,7 +158,7 @@ export default function VersionHistory({ layoutId, currentVersion, onClose, onRe
                 .replace('{next}', String(currentVersion + 1))}
             </p>
             <p className="text-xs text-slate-400 mb-4">{t.versionRestoreUnsaved}</p>
-            {restoreError && <p className="text-xs text-amber-400 mb-3">{t.versionRestoreError}</p>}
+            {restoreError && <p className="text-xs text-amber-400 mb-3">{restoreError === 'permission' ? t.noPermission : t.versionRestoreError}</p>}
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirming(null)}

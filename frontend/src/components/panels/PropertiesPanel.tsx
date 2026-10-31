@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { LayoutElement, DrawingPrimitive } from '@/types/layout'
-import { useLang, getCategoryLabel } from '@/context/LangContext'
+import { useLang, getCategoryLabel, getAssetName } from '@/context/LangContext'
 import { PIXELS_PER_METER } from '@/components/canvas/LayoutCanvas'
 import { lengthMeters, angleDegrees, pointFromLengthAngle, elementAreaMeters } from '@/lib/drawingMath'
 
@@ -179,14 +179,14 @@ function ElementProperties({
   onBringToFront: () => void
   onSendToBack: () => void
 }) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-5">
       <Section label={t.sIdentity}>
         <Field label={t.fName}>
           <Input
-            value={element.name}
+            value={getAssetName(lang, element.name)}
             onChange={v => onUpdate(element.id, { name: v })}
           />
         </Field>

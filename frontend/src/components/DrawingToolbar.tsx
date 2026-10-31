@@ -23,7 +23,11 @@ interface DrawingToolbarProps {
   // active tool. Never inferred from click count/timing (see LayoutCanvas).
   measureMode: 'distance' | 'area'
   onSetMeasureMode: (mode: 'distance' | 'area') => void
+  // Solo lectura: quedan mano, medir y exportar.
+  readOnly?: boolean
 }
+
+const READ_ONLY_TOOLS: DrawingTool[] = ['hand', 'measure']
 
 const TOOL_DEFS: { tool: DrawingTool; icon: string; shortcut: string }[] = [
   { tool: 'pointer',  icon: '↖', shortcut: 'S' },
@@ -52,6 +56,7 @@ export default function DrawingToolbar({
   canRedo,
   measureMode,
   onSetMeasureMode,
+  readOnly = false,
 }: DrawingToolbarProps) {
   const { t } = useLang()
 
@@ -78,7 +83,7 @@ export default function DrawingToolbar({
 
       {/* Panel toggles — shown until lg (1024px), where Library/Properties
           become static side panels (see LayoutEditor). */}
-      <div className="flex items-center gap-0.5 lg:hidden">
+      {!readOnly && <div className="flex items-center gap-0.5 lg:hidden">
         <button
           onClick={onToggleLibrary}
           title={t.libraryTitle}
@@ -102,11 +107,11 @@ export default function DrawingToolbar({
           ⊟
         </button>
         <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
-      </div>
+      </div>}
 
       {/* Tool group */}
       <div className="flex items-center gap-0.5 bg-slate-800/60 rounded p-0.5">
-        {TOOL_DEFS.map(({ tool, icon, shortcut }) => (
+        {TOOL_DEFS.filter(d => !readOnly || READ_ONLY_TOOLS.includes(d.tool)).map(({ tool, icon, shortcut }) => (
           <button
             key={tool}
             onClick={() => onSetTool(tool)}
@@ -158,7 +163,7 @@ export default function DrawingToolbar({
       <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
 
       {/* Undo / Redo */}
-      <div className="flex items-center gap-0.5">
+      {!readOnly && <div className="flex items-center gap-0.5">
         <button
           onClick={onUndo}
           disabled={!canUndo}
@@ -175,7 +180,7 @@ export default function DrawingToolbar({
             canRedo ? 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/60' : 'text-slate-700 cursor-default'
           }`}
         >↪</button>
-      </div>
+      </div>}
 
       <div className="w-px h-5 bg-slate-700/60 mx-0.5" />
 
@@ -191,13 +196,13 @@ export default function DrawingToolbar({
 
       <div className="flex-1" />
 
-      <button
+      {!readOnly && <button
         onClick={onClearDrawings}
         title={t.clearAnnotations}
         className="hidden sm:block h-7 px-2.5 rounded text-[10px] text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors font-mono"
       >
         {t.clearAnnotations}
-      </button>
+      </button>}
 
       <div className="hidden sm:block w-px h-5 bg-slate-700/60" />
 

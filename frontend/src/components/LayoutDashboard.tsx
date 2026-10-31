@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { SavedLayout } from '@/lib/layoutService'
 import { useLang, type Lang } from '@/context/LangContext'
 import LangToggle from '@/components/LangToggle'
+import type { LayoutPermissions } from '@/lib/layoutPermissions'
 
 interface Props {
   layouts: SavedLayout[]
@@ -13,6 +14,10 @@ interface Props {
   userName: string
   onSignOut: () => void
   eventId?: string | null
+  // Facultades de Layout del rol: se esconden los botones que no puede usar.
+  permissions: LayoutPermissions
+  permissionDenied?: boolean
+  onDismissPermissionDenied?: () => void
 }
 
 const DATE_LOCALE: Record<Lang, string> = { es: 'es-PE', en: 'en-US', pt: 'pt-BR' }
@@ -25,7 +30,8 @@ function formatDate(iso: string, lang: Lang) {
 }
 
 export default function LayoutDashboard({
-  layouts, loading, onOpen, onNew, onDelete, onDuplicate, userName, onSignOut, eventId
+  layouts, loading, onOpen, onNew, onDelete, onDuplicate, userName, onSignOut, eventId,
+  permissions, permissionDenied = false, onDismissPermissionDenied,
 }: Props) {
   const { t, lang } = useLang()
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
@@ -132,7 +138,7 @@ export default function LayoutDashboard({
                 className="w-full bg-slate-900 border border-slate-700/60 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-indigo-500 focus:outline-none transition-colors"
               />
             </div>
-            <button
+            {permissions.canCreate && <button
               onClick={onNew}
               className="flex-none flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors"
             >
@@ -140,7 +146,7 @@ export default function LayoutDashboard({
                 <path d="M7 1v12M1 7h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
               </svg>
               {t.newLayout}
-            </button>
+            </button>}
           </div>
         </div>
 
@@ -152,12 +158,12 @@ export default function LayoutDashboard({
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <div className="text-5xl opacity-20">🗂</div>
             <p className="text-slate-500 text-sm">{t.noLayoutsTitle}</p>
-            <button
+            {permissions.canCreate && <button
               onClick={onNew}
               className="text-indigo-400 hover:text-indigo-300 text-sm underline underline-offset-4 transition-colors"
             >
               {t.createFirstLayout}
-            </button>
+            </button>}
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
@@ -187,7 +193,7 @@ export default function LayoutDashboard({
                     <p className="text-xs text-slate-500 mt-0.5">{formatDate(layout.updated_at, lang)}</p>
                   </div>
                   <div className="opacity-0 group-hover:opacity-100 transition-all flex items-center gap-1 flex-none">
-                    <button
+                    {permissions.canCreate && <button
                       disabled={duplicatingId === layout.id}
                       onClick={async e => {
                         e.stopPropagation()
@@ -205,8 +211,8 @@ export default function LayoutDashboard({
                         <rect x="4.5" y="4.5" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.5"/>
                         <path d="M1.5 9.5V2a.5.5 0 0 1 .5-.5h7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                       </svg>
-                    </button>
-                    <button
+                    </button>}
+                    {permissions.canDelete && <button
                       onClick={e => { e.stopPropagation(); setConfirmDelete(layout.id) }}
                       title={t.deleteLayoutTitle}
                       className="text-slate-600 hover:text-red-400 transition-colors p-1 rounded"
@@ -214,7 +220,7 @@ export default function LayoutDashboard({
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                         <path d="M2 3.5h10M5.5 3.5V2.5h3v1M5 5.5l.5 5M9 5.5l-.5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                       </svg>
-                    </button>
+                    </button>}
                   </div>
                 </div>
               </div>
@@ -222,6 +228,13 @@ export default function LayoutDashboard({
           </div>
         )}
       </main>
+
+      {permissionDenied && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 max-w-md w-[calc(100%-2rem)] bg-amber-950 border border-amber-800 text-amber-100 text-xs rounded-lg px-4 py-3 flex items-start gap-3 shadow-xl">
+          <span className="flex-1">{t.noPermission}</span>
+          <button onClick={onDismissPermissionDenied} className="flex-none text-amber-300 hover:text-amber-100">✕</button>
+        </div>
+      )}
 
       {confirmDelete && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">

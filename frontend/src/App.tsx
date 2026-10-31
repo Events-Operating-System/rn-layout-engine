@@ -11,6 +11,8 @@ import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
 import { normalizeLayoutMeta } from '@/lib/layoutMeta'
 import { useOrgStatus } from '@/hooks/useOrgStatus'
 import { keepSameUser } from '@/lib/keepSameUser'
+import { useLayoutPermissions } from '@/hooks/useLayoutPermissions'
+import { isPermissionError, type LayoutPermissions } from '@/lib/layoutPermissions'
 import { layoutService } from '@/lib/layoutService'
 import { withTimeout } from '@/lib/withTimeout'
 
@@ -93,9 +95,10 @@ interface AppShellProps {
   eventId: string | null
   orgId: string
   onLayoutForked: (newId: string) => void
+  permissions: LayoutPermissions
 }
 
-function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutForked }: AppShellProps) {
+function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutForked, permissions }: AppShellProps) {
   const { t } = useLang()
 
   const items = [
@@ -141,7 +144,7 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutFor
         </div>
       </header>
 
-      <LayoutEditor layoutIdToLoad={layoutIdToLoad} eventId={eventId} orgId={orgId} onLayoutForked={onLayoutForked} />
+      <LayoutEditor layoutIdToLoad={layoutIdToLoad} eventId={eventId} orgId={orgId} onLayoutForked={onLayoutForked} permissions={permissions} />
 
       <footer className="h-10 flex-none bg-slate-900 border-t border-slate-700/60 flex items-center px-4 gap-6 overflow-hidden">
         <div className="flex items-center gap-4">
@@ -224,6 +227,9 @@ export default function App() {
   // navigator.language / 'es'.
   const memberLocale = orgStatus.state === 'active' ? orgStatus.memberLocale : null
   const orgLocale = orgStatus.state === 'active' ? orgStatus.orgLocale : null
+  const layoutPermissions = useLayoutPermissions(orgId)
+  // Aviso cuando la base rechaza algo por permisos (dashboard).
+  const [permissionDenied, setPermissionDenied] = useState(false)
   const persistence = useLayoutPersistence(orgId)
   const { fetchLayouts, layouts, newLayout } = persistence
 
@@ -292,31 +298,47 @@ export default function App() {
 
   const handleOpenLayout = useCallback(async (id: string) => {
     if (eventId) {
-      await layoutService.setEventId(id, eventId)
+      // Vincular pide permiso de editar; sin él, el plano igual se abre.
+      try {
+        await layoutService.setEventId(id, eventId)
+      } catch (err) {
+        if (!isPermissionError(err)) throw err
+      }
     }
     setLayoutIdToLoad(id)
     setView('editor')
   }, [eventId])
 
   const handleDeleteLayout = useCallback(async (id: string) => {
-    await layoutService.delete(id)
+    try {
+      await layoutService.delete(id)
+    } catch (err) {
+      if (isPermissionError(err)) { setPermissionDenied(true); return }
+      throw err
+    }
     await fetchLayouts()
   }, [fetchLayouts])
 
   const handleDuplicateLayout = useCallback(async (id: string) => {
     const original = await layoutService.getForDuplicate(id)
     const newName = `${original.name} (copia)`
-    const newId = await layoutService.duplicate(
-      original.org_id,
-      newName,
-      {
-        elements: original.elements,
-        drawings: original.drawings,
-        meta: { ...normalizeLayoutMeta(original.meta, original.name), proyecto: newName },
-        viewport: original.viewport,
-      },
-      id
-    )
+    let newId: string
+    try {
+      newId = await layoutService.duplicate(
+        original.org_id,
+        newName,
+        {
+          elements: original.elements,
+          drawings: original.drawings,
+          meta: { ...normalizeLayoutMeta(original.meta, original.name), proyecto: newName },
+          viewport: original.viewport,
+        },
+        id
+      )
+    } catch (err) {
+      if (isPermissionError(err)) { setPermissionDenied(true); return }
+      throw err
+    }
     await fetchLayouts()
     setLayoutIdToLoad(newId)
     setView('editor')
@@ -366,6 +388,9 @@ export default function App() {
               userName={user.email ?? ''}
               onSignOut={handleSignOut}
               eventId={eventId}
+              permissions={layoutPermissions}
+              permissionDenied={permissionDenied}
+              onDismissPermissionDenied={() => setPermissionDenied(false)}
             />
           ) : (
             <AppShell
@@ -374,6 +399,7 @@ export default function App() {
               eventId={eventId}
               orgId={orgId}
               onLayoutForked={handleLayoutForked}
+              permissions={layoutPermissions}
             />
           )}
         </ModuleAccessGuard>

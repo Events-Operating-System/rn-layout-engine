@@ -6,6 +6,9 @@ export type Lang = 'en' | 'es' | 'pt'
 
 const strings = {
   en: {
+    noPermission: "You don't have permission to do this. Ask your organization's owner or admin.",
+    readOnlyBanner: 'Read only: your role can view this layout but not change it.',
+    fitToScreen: 'Fit to screen',
     versionsBtn: 'Versions',
     versionsTitle: 'Versions',
     versionsHint: 'Each Save with changes creates a new version.',
@@ -165,6 +168,9 @@ const strings = {
     createOrgFailed: "Couldn't create the organization. Try again.",
   },
   es: {
+    noPermission: 'No tienes permiso para hacer esto. Pídeselo al owner o a un admin de tu organización.',
+    readOnlyBanner: 'Solo lectura: tu rol puede ver este plano, pero no cambiarlo.',
+    fitToScreen: 'Ajustar a pantalla',
     versionsBtn: 'Versiones',
     versionsTitle: 'Versiones',
     versionsHint: 'Cada Guardar con cambios crea una versión nueva.',
@@ -324,6 +330,9 @@ const strings = {
     createOrgFailed: 'No se pudo crear la organización. Intentá de nuevo.',
   },
   pt: {
+    noPermission: 'Você não tem permissão para fazer isso. Peça ao owner ou a um admin da sua organização.',
+    readOnlyBanner: 'Somente leitura: seu papel pode ver este layout, mas não alterá-lo.',
+    fitToScreen: 'Ajustar à tela',
     versionsBtn: 'Versões',
     versionsTitle: 'Versões',
     versionsHint: 'Cada Salvar com alterações cria uma nova versão.',

@@ -6,6 +6,8 @@ import { FOOTER_HEIGHT_PX } from '@/components/FooterLegend'
 import { lengthMeters, angleDegrees, applyAngleSnap, pointFromLengthAngle, elementAreaMeters, type Point } from '@/lib/drawingMath'
 import jsPDF from 'jspdf'
 import { exportFileName, versionLabel } from '@/lib/layoutVersion'
+import { useLang, getAssetName } from '@/context/LangContext'
+import { fitViewportToContent } from '@/lib/fitViewport'
 
 export const PIXELS_PER_METER = 20
 
@@ -141,6 +143,10 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
   ) {
     const containerRef = useRef<HTMLDivElement>(null)
     const stageRef = useRef<Konva.Stage>(null)
+    // Nombres de las piezas del catálogo en el idioma del usuario (se
+    // traducen al mostrarlas; lo guardado no cambia). Los nombres propios
+    // (assets de la org, renombrados) se muestran tal cual.
+    const { lang, t } = useLang()
     const transformerRef = useRef<Konva.Transformer>(null)
     // null until ResizeObserver fires — prevents oversized canvas on first render
     // (800×600 at DPR=3 = 33MB which exceeds iOS Safari's ~16MB canvas memory limit)
@@ -568,7 +574,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           ctx.font = `600 ${fontSize}px ui-monospace, monospace`
           ctx.textAlign = 'center'
           ctx.textBaseline = 'middle'
-          ctx.fillText(el.name, w / 2, h > 20 ? h / 2 - h / 6 : h / 2)
+          ctx.fillText(getAssetName(lang, el.name), w / 2, h > 20 ? h / 2 - h / 6 : h / 2)
 
           if (h > 24) {
             ctx.font = `${fontSize - 1}px ui-monospace, monospace`
@@ -653,6 +659,24 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     }, [containerSize, elements, drawings, layoutMeta, versionNumber])
 
     useImperativeHandle(ref, () => ({ exportPNG, exportPDF }), [exportPNG, exportPDF])
+
+    // ── Ajustar a pantalla ────────────────────────────────────────────────────
+
+    const fitToScreen = useCallback(() => {
+      if (!containerSize) return
+      const next = fitViewportToContent(elements, drawings, containerSize, PIXELS_PER_METER, MIN_SCALE, MAX_SCALE)
+      if (next) onUpdateViewport(next)
+    }, [containerSize, elements, drawings, onUpdateViewport])
+
+    useEffect(() => {
+      const onKey = (e: KeyboardEvent) => {
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+        if (e.shiftKey && (e.code === 'Digit1' || e.key === '!')) { e.preventDefault(); fitToScreen() }
+      }
+      window.addEventListener('keydown', onKey)
+      return () => window.removeEventListener('keydown', onKey)
+    }, [fitToScreen])
 
     // ── Zoom (wheel) ──────────────────────────────────────────────────────────
 
@@ -781,7 +805,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
             const elId = findElementId(e.target)
             const el = elId ? elements.find(x => x.id === elId) : null
             if (el) {
-              setMeasurement({ type: 'area', areaM2: elementAreaMeters(el), elementName: el.name, screenX, screenY })
+              setMeasurement({ type: 'area', areaM2: elementAreaMeters(el), elementName: getAssetName(lang, el.name), screenX, screenY })
             }
           }
           return
@@ -1137,6 +1161,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
               <AssetShape
                 key={el.id}
                 element={el}
+                displayName={getAssetName(lang, el.name)}
                 isSelected={selectedIds.has(el.id)}
                 interactive={elementInteractive}
                 onSelect={(shiftKey) => (shiftKey ? onToggleSelect(el.id) : onSelect(el.id))}
@@ -1337,9 +1362,20 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
           </div>
         )}
 
-        {/* Zoom HUD */}
-        <div className="absolute top-3 right-3 font-mono text-[10px] text-slate-400 bg-slate-900/80 px-2 py-1 rounded border border-slate-700/50 pointer-events-none">
-          {Math.round(viewport.scale * 100)}%
+        {/* Zoom HUD + Ajustar a pantalla (Shift+1) */}
+        <div className="absolute top-3 right-3 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={fitToScreen}
+            title={`${t.fitToScreen} (Shift+1)`}
+            aria-label={t.fitToScreen}
+            className="font-mono text-[10px] text-slate-300 bg-slate-900/80 hover:bg-slate-800 px-2 py-1 rounded border border-slate-700/50 transition-colors"
+          >
+            ⤢ {t.fitToScreen}
+          </button>
+          <div className="font-mono text-[10px] text-slate-400 bg-slate-900/80 px-2 py-1 rounded border border-slate-700/50 pointer-events-none">
+            {Math.round(viewport.scale * 100)}%
+          </div>
         </div>
 
         {/* Live length/angle readout while drawing a line/arrow */}
@@ -1552,10 +1588,11 @@ interface AssetShapeProps {
   onDragMove: (x: number, y: number) => void
   onDragEnd: (x: number, y: number) => void
   onTransformEnd: (x: number, y: number, w: number, h: number, rotation: number) => void
+  displayName: string
 }
 
 function AssetShape({
-  element, isSelected, interactive,
+  element, displayName, isSelected, interactive,
   onSelect, onDragStart, onDragMove, onDragEnd, onTransformEnd,
 }: AssetShapeProps) {
   const groupRef = useRef<Konva.Group>(null)
@@ -1656,7 +1693,7 @@ function AssetShape({
 
         {showLabel && (
           <Text
-            text={element.name}
+            text={displayName}
             width={pw}
             height={ph * 0.6}
             y={isCircle ? ph * 0.2 : 0}
