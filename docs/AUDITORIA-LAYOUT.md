@@ -4,6 +4,28 @@ Alcance: revisión del código (`frontend/src`, `supabase/migrations`), de los d
 
 ---
 
+## 0. Decisiones de Javier (2026-10-31)
+
+Reemplazan el orden del plan de la §5. Cada bloque se construye y se prueba por separado.
+
+| # | Bloque | Lo que decidió Javier |
+|---|---|---|
+| 1 | **Permisos por rol** | Se manejan en Administración → Roles y permisos, igual que los otros módulos. Owner siempre tiene todo; el resto, según sus facultades (ver, crear, editar, borrar). Candado en la base (RLS), no solo en pantalla. Viewer solo lee. Las orgs existentes conservan el acceso de los roles que hoy usan Layout. |
+| 2 | **Arreglos rápidos** | Plano nuevo en blanco (sin las 6 piezas de demo). Nombres de las piezas en el idioma del usuario (es/en/pt). Ajustar a pantalla. Los planos existentes no cambian. |
+| 3 | **Ordenar el código del canvas** | Separar `LayoutCanvas.tsx` en piezas sin cambiar nada de lo que ve el usuario. Va antes de mesas y curvas. |
+| 4 | **Mesas con sillas y PAX automático** | Silla como pieza propia. Mesa con sus sillas. Repetir en grilla. Alinear y distribuir. Conteo de PAX automático. |
+| 5 | **Plano del local** | Subir un plano de fondo si existe; si no, dibujarlo con una herramienta de muros/perímetro con medidas y nombre. Cotas que quedan guardadas. |
+| 6 | **Capas y biblioteca de la organización** ¹ | Capas: perímetro/estructura, mobiliario, decoración, técnica; se pueden ocultar, bloquear y exportar por capa. Biblioteca de la organización: assets o conjuntos creados por un miembro (por ejemplo un "estilo de sala") que se comparten con toda la org, si el owner o quien tenga permiso lo permite. |
+| 7 | **Curvas** | Arcos con radio exacto, curvas libres (Bézier), medias lunas (formas cerradas con un lado curvo), curvas abiertas sin cierre, y repetir a lo largo de un arco (sillas de ceremonia). |
+| 8 | **PDF profesional** | Hoja estándar (A4/A3), a escala, liviano (no una imagen de 16 MB). Exportar a PDF o PNG solo lo seleccionado. |
+| 9 | **3D** | Se decide después de la investigación de la §3.1. |
+
+¹ En el mensaje original, el final del bloque 5 y el comienzo del 6 llegaron pegados ("Cotas que quedan guardadas.erímetro/estructura…"). Lo interpreto como "6. Capas (perímetro/estructura, mobiliario, decoración, técnica…) y biblioteca de la organización". **Confirmar.**
+
+**Estado:** bloques 1 y 2 construidos el 2026-10-31 (ver §6). El bloque 3 no empezó.
+
+---
+
 ## 1. Estado actual
 
 ### 1.1 Cómo está armado
