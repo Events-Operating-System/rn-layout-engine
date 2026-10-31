@@ -206,7 +206,14 @@ export function exportLayoutPdf(params: {
           const len = Math.hypot(x2 - x1, y2 - y1)
           if (len < 20) continue
           const off = ctx.lineWidth / 2 + 7
-          ctx.fillText(formatMeters(len / PPM, decimals), (x1 + x2) / 2 - ((y2 - y1) / len) * off, (y1 + y2) / 2 + ((x2 - x1) / len) * off)
+          // Rotada a lo largo del tramo (nunca cabeza abajo), como en pantalla.
+          let ang = Math.atan2(y2 - y1, x2 - x1)
+          if (ang > Math.PI / 2 || ang < -Math.PI / 2) ang += Math.PI
+          ctx.save()
+          ctx.translate((x1 + x2) / 2 - ((y2 - y1) / len) * off, (y1 + y2) / 2 + ((x2 - x1) / len) * off)
+          ctx.rotate(ang)
+          ctx.fillText(formatMeters(len / PPM, decimals), 0, 0)
+          ctx.restore()
         }
       } else if (isPolygon && el.points && el.points.length >= 6) {
         // el.points are meter offsets relative to (x,y) — same convention

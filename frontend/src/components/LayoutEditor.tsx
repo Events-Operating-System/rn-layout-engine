@@ -478,7 +478,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (versionsOpen) return
+      // Con un panel o un diálogo abierto, las teclas son para ese diálogo.
+      if (versionsOpen || calibration) return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
       // Solo lectura: nada que cambie el plano (mano y medir sí).
@@ -513,7 +514,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedId, selectedIds, duplicateElement, duplicateElements, setTool, undo, redo, handleSave, versionsOpen, readOnly])
+  }, [selectedId, selectedIds, duplicateElement, duplicateElements, setTool, undo, redo, handleSave, versionsOpen, readOnly, calibration])
 
   function toggleMobilePanel(panel: 'library' | 'properties') {
     setMobilePanel(prev => (prev === panel ? null : panel))
@@ -766,7 +767,9 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
               {t.calibrateReal}
               <input
                 autoFocus
+                ref={el => { if (el && document.activeElement !== el) setTimeout(() => el.focus(), 0) }}
                 type="number" min={0} step={0.01}
+                onKeyDown={e => { if (e.key === 'Escape') { setCalibration(null); setTool('pointer') } }}
                 value={calibrationReal}
                 onChange={e => setCalibrationReal(e.target.value)}
                 className="mt-1 w-full bg-slate-800 border border-slate-600 focus:border-indigo-500 rounded px-3 py-2 text-sm text-slate-100 outline-none"
