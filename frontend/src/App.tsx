@@ -10,6 +10,7 @@ import { LangProvider, useLang } from '@/context/LangContext'
 import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
 import { normalizeLayoutMeta } from '@/lib/layoutMeta'
 import { useOrgStatus } from '@/hooks/useOrgStatus'
+import { keepSameUser } from '@/lib/keepSameUser'
 import { layoutService } from '@/lib/layoutService'
 import { withTimeout } from '@/lib/withTimeout'
 
@@ -232,7 +233,7 @@ export default function App() {
     withTimeout(resolveAuthState(), AUTH_INIT_TIMEOUT_MS)
       .then(({ user: resolvedUser }) => {
         if (cancelled) return
-        setUser(resolvedUser)
+        setUser(prev => keepSameUser(prev, resolvedUser))
         setChecking(false)
       })
       .catch(() => {
@@ -244,7 +245,7 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled) return
       setSessionCheckFailed(false)
-      setUser(session?.user ?? null)
+      setUser(prev => keepSameUser(prev, session?.user ?? null))
       setChecking(false)
     })
     return () => {

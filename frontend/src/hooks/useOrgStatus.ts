@@ -62,13 +62,18 @@ async function fetchOrgStatus(userId: string): Promise<OrgStatus> {
 export function useOrgStatus(user: User | null): { status: OrgStatus; refresh: () => void } {
   const [status, setStatus] = useState<OrgStatus>({ state: 'loading' })
 
+  // Depende del id del usuario, no del objeto: el objeto cambia cada vez que
+  // Supabase renueva el token (por ejemplo al volver a la pestaña) y antes
+  // eso volvía a "cargando" y desmontaba el editor con los cambios sin
+  // guardar. Mismo arreglo que Eventos b399875.
+  const userId = user?.id ?? null
   const refresh = useCallback(() => {
-    if (!user) return
+    if (!userId) return
     setStatus({ state: 'loading' })
-    withTimeout(fetchOrgStatus(user.id), ORG_STATUS_TIMEOUT_MS)
+    withTimeout(fetchOrgStatus(userId), ORG_STATUS_TIMEOUT_MS)
       .then(setStatus)
       .catch(() => setStatus({ state: 'error' }))
-  }, [user])
+  }, [userId])
 
   useEffect(() => {
     refresh()

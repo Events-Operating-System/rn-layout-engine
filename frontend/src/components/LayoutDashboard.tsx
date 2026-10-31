@@ -30,7 +30,19 @@ export default function LayoutDashboard({
   const { t, lang } = useLang()
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
-  const [query, setQuery] = useState('')
+  // La búsqueda vive en la URL (?q=) para que sobreviva a recargas y a
+  // volver a la pestaña. Se conservan los demás parámetros (event_id).
+  const [query, setQuery] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '')
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (query) params.set('q', query)
+    else params.delete('q')
+    const search = params.toString()
+    const next = window.location.pathname + (search ? `?${search}` : '') + window.location.hash
+    if (next !== window.location.pathname + window.location.search + window.location.hash) {
+      window.history.replaceState(window.history.state, '', next)
+    }
+  }, [query])
 
   // Filtro client-side por nombre — la lista carga entera de una sola
   // consulta (layoutService.list, sin paginación), así que no hace falta
