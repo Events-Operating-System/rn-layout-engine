@@ -57,20 +57,23 @@ export function exportLayoutPng(stageArg: Konva.Stage | null, containerSize: Siz
 // para leerse: si la zona es angosta, se centra en una hoja más ancha.
 export function exportSelectionPng(stage: Konva.Stage, region: { x: number; y: number; width: number; height: number }, layoutMeta: LayoutMeta, versionNumber: number) {
   const MIN_W = 960
-  const ratio = Math.min(6, Math.max(EXPORT_RATIO, 1800 / Math.max(region.width, 1)))
-  const shot = stage.toCanvas({ ...region, pixelRatio: ratio })
-  const cssW = Math.max(MIN_W, region.width)
+  // Una selección chica se agranda hasta ocupar ~el ancho del cajetín.
+  const grow = Math.min(8, Math.max(1, Math.min((MIN_W * 0.85) / Math.max(region.width, 1), 560 / Math.max(region.height, 1))))
+  const regW = region.width * grow, regH = region.height * grow
+  const ratio = EXPORT_RATIO
+  const shot = stage.toCanvas({ ...region, pixelRatio: ratio * grow })
+  const cssW = Math.max(MIN_W, regW)
   const canvas = document.createElement('canvas')
   canvas.width = Math.round(cssW * ratio)
-  canvas.height = Math.round((region.height + FOOTER_HEIGHT_PX) * ratio)
+  canvas.height = Math.round((regH + FOOTER_HEIGHT_PX) * ratio)
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   ctx.fillStyle = '#020617'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
-  ctx.drawImage(shot, Math.round(((cssW - region.width) / 2) * ratio), 0)
+  ctx.drawImage(shot, Math.round(((cssW - regW) / 2) * ratio), 0)
   ctx.save()
   ctx.scale(ratio, ratio)
-  renderFooterToCanvas(ctx, cssW, region.height, FOOTER_HEIGHT_PX, layoutMeta, versionNumber)
+  renderFooterToCanvas(ctx, cssW, regH, FOOTER_HEIGHT_PX, layoutMeta, versionNumber)
   ctx.restore()
   const link = document.createElement('a')
   link.href = canvas.toDataURL('image/png')
