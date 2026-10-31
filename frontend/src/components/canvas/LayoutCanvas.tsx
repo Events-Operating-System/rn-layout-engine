@@ -5,6 +5,7 @@ import type { LayoutElement, CanvasViewport, DrawingPrimitive, DrawingTool, Layo
 import { FOOTER_HEIGHT_PX } from '@/components/FooterLegend'
 import { lengthMeters, angleDegrees, applyAngleSnap, pointFromLengthAngle, elementAreaMeters, type Point } from '@/lib/drawingMath'
 import jsPDF from 'jspdf'
+import { exportFileName, versionLabel } from '@/lib/layoutVersion'
 
 export const PIXELS_PER_METER = 20
 
@@ -57,6 +58,8 @@ interface LayoutCanvasProps {
   onAddDrawing: (primitive: Omit<DrawingPrimitive, 'id'>) => void
   onAddPolygon: (polygon: { x: number; y: number; width: number; height: number; points: number[] }) => void
   layoutMeta: LayoutMeta
+  // layouts.version_number — va en el nombre del archivo y en el cajetín.
+  versionNumber: number
   selectedDrawingId: string | null
   onSelectDrawing: (id: string | null) => void
   onDeleteDrawing: (id: string) => void
@@ -130,7 +133,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       elements, selectedId, selectedIds, viewport,
       onSelect, onToggleSelect, onSelectMultiple, onUpdateElement, onUpdateElements, onUpdateViewport,
       onDeleteElement, onDeleteElements,
-      activeTool, measureMode, drawings, onAddDrawing, onAddPolygon, layoutMeta,
+      activeTool, measureMode, drawings, onAddDrawing, onAddPolygon, layoutMeta, versionNumber,
       selectedDrawingId, onSelectDrawing, onDeleteDrawing, onUpdateDrawing,
       onPushHistory,
     }: LayoutCanvasProps,
@@ -426,18 +429,18 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         // Footer — scale context so renderFooterToCanvas works in CSS pixels
         ctx.save()
         ctx.scale(EXPORT_RATIO, EXPORT_RATIO)
-        renderFooterToCanvas(ctx, containerSize.width, containerSize.height, FOOTER_HEIGHT_PX, layoutMeta)
+        renderFooterToCanvas(ctx, containerSize.width, containerSize.height, FOOTER_HEIGHT_PX, layoutMeta, versionNumber)
         ctx.restore()
 
         const link = document.createElement('a')
         link.href = canvas.toDataURL('image/png')
-        link.download = `rn-layout-${new Date().toISOString().slice(0, 10)}.png`
+        link.download = exportFileName(layoutMeta.cliente, versionNumber, 'png')
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
       }
       img.src = stageDataURL
-    }, [containerSize, layoutMeta])
+    }, [containerSize, layoutMeta, versionNumber])
 
     const exportPDF = useCallback(() => {
       if (!containerSize || !elements.length) return
@@ -635,7 +638,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       }
 
       // Footer
-      renderFooterPDF(ctx, contentW, contentH, FOOTER_H, layoutMeta)
+      renderFooterPDF(ctx, contentW, contentH, FOOTER_H, layoutMeta, versionNumber)
     
       ctx.restore()
     
@@ -646,8 +649,8 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         format: [canvasW, canvasH],
       })
       pdf.addImage(imgData, 'PNG', 0, 0, canvasW, canvasH)
-      pdf.save(`rn-layout-${new Date().toISOString().slice(0, 10)}.pdf`)
-    }, [containerSize, elements, drawings, layoutMeta])
+      pdf.save(exportFileName(layoutMeta.cliente, versionNumber, 'pdf'))
+    }, [containerSize, elements, drawings, layoutMeta, versionNumber])
 
     useImperativeHandle(ref, () => ({ exportPNG, exportPDF }), [exportPNG, exportPDF])
 
@@ -1735,6 +1738,7 @@ function renderFooterToCanvas(
   yOffset: number,
   footerHeight: number,
   meta: LayoutMeta,
+  versionNumber: number,
 ) {
   const leftW = 176
 
@@ -1784,7 +1788,7 @@ function renderFooterToCanvas(
   const cols = [
     [{ label: 'CLIENTE', value: meta.cliente }, { label: 'LUGAR EVENTO', value: meta.lugarEvento }],
     [{ label: 'FECHA EVENTO', value: meta.fechaEvento }, { label: 'PAX / INVITADOS', value: meta.pax }],
-    [{ label: 'VERSION DEL PLANO', value: meta.version }, { label: 'FECHA DEL PLANO', value: meta.fechaPlano }],
+    [{ label: 'VERSION DEL PLANO', value: versionLabel(versionNumber, meta.version) }, { label: 'FECHA DEL PLANO', value: meta.fechaPlano }],
     [{ label: 'CONTACTO', value: meta.contacto }, { label: 'TELEFONO', value: meta.telefono }],
     [{ label: 'CORREO', value: meta.correo }, { label: '', value: '' }],
   ]
@@ -1836,6 +1840,7 @@ function renderFooterPDF(
   yOffset: number,
   footerHeight: number,
   meta: LayoutMeta,
+  versionNumber: number,
 ) {
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, yOffset, width, footerHeight)
@@ -1879,7 +1884,7 @@ function renderFooterPDF(
     ],
     [
       { label: 'PAX / INVITADOS', value: meta.pax },
-      { label: 'VERSION DEL PLANO', value: meta.version },
+      { label: 'VERSION DEL PLANO', value: versionLabel(versionNumber, meta.version) },
     ],
     [
       { label: 'CONTACTO', value: meta.contacto },

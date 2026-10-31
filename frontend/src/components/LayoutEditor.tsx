@@ -4,6 +4,7 @@ import PropertiesPanel from '@/components/panels/PropertiesPanel'
 import DrawingToolbar from '@/components/DrawingToolbar'
 import FooterLegend from '@/components/FooterLegend'
 import RecoveryBanner from '@/components/RecoveryBanner'
+import VersionHistory from '@/components/VersionHistory'
 import LayoutCanvas, { type LayoutCanvasHandle } from '@/components/canvas/LayoutCanvas'
 import { useLang } from '@/context/LangContext'
 import { useCanvasState } from '@/hooks/useCanvasState'
@@ -11,7 +12,7 @@ import { useLayoutPersistence } from '@/hooks/useLayoutPersistence'
 import { useLayoutAutosave } from '@/hooks/useLayoutAutosave'
 import { useCustomAssets } from '@/hooks/useCustomAssets'
 import { supabase } from '@/lib/supabase'
-import { layoutService, type LayoutData } from '@/lib/layoutService'
+import { layoutService, type LayoutData, type LayoutVersion } from '@/lib/layoutService'
 import { draftService, type LayoutDraft } from '@/lib/draftService'
 import type { AssetTemplate, LayoutElement, GroupChild } from '@/types/layout'
 
@@ -78,6 +79,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   // nombre + nombre tipeado en el modal.
   const [assetTarget, setAssetTarget] = useState<AssetSaveTarget | null>(null)
   const [assetName, setAssetName] = useState('')
+  const [versionsOpen, setVersionsOpen] = useState(false)
 
   const {
     elements, selectedId, selectedIds, selectedElement,
@@ -124,7 +126,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   }, [])
 
   const persistence = useLayoutPersistence(userId, eventId)
-  const { save, load, layoutId } = persistence
+  const { save, load, layoutId, versionNumber, setVersionNumber } = persistence
 
   const { assets: customAssets, createAsset, deleteAsset } = useCustomAssets(userId)
 
@@ -363,6 +365,31 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     setRecovery(null)
   }, [recovery, pushHistory, setElements, setDrawings, setViewport, setLayoutMeta])
 
+  const openVersions = useCallback(() => {
+    // Sin selección en el editor mientras el panel/visor está abierto: así
+    // Supr/Backspace no borra nada del plano de fondo.
+    selectElement(null)
+    selectDrawing(null)
+    setVersionsOpen(true)
+  }, [selectElement, selectDrawing])
+
+  // Restaurar: la base ya creó la versión nueva con el contenido de la
+  // vieja; el canvas pasa a mostrarla y queda "guardado" (sin draft).
+  const handleVersionRestored = useCallback((newVersion: number, content: LayoutVersion) => {
+    pushHistory()
+    setElements(content.elements ?? [])
+    setDrawings(content.drawings ?? [])
+    if (content.viewport) setViewport(content.viewport)
+    const name = content.meta?.cliente || content.name
+    const meta = { ...content.meta, cliente: name }
+    setLayoutMeta(meta)
+    setInputName(name)
+    setVersionNumber(newVersion)
+    if (layoutId) void draftService.clear(layoutId).catch(() => {})
+    markDraftSaved({ elements: content.elements ?? [], drawings: content.drawings ?? [], meta, viewport: content.viewport })
+    setRecovery(null)
+  }, [pushHistory, setElements, setDrawings, setViewport, setLayoutMeta, setVersionNumber, layoutId, markDraftSaved])
+
   const handleDiscardDraft = useCallback(() => {
     if (layoutId) void draftService.clear(layoutId).catch(() => {})
     setRecovery(null)
@@ -370,6 +397,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (versionsOpen) return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
       if (e.ctrlKey || e.metaKey) {
@@ -395,7 +423,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedId, selectedIds, duplicateElement, duplicateElements, setTool, undo, redo, handleSave])
+  }, [selectedId, selectedIds, duplicateElement, duplicateElements, setTool, undo, redo, handleSave, versionsOpen])
 
   function toggleMobilePanel(panel: 'library' | 'properties') {
     setMobilePanel(prev => (prev === panel ? null : panel))
@@ -460,6 +488,14 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         {/* Acciones secundarias — ocultas < sm para que "Guardar" nunca
             quede fuera de pantalla en móvil. Duplicar sigue disponible
             desde las tarjetas del dashboard. */}
+        <button
+          onClick={openVersions}
+          title={t.versionsHint}
+          className="flex-none h-7 px-2 sm:px-3 rounded text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-600 transition-colors whitespace-nowrap"
+        >
+          <span className="font-mono text-slate-100">v{versionNumber}</span>
+          <span className="hidden sm:inline"> · {t.versionsBtn}</span>
+        </button>
         <button
           onClick={handleSaveAsCopy}
           disabled={!userId || savingAsCopy}
@@ -530,6 +566,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             drawings={drawings}
             onAddDrawing={addDrawing}
             layoutMeta={layoutMeta}
+            versionNumber={versionNumber}
             selectedDrawingId={selectedDrawingId}
             onSelectDrawing={selectDrawing}
             onDeleteDrawing={deleteDrawing}
@@ -567,7 +604,16 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         )}
       </div>
 
-      <FooterLegend meta={layoutMeta} onUpdate={updateMeta} />
+      <FooterLegend meta={layoutMeta} versionNumber={versionNumber} onUpdate={updateMeta} />
+
+      {versionsOpen && (
+        <VersionHistory
+          layoutId={layoutId}
+          currentVersion={versionNumber}
+          onClose={() => setVersionsOpen(false)}
+          onRestored={handleVersionRestored}
+        />
+      )}
 
       {assetTarget && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">

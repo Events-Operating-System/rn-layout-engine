@@ -15,6 +15,18 @@ export interface LayoutData {
   viewport: CanvasViewport
 }
 
+// Una fila de public.layout_versions. Solo la escribe la base (trigger al
+// guardar con cambios); el cliente solo lee y restaura.
+export interface LayoutVersionSummary {
+  version_number: number
+  name: string
+  created_at: string
+  created_by_name: string | null
+  restored_from: number | null
+}
+
+export interface LayoutVersion extends LayoutVersionSummary, LayoutData {}
+
 export const layoutService = {
   async list(orgId: string): Promise<SavedLayout[]> {
     const { data, error } = await supabase
@@ -27,24 +39,34 @@ export const layoutService = {
     return data ?? []
   },
 
-  async load(id: string): Promise<LayoutData> {
+  async load(id: string): Promise<LayoutData & { versionNumber: number }> {
     const { data, error } = await supabase
       .from('layouts')
-      .select('elements, drawings, meta, viewport')
+      .select('elements, drawings, meta, viewport, version_number')
       .eq('id', id)
       .single()
     if (error) throw error
-    return data as LayoutData
+    const { version_number, ...rest } = data
+    return { ...(rest as LayoutData), versionNumber: version_number ?? 1 }
   },
 
-  async save(id: string | null, orgId: string, name: string, payload: LayoutData, eventId?: string | null): Promise<string> {
+  // version_number lo decide la base: sube solo si cambió el plano.
+  async save(
+    id: string | null,
+    orgId: string,
+    name: string,
+    payload: LayoutData,
+    eventId?: string | null,
+  ): Promise<{ id: string; versionNumber: number }> {
     if (id) {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('layouts')
         .update({ name, ...payload, ...(eventId ? { event_id: eventId } : {}) })
         .eq('id', id)
+        .select('version_number')
+        .single()
       if (error) throw error
-      return id
+      return { id, versionNumber: data.version_number ?? 1 }
     }
     const { data, error } = await supabase
       .from('layouts')
@@ -55,7 +77,7 @@ export const layoutService = {
         ...(eventId ? { event_id: eventId } : {}),
         created_by: (await supabase.auth.getUser()).data.user?.id
       })
-      .select('id')
+      .select('id, version_number')
       .single()
     if (error) throw error
 
@@ -82,7 +104,39 @@ export const layoutService = {
       }
     }
 
-    return data.id
+    return { id: data.id, versionNumber: data.version_number ?? 1 }
+  },
+
+  async listVersions(layoutId: string): Promise<LayoutVersionSummary[]> {
+    const { data, error } = await supabase
+      .from('layout_versions')
+      .select('version_number, name, created_at, created_by_name, restored_from')
+      .eq('layout_id', layoutId)
+      .order('version_number', { ascending: false })
+    if (error) throw error
+    return data ?? []
+  },
+
+  async getVersion(layoutId: string, versionNumber: number): Promise<LayoutVersion> {
+    const { data, error } = await supabase
+      .from('layout_versions')
+      .select('version_number, name, created_at, created_by_name, restored_from, elements, drawings, meta, viewport')
+      .eq('layout_id', layoutId)
+      .eq('version_number', versionNumber)
+      .single()
+    if (error) throw error
+    return data as LayoutVersion
+  },
+
+  // Copia una versión vieja a la fila real; la base crea una versión nueva
+  // (no borra las siguientes). Devuelve el número nuevo.
+  async restoreVersion(layoutId: string, versionNumber: number): Promise<number> {
+    const { data, error } = await supabase.rpc('restore_layout_version', {
+      p_layout_id: layoutId,
+      p_version: versionNumber,
+    })
+    if (error) throw error
+    return data as number
   },
 
   async getEventName(eventId: string): Promise<string | null> {

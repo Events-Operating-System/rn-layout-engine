@@ -122,6 +122,8 @@ export interface LayoutMeta {
   lugarEvento: string
   fechaEvento: string
   pax: string
+  // Nota libre de versión escrita a mano. El número lo pone la base
+  // (layouts.version_number); esto solo se muestra al lado.
   version: string
   fechaPlano: string
   contacto: string
@@ -135,7 +137,7 @@ export const DEFAULT_LAYOUT_META: LayoutMeta = {
   lugarEvento: '',
   fechaEvento: '',
   pax: '',
-  version: 'v1.0',
+  version: '',
   fechaPlano: new Date().toISOString().slice(0, 10),
   contacto: '',
   telefono: '',
