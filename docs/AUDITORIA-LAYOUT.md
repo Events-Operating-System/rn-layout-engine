@@ -478,6 +478,64 @@ En `LayoutCanvas.tsx` quedaron el estado, el manejo del mouse y del tacto y el a
   - "Alinear arriba" funciona y se deshace en un paso.
   - En Administración: la tarjeta Layout guardó silla 0,5 m, Layout la tomó (0,5 × 0,5) y se volvió a 0,45 m. Viewer editable solo en Layout.
 
+**Ajuste posterior (pedido de Javier, 2026-10-31): mesa con sus sillas = un solo bloque.**
+- Las piezas que se colocan juntas (mesa con sillas, asset compuesto) comparten un `groupId`.
+- Alinear, distribuir y repetir en grilla toman el **conjunto entero** si se elige cualquiera de sus piezas, lo mueven o copian sin desarmarlo (cada copia con su propio `groupId`) y usan la caja del conjunto con las sillas incluidas.
+- Un conjunto con alguna pieza bloqueada no se mueve.
+- Los planos viejos no tienen `groupId`: sus piezas siguen siendo sueltas.
+- **En QA:** se eligieron solo las 3 mesas (sin sillas). "Alinear arriba" y "Distribuir horizontal" movieron cada mesa con sus 8 sillas, sin desarmarlas.
+- Arrastrar una sola mesa con el mouse sigue moviendo solo la mesa (no se pidió cambiarlo).
+
+### Bloque 5 — Plano del local y cotas (2026-10-31)
+
+**Fondo del plano:**
+- Botón **"Plano del local"** en el editor: subir imagen (PNG, JPG, WebP) o **PDF**.
+- Del PDF se convierte la primera página a imagen en el navegador, con pdf.js 6.4.299. Se carga solo al subir un PDF y va en un archivo aparte, así que el editor no pesa más.
+- La imagen va al bucket privado **`layout-backgrounds`**, en `<org>/backgrounds/…`, con límite de 15 MB:
+  - Leer: miembros de la org.
+  - Subir o borrar: además, "editar" en Layout.
+  - Respeta el tope de almacenamiento del plan.
+- Transparencia, **bloquear**, **quitar** y **calibrar escala**: se marcan dos puntos de una medida conocida y se escribe la real; el fondo se escala dejando fijo el primer punto.
+- Va guardado en el plano (`meta.background`), así que entra en las versiones. Se ve en pantalla, en el PNG, en el PDF y en el visor de versiones.
+- Los formatos permitidos son ajuste de la org.
+
+**Muros / perímetro** (herramienta **W**):
+- Clic en cada esquina. Tocar el primer punto **cierra el perímetro**; doble clic termina un **muro abierto**.
+- Trazo con el **grosor real** (por defecto 0,15 m, ajuste de la org) y la **medida de cada tramo** junto al muro.
+- En Propiedades: grosor editable, **largo total** y **área encerrada** si está cerrado.
+- Se estira con el recuadro como el polígono.
+
+**Cotas** (herramienta **C**):
+- Línea con topes y su medida, **guardada en el plano**.
+- La medida sale de los puntos: al mover o estirar la cota se actualiza sola. Se ve en el PDF.
+
+**Ajustes de la org** (migración `20261031240000`): `wall_thickness` 0,15, `dimension_decimals` 2, `background_image` y `background_pdf` (sí y sí), editables en Administración → Organización → Layout.
+
+**Migración y carreras:**
+- `org_settings_schema()` cambió **dos veces** por otras sesiones mientras se preparaba este bloque.
+- La migración se generó desde la versión viva y lleva un **candado md5**: si la función cambió entre generarla y aplicarla, no aplica nada.
+- Prueba con ROLLBACK:
+  - Valores por defecto.
+  - Owner guarda; un muro de 0 m es rechazado.
+  - Owner sube a su org.
+  - Subir a otra org (JBD) o con ruta mal formada: rechazado.
+  - Otra org no ve el fondo.
+  - Viewer lo ve pero no sube.
+- Aplicada y verificada. Los grupos de inventarios, ventas y financiero quedaron idénticos.
+
+**Pruebas:**
+- 7 tests nuevos: calibrar, formatos, largo y área de muros, decimales, ajustes. Total en Layout: 57.
+- **En QA** (plano "Bloque 5 QA - Salon"):
+  - Se subió un PDF de un salón de 20 × 10 m y se convirtió a fondo.
+  - Calibrar: midió 40 m → se escribió 20 m. Luego una cota sobre la medida del PDF dio **20,04 m**.
+  - Perímetro cerrado: 20,04 × 9,98 m, 60,04 m de largo y **200 m²**.
+  - Al guardar y reabrir, todo sigue ahí. El PDF muestra el fondo, los muros con sus medidas, la cota y PAX 24.
+- **Arreglado en la prueba:**
+  - En el PDF, las medidas de los muros laterales pisaban la línea; ahora van rotadas.
+  - Con el diálogo de calibrar abierto, los atajos del teclado cambiaban la herramienta, y el campo no tomaba el foco. Ya no.
+  - La posición del muro se mostraba con demasiados decimales; ahora va al centímetro.
+- **Pendiente para el bloque 8:** el PDF todavía es una imagen grande (5,4 MB con fondo).
+
 ---
 
 ## 6.1 Decisiones de Javier sobre los bloques 1 y 2 (2026-10-31, segunda tanda)
@@ -510,7 +568,7 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 | `backgroundFormats` | imagen y PDF | 5 |
 | `pdfDefaultSize` | A4 apaisado | 8 |
 
-**Siguiente:** bloque 3 (ordenar el código del canvas), después el 4. Se para antes del 5.
+**Siguiente:** bloque 6 (capas y biblioteca de la organización). Bloques 3, 4 y 5 hechos (ver §6).
 
 ---
 
