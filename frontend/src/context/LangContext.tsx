@@ -83,7 +83,7 @@ const strings = {
     hintZoom: 'Scroll → Zoom', hintPan: 'Drag canvas → Pan',
     hintSelect: 'Click element → Select', hintMove: 'Drag element → Move',
     // ── Editor: save bar ──────────────────────────────────────────────────
-    layoutNamePlaceholder: 'Client / event name',
+    layoutNamePlaceholder: 'Project name',
     saving: 'Saving…',
     saved: '✓ Saved',
     autosaving: 'Autosaving…',
@@ -245,7 +245,7 @@ const strings = {
     hintZoom: 'Scroll → Zoom', hintPan: 'Arrastrar canvas → Pan',
     hintSelect: 'Click elemento → Seleccionar', hintMove: 'Arrastrar → Mover',
     // ── Editor: barra de guardado ───────────────────────────────────────
-    layoutNamePlaceholder: 'Nombre del cliente / evento',
+    layoutNamePlaceholder: 'Nombre del proyecto',
     saving: 'Guardando…',
     saved: '✓ Guardado',
     autosaving: 'Autoguardando…',
@@ -407,7 +407,7 @@ const strings = {
     hintZoom: 'Scroll → Zoom', hintPan: 'Arrastar canvas → Pan',
     hintSelect: 'Clicar elemento → Selecionar', hintMove: 'Arrastar → Mover',
     // ── Editor: barra de salvamento ────────────────────────────────────
-    layoutNamePlaceholder: 'Nome do cliente / evento',
+    layoutNamePlaceholder: 'Nome do projeto',
     saving: 'Salvando…',
     saved: '✓ Salvo',
     autosaving: 'Salvando automaticamente…',

@@ -124,7 +124,7 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutFor
         </button>
         <div className="flex items-center gap-2 flex-none">
           <div className="w-2 h-2 rounded-full bg-indigo-500" />
-          <span className="text-xs font-semibold text-slate-200 tracking-wide whitespace-nowrap">RN Layout Engine</span>
+          <span className="text-xs font-semibold text-slate-200 tracking-wide whitespace-nowrap">EventOS Layout</span>
         </div>
         <span className="hidden sm:inline text-slate-700">|</span>
         <div className="ml-auto flex items-center gap-2 sm:gap-3 flex-none">
@@ -139,7 +139,6 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutFor
           </a>
           <span className="text-slate-700">|</span>
           <LangToggle className="flex-none" />
-          <span className="hidden sm:inline text-[9px] bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded border border-indigo-900 font-medium tracking-wider uppercase">MVP</span>
           <span className="hidden sm:block text-[9px] text-slate-600">Reality Near · Events Operating System</span>
         </div>
       </header>
