@@ -102,8 +102,9 @@ export default function Viewer3D({ items, background, onStats, onReady, autoRota
       }
       const plane = new THREE.Mesh(
         keep(new THREE.PlaneGeometry(background.width, background.height)),
-        keep(new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: Math.max(0.35, background.opacity) })),
+        keep(new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: Math.max(0.75, background.opacity) })),
       )
+      // Sobre el piso claro, el plano necesita más presencia que en 2D.
       plane.rotation.x = -Math.PI / 2
       plane.position.set(background.x + background.width / 2, 0.004, background.y + background.height / 2)
       scene.add(plane)
