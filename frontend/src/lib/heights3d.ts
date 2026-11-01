@@ -12,14 +12,14 @@ import { isChair, isTable } from './grouping'
 
 export type Height3DKey =
   | 'table' | 'chair' | 'stage' | 'dance' | 'bar' | 'screen' | 'wall'
-  | 'tent' | 'service' | 'barrier' | 'truss' | 'vehicle' | 'other'
+  | 'tent' | 'service' | 'barrier' | 'truss' | 'vehicle' | 'lounge' | 'other'
 
 // Tipo de pieza (incluye los fijos: marcas en el piso y árboles).
 export type Height3DType = PieceType
 
 export type Heights3D = Record<Height3DKey, number>
 
-export const HEIGHT_KEYS: Height3DKey[] = ['table', 'chair', 'stage', 'dance', 'bar', 'screen', 'wall', 'tent', 'service', 'barrier', 'truss', 'vehicle', 'other']
+export const HEIGHT_KEYS: Height3DKey[] = ['table', 'chair', 'stage', 'dance', 'bar', 'screen', 'wall', 'tent', 'service', 'barrier', 'truss', 'vehicle', 'lounge', 'other']
 
 export const DEFAULT_HEIGHTS: Heights3D = {
   table: 0.75,   // mesa de comedor
@@ -34,6 +34,7 @@ export const DEFAULT_HEIGHTS: Heights3D = {
   barrier: 1.1,  // vallas
   truss: 6,      // torres y truss
   vehicle: 3,    // camiones, carros
+  lounge: 0.8,   // sofá / lounge / puff
   other: 0.9,    // lo que no se reconoce
 }
 
@@ -42,6 +43,7 @@ const TREE_HEIGHT = 4
 
 const RX: [Height3DKey, RegExp][] = [
   ['dance', /\bpista\b|dance\s*floor/i],
+  ['lounge', /sof[aá]|lounge|\bpuffs?\b|\bpoufs?\b|sill[oó]n|loveseat/i],
   ['stage', /escenario|\bstage\b|tarima|podium|podio/i],
   ['screen', /pantalla|screen|\bled\b|\bleds\b/i],
   ['bar', /\bbarra\b|\bbar\b|buffet/i],
@@ -99,4 +101,4 @@ export function parseHeights(l: Record<string, unknown>): Heights3D {
   return out
 }
 
-export const PIECE_TYPES: Height3DType[] = ['chair', 'table', 'stage', 'dance', 'bar', 'screen', 'tent', 'service', 'barrier', 'truss', 'vehicle', 'tree', 'wall', 'floor', 'other']
+export const PIECE_TYPES: Height3DType[] = ['chair', 'table', 'lounge', 'stage', 'dance', 'bar', 'screen', 'tent', 'service', 'barrier', 'truss', 'vehicle', 'tree', 'wall', 'floor', 'other']

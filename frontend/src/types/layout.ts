@@ -93,13 +93,15 @@ export interface LayoutElement {
 
 export type PieceType =
   | 'table' | 'chair' | 'stage' | 'dance' | 'bar' | 'screen' | 'wall'
-  | 'tent' | 'service' | 'barrier' | 'truss' | 'vehicle' | 'other' | 'floor' | 'tree'
+  | 'tent' | 'service' | 'barrier' | 'truss' | 'vehicle' | 'lounge' | 'other' | 'floor' | 'tree'
 
 // Lista de materiales: origen de cada línea (propio / de un tercero).
 export type MaterialOrigin = 'own' | 'third'
 export interface MaterialLineMeta {
   origin: MaterialOrigin
   note?: string
+  // Tercero elegido del catálogo de proveedores de la org (inventarios.providers).
+  providerId?: string
 }
 
 // Capas fijas (bloque 6): perímetro/estructura, mobiliario, decoración,

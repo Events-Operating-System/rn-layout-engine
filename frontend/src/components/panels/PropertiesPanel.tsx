@@ -250,7 +250,7 @@ function TextSuggest({ value, options, placeholder, onCommit, normalize }: { val
 
 const TYPE_LABEL: Record<Height3DType, keyof ReturnType<typeof useLang>['t']> = {
   table: 'h3dTable', chair: 'h3dChair', stage: 'h3dStage', dance: 'h3dDance', bar: 'h3dBar', screen: 'h3dScreen', wall: 'h3dWall',
-  tent: 'h3dTent', service: 'h3dService', barrier: 'h3dBarrier', truss: 'h3dTruss', vehicle: 'h3dVehicle', other: 'h3dOther', floor: 'h3dFloor', tree: 'h3dTree',
+  tent: 'h3dTent', service: 'h3dService', barrier: 'h3dBarrier', truss: 'h3dTruss', vehicle: 'h3dVehicle', lounge: 'h3dLounge', other: 'h3dOther', floor: 'h3dFloor', tree: 'h3dTree',
 }
 
 // Altura en 3D: vacía = la del tipo (ajuste de la org); un número la fija

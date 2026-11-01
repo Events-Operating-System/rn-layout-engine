@@ -18,6 +18,8 @@ export interface MaterialRow {
   note: string
   change?: string   // "+10", "−1", "nuevo", "ya no está"
   removed?: boolean
+  subtotal?: boolean // fila de subtotal del grupo ("Sillas: 34")
+  warn?: boolean     // aviso (mantel sin definir, silla sin tipo/color)
 }
 
 export interface MaterialsDoc {
@@ -26,6 +28,8 @@ export interface MaterialsDoc {
   rows: MaterialRow[]
   meta: LayoutMeta
   versionNumber: number
+  // Avisos bajo el título ("Sin cambios respecto a v3", "Manteles sin definir: 2").
+  notices?: string[]
 }
 
 // ── PDF ─────────────────────────────────────────────────────────────────────
@@ -43,18 +47,26 @@ export function buildMaterialsPdf(d: MaterialsDoc): jsPDF {
   const scale = w / cols.reduce((a, c) => a + c.w, 0)
   cols.forEach(c => { c.w *= scale })
   const rowH = 6.2
+  const notices = d.notices ?? []
   const top = MARGIN_MM + 12
+  const top0 = top + notices.length * 4.2
   const bottom = tb.y - 4
   const perPage = Math.max(1, Math.floor((bottom - top - rowH) / rowH))
-  const pages = Math.max(1, Math.ceil(d.rows.length / perPage))
+  const perFirst = Math.max(1, Math.floor((bottom - top0 - rowH) / rowH))
+  const pages = d.rows.length <= perFirst ? 1 : 1 + Math.ceil((d.rows.length - perFirst) / perPage)
+  const slice = (pg: number) => (pg === 0 ? d.rows.slice(0, perFirst) : d.rows.slice(perFirst + (pg - 1) * perPage, perFirst + pg * perPage))
   const numeric = new Set(['qty', 'change'])
 
   for (let pg = 0; pg < pages; pg++) {
     if (pg) doc.addPage('a4', 'portrait')
-    text(doc, d.title, x0, MARGIN_MM + 5, { size: 5, bold: true })
-    text(doc, `${versionLabel(d.versionNumber, d.meta.version)}${pages > 1 ? ` · ${pg + 1}/${pages}` : ''}`, x0 + w, MARGIN_MM + 5, { size: 3, align: 'right', color: '#555555' })
+    const titleSize = fitSize(doc, d.title, 4.6, w - 22, true, 3)
+    text(doc, d.title, x0, MARGIN_MM + 5, { size: titleSize, bold: true })
+    if (pages > 1) text(doc, `${pg + 1}/${pages}`, x0 + w, MARGIN_MM + 5, { size: 3, align: 'right', color: '#555555' })
+    if (pg === 0 && notices.length) {
+      notices.forEach((n, i) => text(doc, n, x0, MARGIN_MM + 10 + i * 4.2, { size: 2.8, color: '#9a3412' }))
+    }
     // Encabezado de la tabla
-    let y = top
+    let y = pg === 0 ? top0 : top
     doc.setFillColor('#eef1f5'); doc.setDrawColor('#000000'); doc.setLineWidth(0.25)
     doc.rect(x0, y, w, rowH, 'FD')
     let cx = x0
@@ -64,24 +76,26 @@ export function buildMaterialsPdf(d: MaterialsDoc): jsPDF {
       cx += c.w
     }
     y += rowH
-    for (const r of d.rows.slice(pg * perPage, (pg + 1) * perPage)) {
+    for (const r of slice(pg)) {
+      if (r.subtotal) { doc.setFillColor('#f3f4f6'); doc.rect(x0, y, w, rowH, 'F') }
       doc.setLineWidth(0.12); doc.setDrawColor('#c5cdd8')
       doc.line(x0, y + rowH, x0 + w, y + rowH)
       cx = x0
       for (const c of cols) {
         const v = (r as unknown as Record<string, string>)[c.k] ?? ''
-        const color = r.removed ? '#888888' : c.k === 'change' ? (v.startsWith('+') || v === 'nuevo' ? '#15803d' : v.startsWith('−') ? '#b91c1c' : '#333333') : '#111111'
-        const size = fitSize(doc, v, 2.6, c.w - 3, c.k === 'qty', 1.6)
-        text(doc, v, numeric.has(c.k) ? cx + c.w - 1.5 : cx + 1.5, y + rowH / 2, { size, bold: c.k === 'qty', baseline: 'middle', align: numeric.has(c.k) ? 'right' : 'left', color })
+        const color = r.removed ? '#888888' : r.warn && c.k === 'detail' ? '#9a3412' : c.k === 'change' ? (v.startsWith('+') || v === 'nuevo' ? '#15803d' : v.startsWith('−') ? '#b91c1c' : '#333333') : '#111111'
+        const bold = c.k === 'qty' || !!r.subtotal
+        const size = fitSize(doc, v, 2.6, c.w - 3, bold, 1.6)
+        text(doc, v, numeric.has(c.k) ? cx + c.w - 1.5 : cx + 1.5, y + rowH / 2, { size, bold, baseline: 'middle', align: numeric.has(c.k) ? 'right' : 'left', color })
         cx += c.w
       }
       y += rowH
     }
     doc.setDrawColor('#000000'); doc.setLineWidth(0.25)
-    doc.rect(x0, top, w, y - top)
+    doc.rect(x0, pg === 0 ? top0 : top, w, y - (pg === 0 ? top0 : top))
     drawTitleBlockWith(doc, tb, d.meta, d.versionNumber, [
       { label: 'DOCUMENTO', value: 'Lista de materiales' },
-      { label: 'LÍNEAS', value: String(d.rows.filter(r => !r.removed).length) },
+      { label: 'LÍNEAS', value: String(d.rows.filter(r => !r.removed && !r.subtotal).length) },
     ])
   }
   return doc
@@ -118,11 +132,13 @@ export function buildMaterialsXlsx(d: MaterialsDoc): Uint8Array {
     [{ v: 'Versión del plano', bold: true }, { v: versionLabel(d.versionNumber, m.version) }],
     [{ v: 'Fecha del plano', bold: true }, { v: m.fechaPlano || '' }],
     [{ v: 'Contacto', bold: true }, { v: [m.contacto, m.telefono, m.correo].filter(Boolean).join(' · ') }],
+    ...(d.notices ?? []).map(n => [{ v: n, bold: true }]),
     [],
     [d.headers.type, d.headers.detail, d.headers.qty, d.headers.unit, d.headers.origin, d.headers.note, ...(hasChange ? [d.headers.change!] : [])].map(v => ({ v, bold: true })),
     ...d.rows.map(r => {
       const q = Number(r.qty.replace(',', '.'))
-      return [{ v: r.type }, { v: r.detail }, Number.isFinite(q) && r.qty !== '' ? { v: q } : { v: r.qty }, { v: r.unit }, { v: r.origin }, { v: r.note }, ...(hasChange ? [{ v: r.change ?? '' }] : [])]
+      const b = !!r.subtotal
+      return [{ v: r.type, bold: b }, { v: r.detail, bold: b }, Number.isFinite(q) && r.qty !== '' ? { v: q, bold: b } : { v: r.qty, bold: b }, { v: r.unit, bold: b }, { v: r.origin }, { v: r.note }, ...(hasChange ? [{ v: r.change ?? '' }] : [])]
     }),
   ]
   const files: Record<string, Uint8Array> = {

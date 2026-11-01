@@ -962,8 +962,13 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
           meta={displayMeta}
           versionNumber={versionNumber}
           layoutId={layoutId}
+          orgId={orgId}
           vocab={vocab}
           readOnly={readOnly}
+          onSetType={(ids, type) => {
+            pushHistory()
+            updateElements(Object.fromEntries(ids.map(id => [id, { pieceType: type }])))
+          }}
           onSetLine={(key, value) => {
             const next = { ...(layoutMeta.materials ?? {}) }
             if (value) next[key] = value; else delete next[key]

@@ -26,10 +26,11 @@ export function exportFileName(layoutName: string, versionNumber: number, ext: '
   return `${base} - v${versionNumber}.${ext}`
 }
 
-// Lista de materiales: "<Nombre> - vN - materiales.pdf/xlsx".
-export function materialsFileName(layoutName: string, versionNumber: number, ext: 'pdf' | 'xlsx'): string {
+// Lista de materiales: "<Nombre> - vN - materiales[ - <Proveedor>].pdf/xlsx".
+export function materialsFileName(layoutName: string, versionNumber: number, ext: 'pdf' | 'xlsx', suffix?: string): string {
   const base = sanitizeFileName(layoutName) || 'Layout'
-  return `${base} - v${versionNumber} - materiales.${ext}`
+  const extra = suffix ? sanitizeFileName(suffix) : ''
+  return `${base} - v${versionNumber} - materiales${extra ? ` - ${extra}` : ''}.${ext}`
 }
 
 export function versionNote(metaVersion: string | undefined | null): string {

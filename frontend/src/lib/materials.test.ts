@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { materialLines, diffLines, canon, normKey, colorNameOf, mergeVocab, originOf } from './materials'
+import { materialLines, diffLines, canon, normKey, colorNameOf, mergeVocab, originOf, subtotals, filterLines, providersIn, hasChanges } from './materials'
 import type { LayoutElement } from '@/types/layout'
 
 const el = (id: string, over: Partial<LayoutElement>): LayoutElement => ({ id, name: 'X', category: 'primitive', x: 0, y: 0, width: 1, height: 1, rotation: 0, color: '#64748b', locked: false, notes: '', ...over })
@@ -40,9 +40,12 @@ describe('lista de materiales', () => {
     ])
     const tables = lines.filter(l => l.kind === 'table')
     expect(tables.map(l => [l.variant[0], l.qty])).toEqual([['2.4 × 0.75 m', 1], ['Ø 1.8 m', 3]])
-    const cloths = lines.filter(l => l.kind === 'cloth')
+    const cloths = lines.filter(l => l.kind === 'cloth' && !l.undefinedCloth)
     expect(cloths).toHaveLength(1)
     expect(cloths[0]).toMatchObject({ variant: ['Blanco', 'Largo', 'Ø 1.8 m'], qty: 2 })
+    // mesas sin mantel: "sin definir", por tamaño, al final del grupo
+    const undef = lines.filter(l => l.undefinedCloth)
+    expect(undef.map(l => [l.variant[0], l.qty])).toEqual([['2.4 × 0.75 m', 1], ['Ø 1.8 m', 1]])
   })
   it('tarima y pista en m², barra en metros; muros y zonas no cuentan', () => {
     const lines = materialLines([
@@ -86,3 +89,47 @@ describe('sugerencias y origen', () => {
     expect(originOf({ x: { origin: 'third', note: 'Alquileres SAC' } }, 'x').origin).toBe('third')
   })
 })
+
+describe('avisos, subtotales y filtros', () => {
+  const plan = [
+    ...Array.from({ length: 4 }, (_, i) => chair(`a${i}`, { chairType: 'Tiffany', colorName: 'Morado' })),
+    chair('b0'), chair('b1', { chairType: 'Crossback' }),
+    table10('t1', { color: '#ffffff' }), table10('t2'),
+    el('l1', { name: 'Zona Lounge', category: 'structure', width: 1, height: 0.8 }),
+    el('l2', { name: 'Zona Lounge', category: 'structure', width: 2, height: 0.8 }),
+    el('o', { name: 'Cosa rara', category: 'primitive', width: 1, height: 1, shape: 'circle' }),
+  ]
+  const lines = materialLines(plan)
+  it('sillas sin tipo/color marcadas', () => {
+    const none = lines.find(l => l.kind === 'chair' && l.missingType && l.missingColor)!
+    expect(none.qty).toBe(1)
+    const noColor = lines.find(l => l.kind === 'chair' && !l.missingType && l.missingColor)!
+    expect(noColor.variant).toEqual(['Crossback'])
+  })
+  it('sofá / lounge es un tipo (por nombre), y la línea sabe sus piezas', () => {
+    const lounge = lines.filter(l => l.kind === 'lounge')
+    expect(lounge).toHaveLength(2)
+    expect(lounge[0].ids).toHaveLength(1)
+  })
+  it('subtotal por tipo con los manteles sin definir aparte', () => {
+    const s = subtotals(lines)
+    expect(s.find(x => x.kind === 'chair')).toMatchObject({ qty: 6 })
+    expect(s.find(x => x.kind === 'table')).toMatchObject({ qty: 2 })
+    expect(s.find(x => x.kind === 'cloth')).toMatchObject({ qty: 1, undefinedQty: 1 })
+  })
+  it('filtrar por origen y por proveedor', () => {
+    const tiffany = lines.find(l => l.variant.join() === 'Tiffany,Morado')!.key
+    const table = lines.find(l => l.kind === 'table')!.key
+    const meta = { [tiffany]: { origin: 'third' as const, note: 'Alquileres Lima' }, [table]: { origin: 'third' as const, providerId: 'p1', note: 'Mesas SAC' } }
+    expect(filterLines(lines, meta, { mode: 'third' })).toHaveLength(2)
+    expect(filterLines(lines, meta, { mode: 'own' })).toHaveLength(lines.length - 2)
+    const provs = providersIn(lines, meta, { p1: 'Mesas S.A.C.' })
+    expect(provs).toEqual([{ key: 'note:alquileres lima', name: 'Alquileres Lima' }, { key: 'id:p1', name: 'Mesas S.A.C.' }].sort((a, b) => lines.findIndex(l => originOf(meta, l.key).note === (a.key === 'id:p1' ? 'Mesas SAC' : 'Alquileres Lima')) - lines.findIndex(l => originOf(meta, l.key).note === (b.key === 'id:p1' ? 'Mesas SAC' : 'Alquileres Lima'))))
+    expect(filterLines(lines, meta, { mode: 'provider', key: 'id:p1' }).map(l => l.kind)).toEqual(['table'])
+  })
+  it('sin cambios entre versiones', () => {
+    expect(hasChanges(lines, materialLines(plan))).toBe(false)
+    expect(hasChanges(lines, materialLines(plan.slice(1)))).toBe(true)
+  })
+})
+

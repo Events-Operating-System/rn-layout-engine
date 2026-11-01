@@ -4,7 +4,7 @@
 // metros lo que corresponde (tarimas, pista, barras). No toca Inventarios
 // ni Ventas. Sin React.
 
-import type { LayoutElement, MaterialOrigin } from '@/types/layout'
+import type { LayoutElement, MaterialLineMeta, MaterialOrigin } from '@/types/layout'
 import { CATEGORY_COLORS } from '@/types/layout'
 import { heightType, type Height3DType } from './heights3d'
 import { elementAreaMeters } from './drawingMath'
@@ -73,6 +73,11 @@ export interface MaterialLine {
   qty: number
   unit: MaterialUnit
   pieces: number         // cuántas piezas suman esa cantidad
+  ids: string[]          // las piezas de la línea (para elegirles el tipo)
+  // Avisos: mesas sin mantel definido; sillas sin tipo o sin color.
+  undefinedCloth?: boolean
+  missingType?: boolean
+  missingColor?: boolean
 }
 
 export interface Vocab {
@@ -91,42 +96,47 @@ const SKIP: Height3DType[] = ['wall', 'floor']
 
 export function materialLines(elements: LayoutElement[], vocab: Vocab = EMPTY_VOCAB): MaterialLine[] {
   const map = new Map<string, MaterialLine>()
-  const add = (kind: MaterialKind, name: string, variant: string[], qty: number, unit: MaterialUnit) => {
-    const v = variant.filter(Boolean)
-    const key = [kind, normKey(name), ...v.map(normKey)].join('|')
+  // variant es posicional (un hueco vacío cuenta para la clave), así "solo
+  // tipo" y "solo color" nunca se mezclan.
+  const add = (id: string, kind: MaterialKind, name: string, variant: string[], qty: number, unit: MaterialUnit, flags: Partial<MaterialLine> = {}) => {
+    const key = [kind, normKey(name), ...variant.map(normKey), flags.undefinedCloth ? '!sin-definir' : ''].join('|')
     const cur = map.get(key)
-    if (cur) { cur.qty = r2(cur.qty + qty); cur.pieces++ }
-    else map.set(key, { key, kind, name, variant: v, qty: r2(qty), unit, pieces: 1 })
+    if (cur) { cur.qty = r2(cur.qty + qty); cur.pieces++; cur.ids.push(id) }
+    else map.set(key, { key, kind, name, variant: variant.filter(Boolean), qty: r2(qty), unit, pieces: 1, ids: [id], ...flags })
   }
   for (const e of elements) {
     const t = heightType(e)
     if (SKIP.includes(t)) continue
     if (t === 'chair') {
-      add('chair', '', [canon(e.chairType, vocab.chairTypes), colorLabel(e, vocab.colorNames)], 1, 'u')
+      const type = canon(e.chairType, vocab.chairTypes)
+      const color = colorLabel(e, vocab.colorNames)
+      add(e.id, 'chair', '', [type, color], 1, 'u', { missingType: !type, missingColor: !color })
       continue
     }
     if (t === 'table') {
-      add('table', '', [tableSize(e)], 1, 'u')
-      // Mantel: solo si se eligió (color cambiado, nombre de color o tela).
+      add(e.id, 'table', '', [tableSize(e)], 1, 'u')
+      // Mantel: si se eligió (color cambiado, nombre de color o tela); si no,
+      // cuenta como "sin definir" para avisar.
       const color = colorLabel(e, vocab.colorNames)
       const fabric = canon(e.fabric, vocab.fabrics)
-      if (color || fabric) add('cloth', '', [color, fabric, tableSize(e)], 1, 'u')
+      if (color || fabric) add(e.id, 'cloth', '', [color, fabric, tableSize(e)], 1, 'u')
+      else add(e.id, 'cloth', '', [tableSize(e)], 1, 'u', { undefinedCloth: true })
       continue
     }
     if (t === 'stage' || t === 'dance') {
-      add(t, '', [], elementAreaMeters(e), 'm2')
+      add(e.id, t, '', [], elementAreaMeters(e), 'm2')
       continue
     }
     if (t === 'bar') {
-      add('bar', '', [], Math.max(e.width, e.height), 'm')
+      add(e.id, 'bar', '', [], Math.max(e.width, e.height), 'm')
       continue
     }
     // El resto: por nombre y medida.
     const name = e.name === CHAIR_NAME ? '' : e.name.replace(/\s+/g, ' ').trim()
-    add(t, name, [`${r2(e.width)} × ${r2(e.height)} m`], 1, 'u')
+    add(e.id, t, name, [`${r2(e.width)} × ${r2(e.height)} m`], 1, 'u')
   }
-  const order: MaterialKind[] = ['chair', 'table', 'cloth', 'stage', 'dance', 'bar', 'screen', 'tent', 'service', 'barrier', 'truss', 'vehicle', 'tree', 'other']
-  return [...map.values()].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || a.name.localeCompare(b.name) || a.variant.join().localeCompare(b.variant.join()))
+  const order: MaterialKind[] = ['chair', 'table', 'cloth', 'lounge', 'stage', 'dance', 'bar', 'screen', 'tent', 'service', 'barrier', 'truss', 'vehicle', 'tree', 'other']
+  return [...map.values()].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || Number(!!a.undefinedCloth) - Number(!!b.undefinedCloth) || a.name.localeCompare(b.name) || a.variant.join().localeCompare(b.variant.join()))
 }
 
 // ── Comparar con otra versión ───────────────────────────────────────────────
@@ -146,7 +156,7 @@ export function diffLines(current: MaterialLine[], previous: MaterialLine[]): { 
 }
 
 // Origen guardado en el plano (meta.materials), "propio" por defecto.
-export const originOf = (meta: Record<string, { origin: MaterialOrigin; note?: string }> | undefined, key: string) =>
+export const originOf = (meta: Record<string, MaterialLineMeta> | undefined, key: string): MaterialLineMeta =>
   meta?.[key] ?? { origin: 'own' as MaterialOrigin }
 
 // Valores de la lista de sugerencias: los de la org + los de este plano,
@@ -163,3 +173,64 @@ export function mergeVocab(org: Vocab, elements: LayoutElement[]): Vocab {
     colorNames: uniq([...org.colorNames, ...elements.map(e => e.colorName)]),
   }
 }
+
+// ── Subtotal por tipo ───────────────────────────────────────────────────────
+export interface Subtotal {
+  kind: MaterialKind
+  qty: number           // suma de las líneas definidas
+  unit: MaterialUnit
+  undefinedQty: number  // manteles sin definir
+}
+
+export function subtotals(lines: MaterialLine[]): Subtotal[] {
+  const out: Subtotal[] = []
+  for (const l of lines) {
+    let s = out.find(x => x.kind === l.kind)
+    if (!s) { s = { kind: l.kind, qty: 0, unit: l.unit, undefinedQty: 0 }; out.push(s) }
+    if (l.undefinedCloth) s.undefinedQty = r2(s.undefinedQty + l.qty)
+    else s.qty = r2(s.qty + l.qty)
+  }
+  return out
+}
+
+// ── Filtrar por origen / proveedor (para exportar) ──────────────────────────
+export type MaterialFilter = { mode: 'all' } | { mode: 'own' } | { mode: 'third' } | { mode: 'provider'; key: string }
+
+// Clave del proveedor de una línea de tercero: el del catálogo o el texto de
+// la nota (normalizado); sin nada, "sin proveedor".
+export function providerKey(m: MaterialLineMeta): string {
+  if (m.providerId) return `id:${m.providerId}`
+  const n = normKey(m.note)
+  return n ? `note:${n}` : 'none'
+}
+
+export function filterLines(lines: MaterialLine[], meta: Record<string, MaterialLineMeta> | undefined, f: MaterialFilter): MaterialLine[] {
+  if (f.mode === 'all') return lines
+  return lines.filter(l => {
+    const o = originOf(meta, l.key)
+    if (f.mode === 'own') return o.origin === 'own'
+    if (o.origin !== 'third') return false
+    return f.mode === 'third' || providerKey(o) === f.key
+  })
+}
+
+// Proveedores presentes en las líneas de tercero, con su nombre para el
+// título del archivo.
+export function providersIn(lines: MaterialLine[], meta: Record<string, MaterialLineMeta> | undefined, names: Record<string, string> = {}): { key: string; name: string }[] {
+  const seen = new Map<string, string>()
+  for (const l of lines) {
+    const o = originOf(meta, l.key)
+    if (o.origin !== 'third') continue
+    const k = providerKey(o)
+    if (seen.has(k)) continue
+    seen.set(k, o.providerId ? names[o.providerId] ?? o.note ?? '' : o.note?.trim() || '')
+  }
+  return [...seen.entries()].map(([key, name]) => ({ key, name }))
+}
+
+// ¿Hubo cambios contra la versión comparada?
+export function hasChanges(current: MaterialLine[], previous: MaterialLine[]): boolean {
+  const d = diffLines(current, previous)
+  return d.removed.length > 0 || [...d.byKey.values()].some(v => v !== 0)
+}
+
