@@ -779,7 +779,7 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 | `clientHide*` (Vista cliente) | técnica y notas | 6 |
 | `pdf_a3` / `pdf_landscape` (hoja del PDF) | A4 apaisado | 8 |
 
-**Siguiente:** espera el OK de Javier sobre la §8 (lista de materiales). Hechos: bloques 3 a 8, primer paso del 9 y la parte A del 2026-11-01 (recorte, alturas 3D, luz, mantel).
+**Siguiente:** nada pendiente de construir. Hechos: bloques 3 a 8, primer paso del 9, parte A del 2026-11-01 (recorte, alturas 3D, luz, mantel) y L1 simple (lista de materiales). L2–L5 en espera (§8).
 
 ---
 
@@ -841,7 +841,9 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 
 ---
 
-## 8. Del plano a la lista de materiales — auditoría y propuesta (2026-11-01, SIN CONSTRUIR, espera OK de Javier)
+## 8. Del plano a la lista de materiales — auditoría y propuesta (2026-11-01)
+
+> **Decisión de Javier (2026-11-01):** la cadena completa (L2–L5) es sobreingeniería para esta etapa, porque muchas orgs alquilan a terceros y no reservan de un inventario propio. Se construyó **solo una versión simple de L1** (ver §8.4). **L2, L3, L4 y L5 quedan EN ESPERA: retomar cuando haya uso real.** No se tocó Inventarios ni Ventas.
 
 **Objetivo:** que el plano cuente lo que hay (sillas por tipo y color, mesas por tipo, manteles por color y tela, tarimas y pista en m², barras en metros, etc.) y arme la lista que va a **Inventarios** (reserva para el evento) y a **Ventas** (presupuesto).
 
@@ -874,11 +876,11 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 
 | # | Bloque | Qué incluye | Toca otros módulos | Esfuerzo |
 |---|---|---|---|---|
-| L1 | **Conteo en el plano** | Panel "Materiales": sillas por tipo y color, mesas por tipo y tamaño, manteles por color, tela y tamaño, tarimas y pista en m², barras en metros, el resto por pieza. Exportar en el PDF (hoja de materiales) y a CSV. Solo lee el plano. | No | 1 sesión |
-| L2 | **Vincular con Inventarios** | `layout_item_links`, pantalla de vínculos en la biblioteca, sugerencias por nombre, permisos. | Lee Inventarios | 1–2 sesiones |
-| L3 | **Disponibilidad y faltantes** | Necesario / disponible / falta para las fechas del evento; "alquilar a proveedor". | Lee Inventarios | 1 sesión |
-| L4 | **Lista confirmada y reservas** | Lista por evento y versión del plano, "Confirmar y reservar" (pendientes), diferencias v3 → v4 sin duplicar. | **Escribe en Inventarios** (columna de origen en reservas; coordinar con la sesión de Inventarios) | 2 sesiones |
-| L5 | **Presupuesto** | Líneas al borrador o versión nueva si está aprobado; orden de trabajo para proveedores. | **Escribe en Ventas y Eventos** (coordinar) | 1–2 sesiones |
+| L1 ✅ | **Conteo en el plano** (versión simple, hecha) | Panel "Materiales": sillas por tipo y color, mesas por tipo y tamaño, manteles por color, tela y tamaño, tarimas y pista en m², barras en metros, el resto por pieza. Exportar en el PDF (hoja de materiales) y a CSV. Solo lee el plano. | No | 1 sesión |
+| L2 ⏸ | **Vincular con Inventarios** *(en espera, retomar cuando haya uso real)* | `layout_item_links`, pantalla de vínculos en la biblioteca, sugerencias por nombre, permisos. | Lee Inventarios | 1–2 sesiones |
+| L3 ⏸ | **Disponibilidad y faltantes** *(en espera)* | Necesario / disponible / falta para las fechas del evento; "alquilar a proveedor". | Lee Inventarios | 1 sesión |
+| L4 ⏸ | **Lista confirmada y reservas** *(en espera)* | Lista por evento y versión del plano, "Confirmar y reservar" (pendientes), diferencias v3 → v4 sin duplicar. | **Escribe en Inventarios** (columna de origen en reservas; coordinar con la sesión de Inventarios) | 2 sesiones |
+| L5 ⏸ | **Presupuesto** *(en espera)* | Líneas al borrador o versión nueva si está aprobado; orden de trabajo para proveedores. | **Escribe en Ventas y Eventos** (coordinar) | 1–2 sesiones |
 
 **Decisiones que necesito antes de construir:**
 1. ¿Empezamos por L1 (solo contar, sin tocar otros módulos)? *Recomiendo: sí.*
@@ -886,4 +888,41 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 3. Unidades de tarima/pista/barra: ¿m² y metro lineal, o piezas estándar (tarima de 1,22 × 2,44 m)? *Recomiendo: lo dice el vínculo de cada ítem (por pieza, m² o metro).*
 4. Lo que falta: ¿se alquila a proveedor desde Layout o solo se avisa y lo resuelve Inventarios? *Recomiendo: Layout propone, Inventarios/Producción confirma.*
 5. Los cambios en Inventarios (columna de origen en reservas) y en Ventas (líneas con origen 'layout'): ¿los hago yo coordinando con esas sesiones, o los pido a cada módulo? *Recomiendo: los pide Layout y los hace cada módulo, para no pisar trabajo en curso.*
+
+### 8.4 L1 simple — hecho (2026-11-01)
+
+**Botón "📋 Materiales"** en el editor (también en solo lectura). Cuenta todas las piezas del plano, también las de capas ocultas, agrupadas por **tipo + variante**:
+- **Sillas** por tipo y color ("Silla · Tiffany · Morado").
+- **Mesas** por tamaño ("Mesa · Ø 1.8 m", "Mesa · 2.4 × 0.75 m").
+- **Manteles** por color, tela y mesa ("Mantel · Blanco · Largo · Ø 1.8 m"). Solo cuentan los elegidos: color cambiado, nombre de color o tela.
+- **Tarimas y pista en m²**, **barras en metros**.
+- El resto, por nombre y medida.
+- No cuentan los muros del local ni las marcas en el piso.
+
+**Origen por línea:** propio / tercero, editable, con **nota** opcional (por ejemplo, el proveedor). Se guarda en el plano (`meta.materials`, por clave normalizada de la línea), así que va en sus versiones. "Propio sin nota" es lo de siempre y no se guarda.
+
+**Exportar:**
+- **PDF** A4 vertical con el cajetín del plano y, si son muchas líneas, varias páginas, cada una con su cajetín.
+- **Excel** (.xlsx real, armado con fflate 0.8.3, que ya venía con jsPDF) con los datos del cajetín arriba.
+- Nombre: "<Nombre> - vN - materiales.pdf/xlsx".
+
+**Comparar con otra versión guardada** (por defecto la anterior): columna "Cambio vs vX" con +10, −1, "nuevo", y las líneas que **ya no están**. Va también en el PDF y el Excel.
+
+**Colores y tipos:**
+- **"Tipo de pieza"** explícito en Propiedades ("Automático (sugerido: Mesa)" o uno elegido). Manda sobre lo deducido por el nombre, que queda solo como sugerencia, y cuenta en la lista, en la altura 3D y en la sección Mantel/Silla.
+- **"Nombre del color"** en mesas (mantel) y sillas: si no se escribe, se sugiere por el color ("Morado", "Dorado").
+- Los textos se **normalizan** (mayúsculas, espacios y acentos no separan líneas: "Blanco" = " blanco " = "BLANCO") y se guardan en la forma ya usada en la org.
+- **Lista de sugerencias por org:** función `public.layout_vocab(org)` (migración `20261101120000`, solo lectura, pide ser miembro con Layout). Devuelve tipos de silla, telas y nombres de color ya usados en los planos de la org. ROLLBACK: el owner de QA la ve; otra org y un viewer sin el módulo, rechazados. Aplicada y verificada.
+
+**Pruebas:** 12 tests nuevos (normalizar, nombre de color, sillas por tipo y color con mayúsculas distintas, mesas y manteles, m² y metros, muros y zonas fuera, tipo elegido manda, comparar +10/−1/ya no está, sugerencias, origen por defecto, Excel válido con texto escapado y cantidades como número, PDF en varias páginas, nombre del archivo). Total en Layout: 132.
+- **En la app real** (la sesión del navegador es la cuenta de Javier en JBD, **solo mirando**):
+  - Plano de JBD con 6 versiones: la lista contó 13 líneas y la comparación con v5 mostró +17 sillas, +2 mesas de Ø 1.8 m y lo nuevo. PDF ("… - v6 - materiales.pdf", 5 KB) y Excel (3 KB) se generaron interceptados, sin descargar ni guardar nada.
+  - Plano nuevo **sin guardar**: "tiffany" quedó "Tiffany" y "  morado " quedó "Morado". Sillas como "Tercero" con nota "Alquileres Lima" y siguen así al cerrar y volver a abrir.
+- **Ojo:** mientras miraba ese plano de JBD apareció su **v6** (00:34 UTC) y luego un borrador con 12 piezas más. **No fue esta sesión**: yo solo abrí la lista y exporté interceptando. La v6 suma 23 piezas a la v5, así que es alguien editando con la cuenta de Javier en ese momento.
+
+![Lista de materiales comparando con la versión anterior](img/materiales-comparar.jpg)
+
+![Origen tercero con nota](img/materiales-origen.jpg)
+
+**Decidido sin preguntar (menor, revisar):** el origen por defecto es "propio"; los manteles solo cuentan si se eligió color o tela; tarima y pista se agrupan por tipo (no por nombre) para dar el total en m²; la comparación es contra versiones guardadas (por defecto la anterior a la actual).
 
