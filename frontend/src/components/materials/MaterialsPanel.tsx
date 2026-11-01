@@ -4,7 +4,7 @@
 // Se compara con otra versión guardada y se exporta a PDF y Excel.
 // No toca Inventarios ni Ventas.
 import { useEffect, useMemo, useState } from 'react'
-import { useLang } from '@/context/LangContext'
+import { useLang, getAssetName } from '@/context/LangContext'
 import type { LayoutElement, LayoutMeta, MaterialLineMeta, MaterialOrigin } from '@/types/layout'
 import { materialLines, diffLines, originOf, mergeVocab, type MaterialLine, type Vocab } from '@/lib/materials'
 import { layoutService, type LayoutVersionSummary } from '@/lib/layoutService'
@@ -31,7 +31,7 @@ const KIND_LABEL: Record<string, string> = {
 const fmt = (n: number) => (Math.round(n * 100) / 100).toString()
 
 export default function MaterialsPanel({ elements, meta, versionNumber, layoutId, vocab, readOnly, onSetLine, onClose }: Props) {
-  const { t } = useLang()
+  const { t, lang } = useLang()
   const allVocab = useMemo(() => mergeVocab(vocab, elements), [vocab, elements])
   const lines = useMemo(() => materialLines(elements, allVocab), [elements, allVocab])
   const [versions, setVersions] = useState<LayoutVersionSummary[]>([])
@@ -61,7 +61,7 @@ export default function MaterialsPanel({ elements, meta, versionNumber, layoutId
 
   const label = (l: MaterialLine) => String(t[KIND_LABEL[l.kind] as keyof typeof t] ?? l.kind)
   const unit = (l: MaterialLine) => (l.unit === 'm2' ? 'm²' : l.unit === 'm' ? 'm' : t.matUnitPieces)
-  const detail = (l: MaterialLine) => [l.name, ...l.variant].filter(Boolean).join(' · ') + (l.unit !== 'u' && l.pieces > 1 ? ` (${l.pieces} ${t.matPieces})` : '')
+  const detail = (l: MaterialLine) => [l.name ? getAssetName(lang, l.name) : '', ...l.variant].filter(Boolean).join(' · ') + (l.unit !== 'u' && l.pieces > 1 ? ` (${l.pieces} ${t.matPieces})` : '')
   const changeText = (key: string, qty: number) => {
     if (!diff) return undefined
     const prevHad = prevLines?.some(p => p.key === key)
