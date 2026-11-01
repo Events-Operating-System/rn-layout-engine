@@ -83,6 +83,23 @@ export interface LayoutElement {
   chairType?: string
   // Altura en 3D elegida a mano (m). Sin definir: la del tipo (ajuste de la org).
   height3d?: number
+  // Nombre del color para la lista de materiales ("Blanco", "Dorado"). Sin
+  // definir: se sugiere por el color de la pieza.
+  colorName?: string
+  // Tipo de pieza elegido en Propiedades (mesa, silla, tarima…). Sin
+  // definir: se deduce del nombre (solo como sugerencia).
+  pieceType?: PieceType
+}
+
+export type PieceType =
+  | 'table' | 'chair' | 'stage' | 'dance' | 'bar' | 'screen' | 'wall'
+  | 'tent' | 'service' | 'barrier' | 'truss' | 'vehicle' | 'other' | 'floor' | 'tree'
+
+// Lista de materiales: origen de cada línea (propio / de un tercero).
+export type MaterialOrigin = 'own' | 'third'
+export interface MaterialLineMeta {
+  origin: MaterialOrigin
+  note?: string
 }
 
 // Capas fijas (bloque 6): perímetro/estructura, mobiliario, decoración,
@@ -145,6 +162,8 @@ export interface GroupChild {
   fabric?: string
   chairType?: string
   height3d?: number
+  colorName?: string
+  pieceType?: PieceType
 }
 
 // ── Drawing primitives ────────────────────────────────────────────────────────
@@ -181,6 +200,8 @@ export interface LayoutMeta {
   background?: VenueBackground
   // Capas ocultas y bloqueadas en este plano (bloque 6).
   layers?: LayerState
+  // Lista de materiales: origen y nota por línea (clave normalizada).
+  materials?: Record<string, MaterialLineMeta>
   // Nota libre de versión escrita a mano. El número lo pone la base
   // (layouts.version_number); esto solo se muestra al lado.
   version: string

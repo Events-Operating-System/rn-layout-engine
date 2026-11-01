@@ -8,7 +8,6 @@
 import type { LayoutElement } from '@/types/layout'
 import { CATEGORY_COLORS } from '@/types/layout'
 import { flattenPath } from './curves'
-import { isChair } from './grouping'
 import { isShortCloth } from './furnishing'
 import { height3dOf, heightType, isTranslucentType, DEFAULT_HEIGHTS, type Heights3D } from './heights3d'
 
@@ -82,7 +81,7 @@ export function toItems(elements: LayoutElement[], heights: Heights3D = DEFAULT_
       out.push({ ...base, kind: 'tree', height })
       continue
     }
-    if (isChair(e)) {
+    if (heightType(e) === 'chair') {
       out.push({ ...base, kind: 'chair', height })
       continue
     }

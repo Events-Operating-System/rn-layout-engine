@@ -2,7 +2,11 @@
 // color del MANTEL, con tipo/tela opcional; las sillas tienen tipo y color.
 // Un conjunto mesa + sillas (o una selección) se cambia entero.
 import type { LayoutElement } from '@/types/layout'
-import { isChair, isTable } from './grouping'
+import { heightType } from './heights3d'
+
+// Mesa / silla según el tipo de pieza (el elegido en Propiedades o el sugerido).
+export const isTableLike = (e: Parameters<typeof heightType>[0]) => heightType(e) === 'table'
+export const isChairLike = (e: Parameters<typeof heightType>[0]) => heightType(e) === 'chair'
 
 export const CHAIR_TYPES = ['Tiffany', 'Crossback', 'Plegable', 'Phoenix', 'Ghost', 'Avant-garde', 'Banqueta', 'Lounge']
 export const CLOTH_TYPES = ['Hasta el piso', 'Corto', 'Lino', 'Satén', 'Spandex', 'Algodón', 'Cubremantel']
@@ -10,7 +14,7 @@ export const CLOTH_TYPES = ['Hasta el piso', 'Corto', 'Lino', 'Satén', 'Spandex
 // ¿Mantel corto? (en 3D, el mantel no llega al piso).
 export const isShortCloth = (fabric?: string) => !!fabric && /corto|short|curto/i.test(fabric)
 
-type Piece = Pick<LayoutElement, 'id' | 'name' | 'category' | 'shape' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'locked' | 'groupId' | 'seats'>
+type Piece = Pick<LayoutElement, 'id' | 'name' | 'category' | 'shape' | 'x' | 'y' | 'width' | 'height' | 'rotation' | 'locked' | 'groupId' | 'seats'> & Partial<Pick<LayoutElement, 'pieceType' | 'closed'>>
 
 // Las piezas que toca un cambio: las elegidas y sus conjuntos enteros.
 export function withGroups<T extends Piece>(ids: string[], all: T[]): T[] {
@@ -21,9 +25,11 @@ export function withGroups<T extends Piece>(ids: string[], all: T[]): T[] {
 
 export interface Furnishing {
   clothColor?: string
+  clothColorName?: string
   fabric?: string
   chairType?: string
   chairColor?: string
+  chairColorName?: string
 }
 
 // Cambios por pieza: mantel a las mesas, tipo/color a las sillas.
@@ -31,14 +37,17 @@ export function furnishingUpdates<T extends Piece>(ids: string[], all: T[], f: F
   const out: Record<string, Partial<LayoutElement>> = {}
   for (const e of withGroups(ids, all)) {
     if (e.locked) continue
-    if (isTable(e)) {
+    if (isTableLike(e)) {
       const u: Partial<LayoutElement> = {}
-      if (f.clothColor !== undefined) u.color = f.clothColor
+      // Cambiar el color borra el nombre escrito (se vuelve a sugerir por el color).
+      if (f.clothColor !== undefined) { u.color = f.clothColor; u.colorName = undefined }
+      if (f.clothColorName !== undefined) u.colorName = f.clothColorName || undefined
       if (f.fabric !== undefined) u.fabric = f.fabric || undefined
       if (Object.keys(u).length) out[e.id] = u
-    } else if (isChair(e)) {
+    } else if (isChairLike(e)) {
       const u: Partial<LayoutElement> = {}
-      if (f.chairColor !== undefined) u.color = f.chairColor
+      if (f.chairColor !== undefined) { u.color = f.chairColor; u.colorName = undefined }
+      if (f.chairColorName !== undefined) u.colorName = f.chairColorName || undefined
       if (f.chairType !== undefined) u.chairType = f.chairType || undefined
       if (Object.keys(u).length) out[e.id] = u
     }
@@ -47,5 +56,5 @@ export function furnishingUpdates<T extends Piece>(ids: string[], all: T[], f: F
 }
 
 export function summary<T extends Piece & Pick<LayoutElement, 'color' | 'fabric' | 'chairType'>>(items: T[]): { tables: number; chairs: number } {
-  return { tables: items.filter(isTable).length, chairs: items.filter(isChair).length }
+  return { tables: items.filter(isTableLike).length, chairs: items.filter(isChairLike).length }
 }

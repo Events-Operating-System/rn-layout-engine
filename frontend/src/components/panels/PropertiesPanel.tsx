@@ -6,9 +6,9 @@ import { PIXELS_PER_METER } from '@/components/canvas/LayoutCanvas'
 import { lengthMeters, angleDegrees, pointFromLengthAngle, elementAreaMeters, elementLengthMeters } from '@/lib/drawingMath'
 import { sidesOf, sideInfo, withSegments, arcFromBulge, sagittaFromBulge, bulgeFromSagitta } from '@/lib/curves'
 import type { Segment } from '@/types/layout'
-import { isChair, isTable } from '@/lib/grouping'
-import { CHAIR_TYPES, CLOTH_TYPES, withGroups, type Furnishing } from '@/lib/furnishing'
-import { heightType, height3dOf, type Heights3D, type Height3DType } from '@/lib/heights3d'
+import { CHAIR_TYPES, CLOTH_TYPES, withGroups, isTableLike, isChairLike, type Furnishing } from '@/lib/furnishing'
+import { heightType, height3dOf, suggestedType, PIECE_TYPES, type Heights3D, type Height3DType } from '@/lib/heights3d'
+import { canon, colorNameOf, type Vocab } from '@/lib/materials'
 import type { AlignMode } from '@/lib/arrange'
 
 interface PropertiesPanelProps {
@@ -43,6 +43,8 @@ interface PropertiesPanelProps {
   allElements: LayoutElement[]
   onFurnish: (ids: string[], f: Furnishing) => void
   heights3d: Heights3D
+  // Sugerencias de la org (tipos de silla, telas, nombres de color).
+  vocab: Vocab
 }
 
 const COLOR_PRESETS = [
@@ -63,7 +65,7 @@ export default function PropertiesPanel({
   selectedIds, onBringToFront, onSendToBack, onSaveGroupAsAsset, onRotateGroup,
   onAlign, onDistribute, onRepeatGrid, defaultSpacing,
   groupedCount, groupsCount, onUngroup, onGroupTablesWithChairs, onSetLayer, selectionLayer,
-  allElements, onFurnish, heights3d,
+  allElements, onFurnish, heights3d, vocab,
 }: PropertiesPanelProps) {
   const { t } = useLang()
   const isMultiSelect = element === null && selectedDrawing === null && selectedIds.size > 1
@@ -96,9 +98,10 @@ export default function PropertiesPanel({
         <>
         {groupedCount > 0 && <GroupSection count={groupedCount} groups={groupsCount} onUngroup={() => onUngroup([element.id])} />}
         <LayerSelect value={layerOf(element)} onChange={l => onSetLayer([element.id], l)} />
-        {element.groupId && <FurnishSection ids={[element.id]} all={allElements} onFurnish={onFurnish} />}
+        {element.groupId && <FurnishSection ids={[element.id]} all={allElements} onFurnish={onFurnish} vocab={vocab} />}
         <ElementProperties
           heights3d={heights3d}
+          vocab={vocab}
           element={element}
           onUpdate={onUpdate}
           onDelete={onDeleteElement}
@@ -113,7 +116,7 @@ export default function PropertiesPanel({
         <>
         {groupedCount > 0 && <GroupSection count={groupedCount} groups={groupsCount} onUngroup={() => onUngroup([...selectedIds])} />}
         <LayerSelect value={selectionLayer} onChange={l => onSetLayer([...selectedIds], l)} />
-        <FurnishSection ids={[...selectedIds]} all={allElements} onFurnish={onFurnish} />
+        <FurnishSection ids={[...selectedIds]} all={allElements} onFurnish={onFurnish} vocab={vocab} />
         <MultiSelectProperties
           count={selectedIds.size}
           onBringToFront={() => onBringToFront([...selectedIds])}
@@ -218,11 +221,12 @@ function SidesSection({ element, onUpdate }: {
 
 // Texto libre con sugerencias (tipo de silla, tipo/tela del mantel). Se
 // guarda al salir del campo o con Enter.
-function TextSuggest({ value, options, placeholder, onCommit }: { value: string; options: string[]; placeholder?: string; onCommit: (v: string) => void }) {
+function TextSuggest({ value, options, placeholder, onCommit, normalize }: { value: string; options: string[]; placeholder?: string; onCommit: (v: string) => void; normalize?: (v: string) => string }) {
   const [draft, setDraft] = useState(value)
   const [prev, setPrev] = useState(value)
   if (prev !== value) { setPrev(value); setDraft(value) }
-  const listId = `sug-${options[0]}`
+  const listId = `sug-${(placeholder ?? '').replace(/\W/g, '')}-${options.length}`
+  const uniq = [...new Set(options.map(o => o.trim()).filter(Boolean))]
   return (
     <>
       <input
@@ -230,11 +234,16 @@ function TextSuggest({ value, options, placeholder, onCommit }: { value: string;
         value={draft}
         placeholder={placeholder}
         onChange={e => setDraft(e.target.value)}
-        onBlur={() => { if (draft.trim() !== value) onCommit(draft.trim()) }}
+        onBlur={() => {
+          // Se guarda en la forma ya usada en la org ("blanco" → "Blanco").
+          const v = normalize ? normalize(draft) : draft.trim()
+          setDraft(v)
+          if (v !== value) onCommit(v)
+        }}
         onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
         className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-slate-500"
       />
-      <datalist id={listId}>{options.map(o => <option key={o} value={o} />)}</datalist>
+      <datalist id={listId}>{uniq.map(o => <option key={o} value={o} />)}</datalist>
     </>
   )
 }
@@ -283,12 +292,31 @@ function Height3DField({ element, heights, onChange }: { element: LayoutElement;
   )
 }
 
+// Tipo de pieza: "Automático" usa el sugerido por el nombre; elegir uno lo
+// fija (cuenta en la lista de materiales, la altura 3D y el mantel).
+function PieceTypeSelect({ element, onChange }: { element: LayoutElement; onChange: (v: Height3DType | undefined) => void }) {
+  const { t } = useLang()
+  const sug = suggestedType(element)
+  const label = (k: Height3DType) => String(t[TYPE_LABEL[k]])
+  return (
+    <select
+      value={element.pieceType ?? ''}
+      onChange={e => onChange((e.target.value || undefined) as Height3DType | undefined)}
+      aria-label={t.fPieceType}
+      className="w-full bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200"
+    >
+      <option value="">{t.pieceTypeAuto.replace('{type}', label(sug))}</option>
+      {PIECE_TYPES.map(k => <option key={k} value={k}>{label(k)}</option>)}
+    </select>
+  )
+}
+
 // Mantel y sillas de un conjunto o de una selección, de una vez.
-function FurnishSection({ ids, all, onFurnish }: { ids: string[]; all: LayoutElement[]; onFurnish: (ids: string[], f: Furnishing) => void }) {
+function FurnishSection({ ids, all, onFurnish, vocab }: { ids: string[]; all: LayoutElement[]; onFurnish: (ids: string[], f: Furnishing) => void; vocab: Vocab }) {
   const { t } = useLang()
   const items = withGroups(ids, all)
-  const tables = items.filter(isTable)
-  const chairs = items.filter(isChair)
+  const tables = items.filter(isTableLike)
+  const chairs = items.filter(isChairLike)
   if (!tables.length && !chairs.length) return null
   if (tables.length + chairs.length < 2) return null
   const firstTable = tables[0], firstChair = chairs[0]
@@ -300,14 +328,16 @@ function FurnishSection({ ids, all, onFurnish }: { ids: string[]; all: LayoutEle
           <>
             <p className="text-[10px] text-slate-500 uppercase tracking-widest">{t.sCloth}</p>
             <ColorPicker value={firstTable.color} onChange={v => onFurnish(ids, { clothColor: v })} />
-            <TextSuggest value={firstTable.fabric ?? ''} options={CLOTH_TYPES} placeholder={t.fFabricPh} onCommit={v => onFurnish(ids, { fabric: v })} />
+            <TextSuggest value={firstTable.colorName ?? ''} options={vocab.colorNames} placeholder={colorNameOf(firstTable.color) || t.fColorName} normalize={v => canon(v, vocab.colorNames)} onCommit={v => onFurnish(ids, { clothColorName: v })} />
+            <TextSuggest value={firstTable.fabric ?? ''} options={[...vocab.fabrics, ...CLOTH_TYPES]} placeholder={t.fFabricPh} normalize={v => canon(v, [...vocab.fabrics, ...CLOTH_TYPES])} onCommit={v => onFurnish(ids, { fabric: v })} />
           </>
         )}
         {chairs.length > 0 && (
           <>
             <p className="text-[10px] text-slate-500 uppercase tracking-widest">{t.furnishChairs}</p>
-            <TextSuggest value={firstChair.chairType ?? ''} options={CHAIR_TYPES} placeholder={t.fChairTypePh} onCommit={v => onFurnish(ids, { chairType: v })} />
+            <TextSuggest value={firstChair.chairType ?? ''} options={[...vocab.chairTypes, ...CHAIR_TYPES]} placeholder={t.fChairTypePh} normalize={v => canon(v, [...vocab.chairTypes, ...CHAIR_TYPES])} onCommit={v => onFurnish(ids, { chairType: v })} />
             <ColorPicker value={firstChair.color} onChange={v => onFurnish(ids, { chairColor: v })} />
+            <TextSuggest value={firstChair.colorName ?? ''} options={vocab.colorNames} placeholder={colorNameOf(firstChair.color) || t.fColorName} normalize={v => canon(v, vocab.colorNames)} onCommit={v => onFurnish(ids, { chairColorName: v })} />
           </>
         )}
       </div>
@@ -498,8 +528,10 @@ function ElementProperties({
   onRepeatGrid,
   defaultSpacing,
   heights3d,
+  vocab,
 }: {
   heights3d: Heights3D
+  vocab: Vocab
   element: LayoutElement
   onUpdate: (id: string, updates: Partial<LayoutElement>) => void
   onDelete: (id: string) => void
@@ -630,20 +662,30 @@ function ElementProperties({
         <RepeatGrid onRepeat={onRepeatGrid} defaultSpacing={defaultSpacing} />
       </Section>
 
-      {isTable(element) ? (
+      <Section label={t.fPieceType}>
+        <PieceTypeSelect element={element} onChange={v => onUpdate(element.id, { pieceType: v })} />
+      </Section>
+
+      {isTableLike(element) ? (
         // El color de la mesa es el del MANTEL (también en el 3D, PNG y PDF).
         <Section label={t.sCloth}>
-          <ColorPicker value={element.color} onChange={v => onUpdate(element.id, { color: v })} />
+          <ColorPicker value={element.color} onChange={v => onUpdate(element.id, { color: v, colorName: undefined })} />
+          <Field label={t.fColorName}>
+            <TextSuggest value={element.colorName ?? ''} options={vocab.colorNames} placeholder={colorNameOf(element.color)} normalize={v => canon(v, vocab.colorNames)} onCommit={v => onUpdate(element.id, { colorName: v || undefined })} />
+          </Field>
           <Field label={t.fFabric}>
-            <TextSuggest value={element.fabric ?? ''} options={CLOTH_TYPES} placeholder={t.fFabricPh} onCommit={v => onUpdate(element.id, { fabric: v || undefined })} />
+            <TextSuggest value={element.fabric ?? ''} options={[...vocab.fabrics, ...CLOTH_TYPES]} placeholder={t.fFabricPh} normalize={v => canon(v, [...vocab.fabrics, ...CLOTH_TYPES])} onCommit={v => onUpdate(element.id, { fabric: v || undefined })} />
           </Field>
         </Section>
-      ) : isChair(element) ? (
+      ) : isChairLike(element) ? (
         <Section label={t.sChair}>
           <Field label={t.fChairType}>
-            <TextSuggest value={element.chairType ?? ''} options={CHAIR_TYPES} placeholder={t.fChairTypePh} onCommit={v => onUpdate(element.id, { chairType: v || undefined })} />
+            <TextSuggest value={element.chairType ?? ''} options={[...vocab.chairTypes, ...CHAIR_TYPES]} placeholder={t.fChairTypePh} normalize={v => canon(v, [...vocab.chairTypes, ...CHAIR_TYPES])} onCommit={v => onUpdate(element.id, { chairType: v || undefined })} />
           </Field>
-          <ColorPicker value={element.color} onChange={v => onUpdate(element.id, { color: v })} />
+          <ColorPicker value={element.color} onChange={v => onUpdate(element.id, { color: v, colorName: undefined })} />
+          <Field label={t.fColorName}>
+            <TextSuggest value={element.colorName ?? ''} options={vocab.colorNames} placeholder={colorNameOf(element.color)} normalize={v => canon(v, vocab.colorNames)} onCommit={v => onUpdate(element.id, { colorName: v || undefined })} />
+          </Field>
         </Section>
       ) : (
         <Section label={t.sColor}>

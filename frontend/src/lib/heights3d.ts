@@ -7,15 +7,15 @@
 // e inglés), porque las orgs nombran sus piezas a su manera ("Mesa de
 // dulces", "Escenario 23 x 5", "Pantalla Led", "Camion").
 
-import type { LayoutElement } from '@/types/layout'
+import type { LayoutElement, PieceType } from '@/types/layout'
 import { isChair, isTable } from './grouping'
 
 export type Height3DKey =
   | 'table' | 'chair' | 'stage' | 'dance' | 'bar' | 'screen' | 'wall'
   | 'tent' | 'service' | 'barrier' | 'truss' | 'vehicle' | 'other'
 
-// Tipos fijos (no configurables): marcas en el piso y árboles.
-export type Height3DType = Height3DKey | 'floor' | 'tree'
+// Tipo de pieza (incluye los fijos: marcas en el piso y árboles).
+export type Height3DType = PieceType
 
 export type Heights3D = Record<Height3DKey, number>
 
@@ -53,9 +53,15 @@ const RX: [Height3DKey, RegExp][] = [
   ['table', /\bmesa\b|\btable\b|mesas/i],
 ]
 
-type Piece = Pick<LayoutElement, 'name' | 'category' | 'shape' | 'width' | 'height' | 'seats'> & Partial<Pick<LayoutElement, 'closed'>>
+type Piece = Pick<LayoutElement, 'name' | 'category' | 'shape' | 'width' | 'height' | 'seats'> & Partial<Pick<LayoutElement, 'closed' | 'pieceType'>>
 
+// El tipo elegido en Propiedades manda; si no hay, se deduce (sugerencia).
 export function heightType(e: Piece): Height3DType {
+  if (e.pieceType) return e.pieceType
+  return suggestedType(e)
+}
+
+export function suggestedType(e: Piece): Height3DType {
   if (e.shape === 'wall') return 'wall'
   if (e.shape === 'tree') return 'tree'
   if (isChair(e as Parameters<typeof isChair>[0])) return 'chair'
@@ -92,3 +98,5 @@ export function parseHeights(l: Record<string, unknown>): Heights3D {
   }
   return out
 }
+
+export const PIECE_TYPES: Height3DType[] = ['chair', 'table', 'stage', 'dance', 'bar', 'screen', 'tent', 'service', 'barrier', 'truss', 'vehicle', 'tree', 'wall', 'floor', 'other']

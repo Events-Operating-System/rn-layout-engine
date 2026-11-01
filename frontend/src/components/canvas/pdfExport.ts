@@ -56,7 +56,7 @@ type TextOpts = { size: number; bold?: boolean; align?: 'left' | 'center' | 'rig
 
 // Texto en mm con alineación y rotación propias. angle en grados, sentido
 // horario como en pantalla.
-function text(doc: jsPDF, s: string, x: number, y: number, o: TextOpts) {
+export function text(doc: jsPDF, s: string, x: number, y: number, o: TextOpts) {
   if (!s) return
   doc.setFont('helvetica', o.bold ? 'bold' : 'normal')
   doc.setFontSize(o.size * PT_PER_MM)
@@ -70,7 +70,7 @@ function text(doc: jsPDF, s: string, x: number, y: number, o: TextOpts) {
 }
 
 // Achica la letra hasta que entre en el ancho.
-function fitSize(doc: jsPDF, s: string, size: number, maxW: number, bold = false, min = 1.4): number {
+export function fitSize(doc: jsPDF, s: string, size: number, maxW: number, bold = false, min = 1.4): number {
   doc.setFont('helvetica', bold ? 'bold' : 'normal')
   let sz = size
   while (sz > min) {
@@ -296,6 +296,15 @@ function drawScaleBar(doc: jsPDF, denom: number, x: number, y: number) {
 }
 
 function drawTitleBlock(doc: jsPDF, r: { x: number; y: number; w: number; h: number }, p: LayoutPdfParams, denom: number) {
+  drawTitleBlockWith(doc, r, p.meta, p.versionNumber, [
+    { label: 'ESCALA', value: `1:${denom}` },
+    { label: 'HOJA', value: paperLabel(p.paper, p.lang) + (p.selectionOnly ? ' · selección' : '') },
+  ])
+}
+
+// Cajetín del PDF (también la lista de materiales): las 5 columnas de
+// siempre y una sexta a elección (escala y hoja, o "lista de materiales").
+export function drawTitleBlockWith(doc: jsPDF, r: { x: number; y: number; w: number; h: number }, m: LayoutMeta, versionNumber: number, last: { label: string; value: string }[]) {
   doc.setFillColor('#ffffff')
   doc.setDrawColor('#000000')
   doc.setLineWidth(0.4)
@@ -305,16 +314,15 @@ function drawTitleBlock(doc: jsPDF, r: { x: number; y: number; w: number; h: num
   doc.line(r.x + leftW, r.y, r.x + leftW, r.y + r.h)
   text(doc, 'EventOS', r.x + leftW / 2, r.y + r.h * 0.34, { size: 4, bold: true, align: 'center', baseline: 'middle' })
   text(doc, 'Layout', r.x + leftW / 2, r.y + r.h * 0.56, { size: 3, bold: true, align: 'center', baseline: 'middle' })
-  text(doc, p.meta.company ? `by ${p.meta.company}` : 'by Reality Near', r.x + leftW / 2, r.y + r.h * 0.8, { size: 1.7, align: 'center', baseline: 'middle', color: '#666666' })
+  text(doc, m.company ? `by ${m.company}` : 'by Reality Near', r.x + leftW / 2, r.y + r.h * 0.8, { size: 1.7, align: 'center', baseline: 'middle', color: '#666666' })
 
-  const m = p.meta
   const cols: { label: string; value: string }[][] = [
     [{ label: 'PROYECTO', value: m.proyecto }, { label: 'CLIENTE', value: m.cliente }],
     [{ label: 'LUGAR EVENTO', value: m.lugarEvento }, { label: 'FECHA EVENTO', value: m.fechaEvento }],
-    [{ label: 'PAX / INVITADOS', value: m.pax }, { label: 'VERSION DEL PLANO', value: versionLabel(p.versionNumber, m.version) }],
+    [{ label: 'PAX / INVITADOS', value: m.pax }, { label: 'VERSION DEL PLANO', value: versionLabel(versionNumber, m.version) }],
     [{ label: 'FECHA DEL PLANO', value: m.fechaPlano }, { label: 'CONTACTO', value: m.contacto }],
     [{ label: 'TELEFONO', value: m.telefono }, { label: 'CORREO', value: m.correo }],
-    [{ label: 'ESCALA', value: `1:${denom}` }, { label: 'HOJA', value: paperLabel(p.paper, p.lang) + (p.selectionOnly ? ' · selección' : '') }],
+    last,
   ]
   const colW = (r.w - leftW) / cols.length
   const rowH = r.h / 2

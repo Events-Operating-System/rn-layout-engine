@@ -13,8 +13,8 @@ describe('mantel y sillas', () => {
   const all = [...set('a', 'g1'), ...set('b', 'g2')]
   it('elegir la mesa cambia el mantel y, si se pide, las sillas del conjunto', () => {
     const u = furnishingUpdates(['a0'], all, { clothColor: '#ffffff', fabric: 'Lino, hasta el piso', chairType: 'Tiffany', chairColor: '#c0a060' })
-    expect(u.a0).toEqual({ color: '#ffffff', fabric: 'Lino, hasta el piso' })
-    expect(u.a3).toEqual({ color: '#c0a060', chairType: 'Tiffany' })
+    expect(u.a0).toEqual({ color: '#ffffff', colorName: undefined, fabric: 'Lino, hasta el piso' })
+    expect(u.a3).toEqual({ color: '#c0a060', colorName: undefined, chairType: 'Tiffany' })
     expect(Object.keys(u).filter(k => k.startsWith('b'))).toEqual([])
     expect(Object.keys(u)).toHaveLength(9)
   })

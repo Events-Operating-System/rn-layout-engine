@@ -24,6 +24,8 @@ import { applyLayers, normalizeLayers, countByLayer, layerOf } from '@/lib/layer
 import LayersPanel from '@/components/LayersPanel'
 import ExportDialog from '@/components/ExportDialog'
 import { writeSnapshot3D } from '@/lib/snapshot3d'
+import { useLayoutVocab } from '@/hooks/useLayoutVocab'
+import MaterialsPanel from '@/components/materials/MaterialsPanel'
 import { furnishingUpdates, type Furnishing } from '@/lib/furnishing'
 import type { PaperChoice } from '@/lib/pdfLayout'
 import type { CustomAsset } from '@/lib/assetService'
@@ -112,6 +114,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   const [layersOpen, setLayersOpen] = useState(false)
   // Diálogo de exportar (bloque 8).
   const [exportOpen, setExportOpen] = useState<'pdf' | 'png' | null>(null)
+  // Lista de materiales.
+  const [materialsOpen, setMaterialsOpen] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
   // La base rechazó una operación por permisos → aviso "No tienes permiso".
   const [permissionDenied, setPermissionDenied] = useState(false)
@@ -184,6 +188,8 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   const { assets: customAssets, createAsset, deleteAsset, setShared } = useCustomAssets(userId, orgId)
   // Medidas de mesas/sillas y separación entre mesas de la org.
   const layoutSettings = useLayoutSettings(orgId)
+  // Sugerencias de la org para tipos de silla, telas y nombres de color.
+  const { vocab } = useLayoutVocab(orgId)
   // Capas (bloque 6): lo oculto no se dibuja ni se exporta; lo bloqueado no
   // se elige ni se mueve. El PAX cuenta todo igual.
   const layerState = useMemo(() => normalizeLayers(layoutMeta.layers), [layoutMeta.layers])
@@ -624,7 +630,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Con un panel o un diálogo abierto, las teclas son para ese diálogo.
-      if (versionsOpen || calibration || exportOpen) return
+      if (versionsOpen || calibration || exportOpen || materialsOpen) return
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
       // Solo lectura: nada que cambie el plano (mano y medir sí).
@@ -661,7 +667,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedId, selectedIds, duplicateElement, duplicateElements, setTool, undo, redo, handleSave, versionsOpen, readOnly, calibration, exportOpen])
+  }, [selectedId, selectedIds, duplicateElement, duplicateElements, setTool, undo, redo, handleSave, versionsOpen, readOnly, calibration, exportOpen, materialsOpen])
 
   function toggleMobilePanel(panel: 'library' | 'properties') {
     setMobilePanel(prev => (prev === panel ? null : panel))
@@ -728,6 +734,13 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         {/* Acciones secundarias — ocultas < sm para que "Guardar" nunca
             quede fuera de pantalla en móvil. Duplicar sigue disponible
             desde las tarjetas del dashboard. */}
+        <button
+          onClick={() => { selectElement(null); setMaterialsOpen(true) }}
+          title={t.matButtonHint}
+          className="flex-none h-7 px-2 sm:px-3 rounded text-xs font-semibold border transition-colors whitespace-nowrap text-slate-300 bg-slate-800 hover:bg-slate-700 border-slate-600"
+        >
+          📋<span className="hidden md:inline"> {t.matButton}</span>
+        </button>
         <button
           onClick={handleOpen3d}
           title={t.view3dOpenHint}
@@ -929,6 +942,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
             allElements={elements}
             onFurnish={handleFurnish}
             heights3d={layoutSettings.heights3d}
+            vocab={vocab}
           />
         </div>}
 
@@ -941,6 +955,23 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
       </div>
 
       <FooterLegend meta={displayMeta} versionNumber={versionNumber} onUpdate={updateMeta} clienteFromEvent={!!eventClient} readOnly={readOnly} paxAuto={paxAuto} />
+
+      {materialsOpen && (
+        <MaterialsPanel
+          elements={elements}
+          meta={displayMeta}
+          versionNumber={versionNumber}
+          layoutId={layoutId}
+          vocab={vocab}
+          readOnly={readOnly}
+          onSetLine={(key, value) => {
+            const next = { ...(layoutMeta.materials ?? {}) }
+            if (value) next[key] = value; else delete next[key]
+            updateMeta({ materials: next })
+          }}
+          onClose={() => setMaterialsOpen(false)}
+        />
+      )}
 
       {exportOpen && (
         <ExportDialog
