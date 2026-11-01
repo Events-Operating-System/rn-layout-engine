@@ -46,14 +46,9 @@ Session records and decisions live in `docs/` at the repo root (not inside `fron
 Strategic ownership of this project belongs to the founder (Javier Bambaren D).
 AI systems (Claude, agents) are execution collaborators — not strategic owners or autonomous decision-makers.
 
-**For feature/code commits:** standard `Co-Authored-By:` attribution is acceptable.
-
-**For governance, strategy, session-state, and architecture commits:** use the following format in the commit body:
-
-```
-Author: Javier Bambaren D
-Execution Support: Claude Sonnet 4.6
-```
+**Commit attribution:** use Claude Code's default attribution (the `Co-Authored-By:` line the session provides) for
+every commit, code or governance. Do not hardcode a model name (the old "Execution Support: Claude Sonnet 4.6"
+format is retired, decision of 2026-10-31).
 
 AI systems:
 - Do NOT imply autonomous authority over architectural decisions in commit messages
