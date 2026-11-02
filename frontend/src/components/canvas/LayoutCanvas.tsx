@@ -314,6 +314,10 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       // Cerca del borde (o dentro del grosor del muro).
       const tol = 14 / (viewport.scale * PIXELS_PER_METER) + (el.thickness ?? 0) / 2
       if (!best || best.d > tol) return
+      // Sobre un vértice que ya existe no se agrega otro encima.
+      for (let k = 0; k < n; k++) {
+        if (Math.hypot(el.points[k * 2] - lx, el.points[k * 2 + 1] - ly) < tol) return
+      }
       const ins = insertVertex(el.points, el.segments, closed, best.i, lx, ly)
       onPushHistory()
       onUpdateElement(el.id, withGeometry(el, ins.points, ins.segments))
@@ -1259,6 +1263,10 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
               anchorCornerRadius={2}
               boundBoxFunc={(_old, newBox) => newBox}
               onTransformEnd={handleGroupTransformEnd}
+              // En edición de vértices, el lado tiene prioridad sobre los
+              // puntos del recuadro: el doble clic agrega el vértice igual.
+              onDblClick={vertexTarget ? (e => { e.cancelBubble = true; insertVertexAtPointer(vertexTarget) }) : undefined}
+              onDblTap={vertexTarget ? (e => { e.cancelBubble = true; insertVertexAtPointer(vertexTarget) }) : undefined}
             />
             {/* Editar vértices, manijas y arcos de la pieza elegida. */}
             {vertexTarget && (

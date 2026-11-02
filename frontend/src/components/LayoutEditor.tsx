@@ -880,8 +880,9 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
         </div>}
 
         <main className="relative flex-1 flex flex-col overflow-hidden min-w-0">
+          {/* Abajo al centro y encima de todo: los paneles de arriba (Capas, Versiones…) no lo tapan. */}
           {templateMsg && (
-            <div role="status" className="absolute left-1/2 -translate-x-1/2 top-3 z-30 max-w-sm px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-xs text-slate-200 shadow-xl">
+            <div role="status" className="absolute left-1/2 -translate-x-1/2 bottom-12 z-50 max-w-sm pointer-events-none px-3 py-2 rounded-lg bg-slate-800 border border-slate-600 text-xs text-slate-200 shadow-xl">
               {templateMsg}
             </div>
           )}
