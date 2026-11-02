@@ -102,16 +102,18 @@ export default function MaterialsPanel({ elements, meta, versionNumber, layoutId
     return `${name}: ${fmt(s.qty)}${u}${s.undefinedQty ? ` + ${fmt(s.undefinedQty)} ${t.matUndefinedShort}` : ''}`
   }
 
-  // Avisos de lo que falta definir.
-  const undefCloths = lines.filter(l => l.undefinedCloth).reduce((a, l) => a + l.qty, 0)
-  const undefChairs = lines.filter(l => l.kind === 'chair' && l.missingType && l.missingColor).reduce((a, l) => a + l.qty, 0)
-  const otherPieces = lines.filter(l => l.kind === 'other').reduce((a, l) => a + l.pieces, 0)
-  const notices = (forExport: boolean): string[] => [
-    ...(diff && noChanges ? [t.matNoChanges.replace('{v}', String(compareWith))] : []),
-    ...(undefCloths ? [t.matUndefinedCloths.replace('{n}', fmt(undefCloths))] : []),
-    ...(undefChairs ? [t.matUndefinedChairs.replace('{n}', fmt(undefChairs))] : []),
-    ...(!forExport && otherPieces ? [t.matOtherPieces.replace('{n}', String(otherPieces))] : []),
-  ]
+  // Avisos de lo que falta definir (sobre lo que se muestra o se exporta).
+  const notices = (forExport: boolean, src: MaterialLine[] = lines): string[] => {
+    const undefCloths = src.filter(l => l.undefinedCloth).reduce((a, l) => a + l.qty, 0)
+    const undefChairs = src.filter(l => l.kind === 'chair' && l.missingType && l.missingColor).reduce((a, l) => a + l.qty, 0)
+    const otherPieces = src.filter(l => l.kind === 'other').reduce((a, l) => a + l.pieces, 0)
+    return [
+      ...(diff && noChanges ? [t.matNoChanges.replace('{v}', String(compareWith))] : []),
+      ...(undefCloths ? [t.matUndefinedCloths.replace('{n}', fmt(undefCloths))] : []),
+      ...(undefChairs ? [t.matUndefinedChairs.replace('{n}', fmt(undefChairs))] : []),
+      ...(!forExport && otherPieces ? [t.matOtherPieces.replace('{n}', String(otherPieces))] : []),
+    ]
+  }
 
   // Filas (pantalla y export): grupo por tipo + subtotal + lo que ya no está.
   const buildRows = (src: MaterialLine[]): MaterialRow[] => {
@@ -132,7 +134,7 @@ export default function MaterialsPanel({ elements, meta, versionNumber, layoutId
   const docFor = (src: MaterialLine[], provider?: string): MaterialsDoc => ({
     title: title(provider),
     headers: { type: t.matType, detail: t.matDetail, qty: t.matQty, unit: t.matUnit, origin: t.matOrigin, note: t.matNote, ...(diff ? { change: t.matChange.replace('{v}', String(compareWith)) } : {}) },
-    rows: buildRows(src), meta, versionNumber, notices: notices(true),
+    rows: buildRows(src), meta, versionNumber, notices: notices(true, src),
   })
 
   const doExport = (kind: 'pdf' | 'xlsx', f: MaterialFilter) => {
