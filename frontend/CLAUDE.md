@@ -17,8 +17,8 @@
 - Bloques 1 a 9 de la auditoría hechos y en `main` (permisos, canvas modular, mesas con sillas y PAX, plano del local
   con recorte, muros y cotas, capas y biblioteca de la org, curvas, PDF vectorial A4/A3 con cajetín, 3D en otra
   pestaña). Además: mantel y sillas, alturas 3D por tipo (ajuste de la org), lista de materiales (L1 simple; L2–L5 en
-  espera) y edición de curvas/polígonos/muros con el mouse.
-- Esperando OK: unificar capa y tipo (propuesta en `docs/AUDITORIA-LAYOUT.md` §10; cambia colores de planos
-  existentes, no aplicar sin el OK).
-- Pendiente: probar en QA con sesión el recorte del fondo y la tarjeta de Administración; curvas: agregar/quitar
-  vértices; 3D: modelos CC0, choques al recorrer, cotas en 3D.
+  espera), edición de curvas/polígonos/muros con el mouse (arrastrar, agregar y quitar vértices).
+- Capa y tipo (opción C, `docs/AUDITORIA-LAYOUT.md` §10): color por capa solo en piezas nuevas o con el botón
+  "Aplicar colores por capa"; nunca recolorear planos existentes de forma automática.
+- Pendiente: probar en QA con sesión el recorte del fondo y la tarjeta de Administración; 3D: modelos CC0, choques
+  al recorrer, cotas en 3D.

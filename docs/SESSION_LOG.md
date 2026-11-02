@@ -800,8 +800,12 @@ Detalle completo (decisiones, pruebas con ROLLBACK, capturas): `docs/AUDITORIA-L
 
 **Pruebas:** tests (140 en Layout, 119 en Administración), build y lint en verde. La sesión del navegador fue la cuenta de Javier en JBD: en la app solo se miró o se usaron planos nuevos sin guardar; lo que escribe datos se probó con páginas locales que montan los módulos reales.
 
+**Después, con las decisiones de Javier:**
+- Capa y tipo, **opción C**: piezas nuevas con el color de su capa, leyenda por capas, "Categoría" fuera de Propiedades; botón "Aplicar colores por capa" en Capas (respeta colores a mano y lo bloqueado, deshacer en un paso, nunca automático). Ningún plano existente cambió.
+- Curvas: doble clic en un lado agrega un vértice; Suprimir quita el elegido. Arreglo: los controles quedaban en el lugar viejo después de quitar un vértice.
+- `frontend/AGENTS.md` alineado con `REGLAS.md` (manda REGLAS; actualizar bitácora y estado es esperado).
+- Tests: 147 en Layout. Probado en la app con un plano nuevo sin guardar.
+
 **Pendiente:**
-- OK de Javier sobre la propuesta capa/tipo (§10 de la auditoría).
 - Repetir en QA con sesión: recorte del fondo de punta a punta y la tarjeta de Administración.
-- Curvas: agregar o quitar vértices.
 

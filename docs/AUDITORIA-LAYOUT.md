@@ -955,11 +955,17 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 Al elegir una curva, polígono o muro (herramienta de selección, sin bloquear ni espejar) aparecen **cuadrados en los vértices**, **círculos en las manijas** de las curvas libres (con su guía punteada) y un **rombo en el punto medio de cada arco**. Se arrastran con el mouse; cada arrastre es **una sola entrada de deshacer**. Al soltar, la caja de la pieza se recalcula **sin mover en el plano lo que no se tocó** (también si está rotada). Mover un vértice arrastra con él las manijas pegadas.
 - `components/canvas/VertexEditor.tsx`; cuentas en `lib/curves.ts` (`moveVertex`, `moveHandle`, `moveArcApex`, `withGeometry`), 3 tests nuevos (vértice afuera sin mover los demás con la pieza rotada, manijas que acompañan, manija y arco). Total en Layout: 140.
 - **En la app real** (plano nuevo **sin guardar**, la sesión es la de Javier en JBD): vértice de un polígono arrastrado hacia afuera (los otros tres quietos, caja de 12,5 × 10 a 16,2 × 13,8 m) y deshecho en un paso; manija de una curva libre (el tramo pasó de 9,93 a 12,84 m); rombo de un escenario media luna (flecha de 4 a 7,8 m, el lado recto quieto).
-- Pendiente: agregar o quitar vértices (doble clic en un lado / Supr sobre un vértice).
+- **Agregar y quitar vértices (2026-11-01, hecho):** doble clic sobre un lado agrega un vértice ahí (un arco se parte en dos arcos del mismo círculo y una curva libre en dos con el mismo trazo); clic en un vértice lo elige y Suprimir lo quita (no la pieza; mínimo 3 en lo cerrado y 2 en lo abierto). Deshacer en un paso. `insertVertex`, `removeVertex`, `nearestOnSide` en `lib/curves.ts`, 5 tests. Probado en la app (plano nuevo sin guardar): agregar, arrastrar, quitar y Cmd+Z.
 
 ![Curva libre con vértices y manijas](img/curvas-editar-mouse.png)
 
-## 10. Unificar clasificaciones: capa y tipo — PROPUESTA (2026-11-01, espera OK de Javier)
+## 10. Unificar clasificaciones: capa y tipo (2026-11-01, decidido: opción C, hecho)
+
+**Decisión de Javier:** opción C. Ningún plano existente cambia solo. Las piezas nuevas nacen con el color de su capa (cian perímetro/estructura, ámbar mobiliario, verde decoración, índigo técnica, rosa notas); la leyenda muestra las 5 capas; "Categoría" sale de Propiedades y de la leyenda y queda solo como sección de la librería. En **Capas** hay un botón **"Aplicar colores por capa"**: cambia solo las piezas que siguen con el color de fábrica de su categoría (respeta los colores elegidos a mano y lo bloqueado), se deshace en un paso y nunca corre solo al abrir el plano. Código: `LAYER_COLORS`, `layerColorFor`, `applyLayerColors` en `lib/layers.ts` (2 tests); la lista de materiales no cuenta el color de capa como variante.
+
+![Panel Capas con el botón](img/capas-aplicar-colores.jpg)
+
+*Propuesta original (para registro):*
 
 **Hoy hay tres cosas que se pisan:**
 - **Categoría** (Escenario, Estructura, Asientos, Barrera, Utilidad, Circulación, Formas): sale del catálogo, da el **color de fábrica** de la pieza y es lo que muestra la **leyenda** del pie del editor.

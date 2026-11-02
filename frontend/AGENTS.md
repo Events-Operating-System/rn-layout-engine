@@ -1,5 +1,9 @@
 # RN Layout Engine — Agent & Claude Code Rules
 
+> The common EventOS rules in `~/Developer/eventos-reglas/REGLAS.md` take precedence over this file (commits of
+> own files only, default signature, full `npm run build`, migrations with ROLLBACK first, JBD read-only, tests in
+> the QA org, `CLAUDE.md` short + `docs/SESSION_LOG.md`). If something here contradicts them, follow REGLAS.md.
+
 ## Stack
 
 - Vite + React 19 + TypeScript
@@ -39,7 +43,8 @@ This is NOT a general-purpose UI app. It is an operational layout engine for liv
 
 ## Governance
 
-Session records and decisions live in `docs/` at the repo root (not inside `frontend/`).
+Session records and decisions live in `docs/` at the repo root (not inside `frontend/`): the session log in
+`docs/SESSION_LOG.md`, the Layout audit and decisions in `docs/AUDITORIA-LAYOUT.md`.
 
 ## Commit Attribution Policy
 
@@ -53,5 +58,6 @@ format is retired, decision of 2026-10-31).
 AI systems:
 - Do NOT imply autonomous authority over architectural decisions in commit messages
 - Do NOT claim ownership of strategic direction
-- Do NOT commit governance documents without explicit human instruction to do so
+- Do NOT commit strategy or architecture documents without explicit human instruction. Updating the session log
+  (`docs/SESSION_LOG.md`) and the "Estado actual" of `CLAUDE.md` at the end of a session is expected (REGLAS.md §8).
 - MAY draft commit messages, but humans control what is recorded as their intent
