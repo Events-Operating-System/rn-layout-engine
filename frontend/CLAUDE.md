@@ -13,12 +13,12 @@
 - Permisos por acción en la base (`layout_can`, RLS por acción); facultad `layout.compartir` para la biblioteca de la
   org.
 
-## Estado actual (2026-10-31)
-- Bloques 1 a 9 de la auditoría hechos y en `main`: permisos por rol; canvas partido en `components/canvas/`; mesas
-  con sillas como bloque, PAX automático, alinear/distribuir/repetir; plano del local de fondo (con recorte del área
-  útil), muros y cotas; capas fijas y "Vista cliente" según la org; biblioteca de la org con plantillas; curvas; PDF
-  vectorial A4/A3 a escala con cajetín y exportar selección; vista 3D en otra pestaña (mantel, sillas, alturas por
-  tipo de pieza, luz clara); lista de materiales del plano (versión simple de L1).
-- Pendiente: repetir en la app con sesión el diálogo de exportar, "Ver en 3D" y la tarjeta de Administración (hoja del
-  PDF); 3D: modelos CC0, choques al recorrer, dibujos/cotas en 3D, render con IA (sin proveedor pago).
-- `get_event_summary` (bug que figuraba en "Known Bugs") ya no existe: Eventos la eliminó el 2026-10-11.
+## Estado actual (2026-11-01)
+- Bloques 1 a 9 de la auditoría hechos y en `main` (permisos, canvas modular, mesas con sillas y PAX, plano del local
+  con recorte, muros y cotas, capas y biblioteca de la org, curvas, PDF vectorial A4/A3 con cajetín, 3D en otra
+  pestaña). Además: mantel y sillas, alturas 3D por tipo (ajuste de la org), lista de materiales (L1 simple; L2–L5 en
+  espera) y edición de curvas/polígonos/muros con el mouse.
+- Esperando OK: unificar capa y tipo (propuesta en `docs/AUDITORIA-LAYOUT.md` §10; cambia colores de planos
+  existentes, no aplicar sin el OK).
+- Pendiente: probar en QA con sesión el recorte del fondo y la tarjeta de Administración; curvas: agregar/quitar
+  vértices; 3D: modelos CC0, choques al recorrer, cotas en 3D.

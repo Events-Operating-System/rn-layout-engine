@@ -948,3 +948,58 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 
 **Pregunta 8 — ¿el bloque 7 incluyó curvas libres?** Sí. Además de arcos y medias lunas, el bloque 7 trae **curvas libres**: la herramienta **Curva (B)** dibuja una curva suave que pasa por los puntos marcados (Bézier armadas desde los puntos), abierta o cerrada; y en Propiedades cualquier lado de un polígono, muro o curva se puede convertir en **"Curva libre"**. Lo que **no** tiene todavía: mover vértices ni manijas con el mouse (se edita por lados en Propiedades y con el recuadro).
 
+---
+
+## 9. Editar curvas con el mouse (2026-11-01, hecho)
+
+Al elegir una curva, polígono o muro (herramienta de selección, sin bloquear ni espejar) aparecen **cuadrados en los vértices**, **círculos en las manijas** de las curvas libres (con su guía punteada) y un **rombo en el punto medio de cada arco**. Se arrastran con el mouse; cada arrastre es **una sola entrada de deshacer**. Al soltar, la caja de la pieza se recalcula **sin mover en el plano lo que no se tocó** (también si está rotada). Mover un vértice arrastra con él las manijas pegadas.
+- `components/canvas/VertexEditor.tsx`; cuentas en `lib/curves.ts` (`moveVertex`, `moveHandle`, `moveArcApex`, `withGeometry`), 3 tests nuevos (vértice afuera sin mover los demás con la pieza rotada, manijas que acompañan, manija y arco). Total en Layout: 140.
+- **En la app real** (plano nuevo **sin guardar**, la sesión es la de Javier en JBD): vértice de un polígono arrastrado hacia afuera (los otros tres quietos, caja de 12,5 × 10 a 16,2 × 13,8 m) y deshecho en un paso; manija de una curva libre (el tramo pasó de 9,93 a 12,84 m); rombo de un escenario media luna (flecha de 4 a 7,8 m, el lado recto quieto).
+- Pendiente: agregar o quitar vértices (doble clic en un lado / Supr sobre un vértice).
+
+![Curva libre con vértices y manijas](img/curvas-editar-mouse.png)
+
+## 10. Unificar clasificaciones: capa y tipo — PROPUESTA (2026-11-01, espera OK de Javier)
+
+**Hoy hay tres cosas que se pisan:**
+- **Categoría** (Escenario, Estructura, Asientos, Barrera, Utilidad, Circulación, Formas): sale del catálogo, da el **color de fábrica** de la pieza y es lo que muestra la **leyenda** del pie del editor.
+- **Capa** (Perímetro/estructura, Mobiliario, Decoración, Técnica, Notas): ocultar/bloquear y "Vista cliente".
+- **Tipo de pieza** (mesa, silla, tarima, lounge…): lista de materiales y altura 3D.
+
+**Propuesta (dejar solo dos conceptos):**
+1. **Capa = a qué grupo pertenece.** Define el **color en el plano**, la **leyenda** (las 5 capas con su color) y la Vista cliente. En Propiedades se ve "Capa" (ya existe) y desaparece "Categoría".
+2. **Tipo = qué es la pieza.** Define cómo se cuenta en la lista de materiales y la altura 3D (ya existe en Propiedades).
+3. La **categoría** queda solo como la sección de la librería donde está la pieza (navegación). No se muestra en ningún otro lado.
+4. **Colores por capa:** Perímetro/estructura **#0891b2** (cian, el de "Estructura" hoy), Mobiliario **#f59e0b** (ámbar, el de "Asientos"), Decoración **#22c55e** (verde), Técnica **#6366f1** (índigo, el de "Escenario"), Notas **#f472b6** (rosa, para la leyenda de dibujos y cotas).
+5. **Cómo se aplica sin tocar datos:** al dibujar, una pieza que todavía tiene **el color de fábrica de su categoría** se pinta con el color de su capa; **los colores elegidos a mano se respetan** (mantel, sillas, colores propios). No se reescribe nada en la base: es reversible y las versiones viejas se ven igual que el plano actual. Las piezas nuevas nacen con el color de su capa.
+
+**⚠️ Los colores de planos existentes cambian, por eso paré antes de aplicarlo.** Medido en la base (solo lectura), en los 52 planos activos (5.812 piezas):
+- Cambiarían **~362 piezas en 48 planos**: 122 de escenario (índigo → cian, salvo pantallas/LED/cabinas que van a Técnica y quedan índigo), 32 de barrera (rojo → cian), 56 de circulación (violeta → cian), 50 de utilidad (verde → índigo; Cocina y Baños nuevos ya van a estructura) y 102 formas (gris → verde).
+- No cambian: asientos (2.117, ya son ámbar) ni estructura (117, ya cian), ni nada con color propio.
+- Por plano: el más grande de JBD, **29 de 913** piezas (18 de circulación y 11 formas); el de prueba de Javier, **1 de 48**; el QA, **ninguna**.
+
+**Opciones:**
+- **A (la propuesta, en las capturas):** colores por capa como arriba. ~362 piezas cambian.
+- **B:** igual, pero **Decoración gris** (#64748b, el de "Formas" hoy): las 102 formas no cambian → ~260 piezas.
+- **C:** no recolorear lo existente: solo las piezas nuevas usan el color de la capa; la leyenda muestra capas aunque los planos viejos no coincidan del todo. 0 cambios.
+- *Recomiendo **B**:* la leyenda pasa a ser cierta en todos los planos, con el menor cambio visible (las formas grises usadas como zonas siguen grises), y sin reescribir datos.
+
+**Capturas antes / después** (renderizadas con el canvas real y los datos de cada plano, sin guardar nada; el "después" es la opción A):
+
+Plano de prueba de Javier (JBD):
+
+![Antes — prueba](img/capas-antes-prueba.jpg)
+![Después — prueba](img/capas-despues-prueba.jpg)
+
+Plano más grande de JBD (913 piezas):
+
+![Antes — grande](img/capas-antes-grande.jpg)
+![Después — grande](img/capas-despues-grande.jpg)
+
+Plano QA (sin cambios):
+
+![Antes — QA](img/capas-antes-qa.jpg)
+![Después — QA](img/capas-despues-qa.jpg)
+
+**Para decidir:** ¿A, B o C? ¿Los 5 colores de capa están bien? Con el OK lo construyo (color por capa al dibujar, leyenda por capas en el editor y en el PNG, Propiedades sin "Categoría").
+

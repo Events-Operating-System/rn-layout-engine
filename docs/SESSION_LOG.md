@@ -784,3 +784,24 @@ Todo el detalle (decisiones, pruebas con ROLLBACK, capturas y lo "decidido en au
 **Pendiente:**
 - La sesión de QA en el navegador se cerró sola durante el bloque 8 (no por esta sesión); el bloque 8 y el 9 se probaron con páginas locales que montan los módulos reales (PDF, canvas, visor 3D) y con el plano más grande de JBD en solo lectura. Falta repetir en la app con sesión: el diálogo de exportar del editor, el botón "Ver en 3D" y la tarjeta de Administración (hoja del PDF).
 - Bloque 9, pasos siguientes: modelos CC0 para piezas especiales, choques al recorrer, dibujos/cotas en 3D, render con IA (después, sin proveedor pago).
+
+---
+
+## Sesión 2026-11-01 — Layout: recorte del fondo, alturas 3D, mantel, lista de materiales, edición de curvas
+
+Detalle completo (decisiones, pruebas con ROLLBACK, capturas): `docs/AUDITORIA-LAYOUT.md` §6 (parte A), §8 (lista de materiales), §9 (curvas con el mouse) y §10 (propuesta capa/tipo).
+
+**Hecho (en `main`, desplegado):**
+- **Recortar el plano del local** (`meta.background.crop`, 0–1 de la imagen original; editor, PNG, PDF y 3D).
+- **Alturas 3D por tipo de pieza** como ajuste de la org (`h3d_*`, migraciones `20261101090000` y `20261101150000` con `h3d_lounge`, desde la versión viva de `org_settings_schema()` con candado md5) y por pieza (`height3d`); zonas grandes como marcas en el piso. Luz clara en el 3D.
+- **Mantel y sillas:** el color de la mesa es el del mantel (+ tipo/tela); sillas con tipo y color; un conjunto se cambia entero. Arreglo: el 3D pintaba las mesas de gris fijo.
+- **Lista de materiales (L1 simple):** `components/materials/`, `lib/materials.ts`. Por tipo + variante, m² y metros, origen propio/tercero con nota o proveedor del catálogo (`inventarios.providers`, solo lectura), comparar versiones, subtotales, avisos, export PDF/Excel (todo, propio, terceros o por proveedor). Sugerencias por org con `public.layout_vocab(org)` (migración `20261101120000`, solo lectura). Tipo de pieza explícito (`pieceType`) y nombre de color (`colorName`). L2–L5 en espera.
+- **Editar curvas, polígonos y muros con el mouse** (`components/canvas/VertexEditor.tsx`): vértices, manijas de curvas libres y punto medio de arcos; deshacer en un paso.
+
+**Pruebas:** tests (140 en Layout, 119 en Administración), build y lint en verde. La sesión del navegador fue la cuenta de Javier en JBD: en la app solo se miró o se usaron planos nuevos sin guardar; lo que escribe datos se probó con páginas locales que montan los módulos reales.
+
+**Pendiente:**
+- OK de Javier sobre la propuesta capa/tipo (§10 de la auditoría).
+- Repetir en QA con sesión: recorte del fondo de punta a punta y la tarjeta de Administración.
+- Curvas: agregar o quitar vértices.
+
