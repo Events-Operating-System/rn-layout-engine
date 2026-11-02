@@ -805,6 +805,7 @@ Detalle completo (decisiones, pruebas con ROLLBACK, capturas): `docs/AUDITORIA-L
 - Curvas: doble clic en un lado agrega un vértice; Suprimir quita el elegido. Arreglo: los controles quedaban en el lugar viejo después de quitar un vértice.
 - `frontend/AGENTS.md` alineado con `REGLAS.md` (manda REGLAS; actualizar bitácora y estado es esperado).
 - Tests: 147 en Layout. Probado en la app con un plano nuevo sin guardar.
+- Arreglos pedidos por Javier: el aviso del editor sale abajo al centro y encima de los paneles (no lo tapa Capas); el doble clic para agregar un vértice se escucha en el lienzo y gana aunque caiga sobre un punto del recuadro de selección (sobre un vértice que ya existe no agrega otro). Probado en la app.
 
 **Pendiente:**
 - Repetir en QA con sesión: recorte del fondo de punta a punta y la tarjeta de Administración.
