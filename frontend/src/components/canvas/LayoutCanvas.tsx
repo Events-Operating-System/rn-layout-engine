@@ -957,6 +957,24 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
     })()
     vertexTargetRef.current = vertexTarget
 
+    // Doble clic para agregar un vértice: se escucha en el lienzo (no en la
+    // forma) para que el lado tenga prioridad aunque caiga sobre un punto del
+    // recuadro de selección, que Konva no deja pasar. Fuera del borde no hace nada.
+    useEffect(() => {
+      const stage = stageRef.current
+      const box = stage?.container()
+      if (!stage || !box) return
+      const onDbl = (ev: MouseEvent) => {
+        const el = vertexTargetRef.current
+        if (!el) return
+        stage.setPointersPositions(ev)
+        insertVertexAtPointer(el)
+      }
+      box.addEventListener('dblclick', onDbl)
+      return () => box.removeEventListener('dblclick', onDbl)
+      // containerSize: el Stage se crea recién cuando se conoce el tamaño.
+    }, [insertVertexAtPointer, containerSize !== null])
+
     const elementInteractive = activeTool === 'pointer'
     const drawingsInteractive = activeTool === 'pointer' && !drawingsLocked
 
@@ -1067,7 +1085,6 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 decimals={dimensionDecimals}
                 isSelected={selectedIds.has(el.id)}
                 interactive={elementInteractive && !inertIds?.has(el.id)}
-                onDblClick={vertexTarget?.id === el.id ? () => insertVertexAtPointer(el) : undefined}
                 onSelect={(shiftKey) => (shiftKey ? onToggleSelect(el.id) : onSelect(el.id))}
                 onDragStart={() => {
                   isDraggingElement.current = true
@@ -1263,10 +1280,6 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
               anchorCornerRadius={2}
               boundBoxFunc={(_old, newBox) => newBox}
               onTransformEnd={handleGroupTransformEnd}
-              // En edición de vértices, el lado tiene prioridad sobre los
-              // puntos del recuadro: el doble clic agrega el vértice igual.
-              onDblClick={vertexTarget ? (e => { e.cancelBubble = true; insertVertexAtPointer(vertexTarget) }) : undefined}
-              onDblTap={vertexTarget ? (e => { e.cancelBubble = true; insertVertexAtPointer(vertexTarget) }) : undefined}
             />
             {/* Editar vértices, manijas y arcos de la pieza elegida. */}
             {vertexTarget && (
