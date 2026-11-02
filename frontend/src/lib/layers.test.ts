@@ -82,3 +82,25 @@ describe('ajustes de capas', () => {
     expect(parseLayoutSettings({ layout: { client_hide_technical: 'si' } }).clientViewHidden).toEqual(['technical', 'notes'])
   })
 })
+
+describe('colores por capa', () => {
+  it('piezas nuevas con el color de su capa', async () => {
+    const { layerColorFor, LAYER_COLORS } = await import('./layers')
+    expect(layerColorFor({ name: 'Main Stage', category: 'stage' })).toBe(LAYER_COLORS.structure)
+    expect(layerColorFor({ name: 'LED Wall', category: 'stage' })).toBe(LAYER_COLORS.technical)
+    expect(layerColorFor({ name: 'Round Table 10', category: 'seating' })).toBe(LAYER_COLORS.furniture)
+    expect(layerColorFor({ name: 'Rectangle', category: 'primitive' })).toBe(LAYER_COLORS.decor)
+    expect(LAYER_COLORS.notes).toBe('#f472b6')
+  })
+  it('"Aplicar colores por capa" respeta los colores elegidos a mano y lo bloqueado', async () => {
+    const { applyLayerColors, LAYER_COLORS } = await import('./layers')
+    const u = applyLayerColors([
+      el('a', { name: 'Main Stage', category: 'stage', color: '#6366f1' }),     // fábrica → cian
+      el('b', { name: 'Fence', category: 'barrier', color: '#EF4444' }),        // fábrica (mayúsculas) → cian
+      el('c', { name: 'Rectangle', category: 'primitive', color: '#123456' }),  // elegido a mano: queda
+      el('d', { name: 'Round Table 8', category: 'seating', color: '#f59e0b' }), // ya es el de su capa
+      el('e', { name: 'Kitchen', category: 'utility', color: '#22c55e', locked: true }), // bloqueado
+    ])
+    expect(u).toEqual({ a: { color: LAYER_COLORS.structure }, b: { color: LAYER_COLORS.structure } })
+  })
+})

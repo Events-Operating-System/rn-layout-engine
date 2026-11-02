@@ -1,6 +1,6 @@
 import { useLang } from '@/context/LangContext'
 import type { LayerId, LayerState } from '@/types/layout'
-import { LAYERS, toggleLayer } from '@/lib/layers'
+import { LAYERS, LAYER_COLORS, toggleLayer } from '@/lib/layers'
 
 // Capas fijas (bloque 6): mostrar u ocultar y bloquear cada una. Lo oculto
 // no sale en el PNG ni en el PDF: así se exporta el plano técnico (todo) o
@@ -13,9 +13,11 @@ interface Props {
   clientViewHidden: LayerId[]
   onChange: (next: LayerState) => void
   onClose: () => void
+  // "Aplicar colores por capa" (no se muestra en solo lectura).
+  onApplyColors?: () => void
 }
 
-export default function LayersPanel({ state, counts, canLock, clientViewHidden, onChange, onClose }: Props) {
+export default function LayersPanel({ state, counts, canLock, clientViewHidden, onChange, onClose, onApplyColors }: Props) {
   const { t } = useLang()
   const names: Record<LayerId, string> = {
     structure: t.layerStructure, furniture: t.layerFurniture, decor: t.layerDecor, technical: t.layerTechnical, notes: t.layerNotes,
@@ -42,6 +44,7 @@ export default function LayersPanel({ state, counts, canLock, clientViewHidden, 
               >
                 {hidden ? '◌' : '◉'}
               </button>
+              <span className="w-2.5 h-2.5 rounded-sm flex-none" style={{ backgroundColor: LAYER_COLORS[id] }} />
               <span className="flex-1 text-xs text-slate-200">{names[id]}</span>
               <span className="text-[10px] font-mono text-slate-500">{counts[id]}</span>
               {canLock && (
@@ -64,6 +67,12 @@ export default function LayersPanel({ state, counts, canLock, clientViewHidden, 
         <button onClick={() => onChange({ ...state, hidden: [...clientViewHidden] })} className={btn} title={clientViewHidden.map(l => names[l]).join(', ') || '—'}>{t.layersClientView}</button>
       </div>
       <p className="text-[10px] text-slate-500 leading-relaxed">{t.layersHint}</p>
+      {onApplyColors && (
+        <div className="border-t border-slate-700 pt-3 space-y-1.5">
+          <button onClick={onApplyColors} className={`${btn} w-full`}>{t.applyLayerColors}</button>
+          <p className="text-[10px] text-slate-500 leading-relaxed">{t.applyLayerColorsHint}</p>
+        </div>
+      )}
     </div>
   )
 }

@@ -5,8 +5,20 @@
 // exporta; lo bloqueado no se puede elegir ni mover. Sin React ni Konva.
 
 import type { LayoutElement, LayerId, LayerState } from '@/types/layout'
+import { CATEGORY_COLORS } from '@/types/layout'
 
 export const LAYERS: LayerId[] = ['structure', 'furniture', 'decor', 'technical', 'notes']
+
+// Color de cada capa (decisión de Javier 2026-11-01): las piezas nuevas nacen
+// con el color de su capa y la leyenda muestra las 5 capas. Los planos
+// existentes no cambian solos: "Aplicar colores por capa" (applyLayerColors).
+export const LAYER_COLORS: Record<LayerId, string> = {
+  structure: '#0891b2', // cian — perímetro / estructura
+  furniture: '#f59e0b', // ámbar — mobiliario
+  decor: '#22c55e',     // verde — decoración
+  technical: '#6366f1', // índigo — técnica
+  notes: '#f472b6',     // rosa — notas (dibujos y cotas)
+}
 
 // Piezas nuevas que van en perímetro/estructura aunque su categoría diga
 // otra cosa (decisión 2026-10-31: Cocina y Baños se ven en "Vista cliente").
@@ -72,3 +84,23 @@ export function countByLayer(elements: Pick<LayoutElement, 'layer' | 'category' 
   for (const e of elements) out[layerOf(e)]++
   return out
 }
+
+// Color con el que nace una pieza nueva: el de su capa.
+export function layerColorFor(e: Pick<LayoutElement, 'layer' | 'category' | 'shape' | 'name'>): string {
+  return LAYER_COLORS[layerOf(e)]
+}
+
+// "Aplicar colores por capa": solo las piezas que siguen con el color de
+// fábrica de su categoría; los colores elegidos a mano se respetan.
+export function applyLayerColors(elements: Pick<LayoutElement, 'id' | 'color' | 'layer' | 'category' | 'shape' | 'name' | 'locked'>[]): Record<string, { color: string }> {
+  const out: Record<string, { color: string }> = {}
+  for (const e of elements) {
+    if (e.locked) continue
+    const factory = CATEGORY_COLORS[e.category]
+    if (!factory || e.color.toLowerCase() !== factory.toLowerCase()) continue
+    const target = layerColorFor(e)
+    if (target.toLowerCase() !== e.color.toLowerCase()) out[e.id] = { color: target }
+  }
+  return out
+}
+

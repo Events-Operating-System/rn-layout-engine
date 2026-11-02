@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { LayoutElement, CanvasViewport, AssetTemplate, DrawingPrimitive, DrawingTool, LayoutMeta, GroupChild } from '@/types/layout'
-import { CATEGORY_COLORS, DEFAULT_LAYOUT_META } from '@/types/layout'
+import { DEFAULT_LAYOUT_META } from '@/types/layout'
 import { alignUpdates, distributeUpdates, gridCopies, type AlignMode } from '@/lib/arrange'
 import { ungroupIds, detectTableChairGroups, groupIdsForCopy } from '@/lib/grouping'
 import { instantiateTemplate, type TemplatePayload } from '@/lib/templates'
-import { layerForNewPiece } from '@/lib/layers'
+import { layerForNewPiece, layerColorFor, LAYER_COLORS } from '@/lib/layers'
 import type { NewPath } from '@/lib/curves'
 
 const PIXELS_PER_METER = 20
@@ -152,7 +152,8 @@ export function useCanvasState() {
         width: template.defaultWidth,
         height: template.defaultHeight,
         rotation: 0,
-        color: template.defaultColor ?? CATEGORY_COLORS[template.category],
+        // Piezas nuevas: el color de su capa (salvo un color propio del catálogo).
+        color: template.defaultColor ?? layerColorFor({ name: template.name, category: template.category, shape: template.shape, layer: layerForNewPiece(template.name) }),
         locked: false,
         notes: '',
         shape: template.shape,
@@ -442,7 +443,7 @@ export function useCanvasState() {
       width: polygon.width,
       height: polygon.height,
       rotation: 0,
-      color: CATEGORY_COLORS.primitive,
+      color: LAYER_COLORS.decor,
       locked: false,
       notes: '',
       shape: 'polygon',
@@ -492,7 +493,7 @@ export function useCanvasState() {
       category: 'primitive',
       x: p.x, y: p.y, width: p.width, height: p.height,
       rotation: 0,
-      color: p.closed ? CATEGORY_COLORS.primitive : '#e2e8f0',
+      color: p.closed ? LAYER_COLORS.decor : '#e2e8f0',
       locked: false,
       notes: '',
       shape: 'path',

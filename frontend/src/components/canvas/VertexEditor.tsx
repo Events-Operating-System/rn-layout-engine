@@ -3,6 +3,8 @@
 // curvas libres (círculos) y el punto medio de los arcos (rombo). Cada
 // arrastre es una sola entrada de deshacer. Al soltar, la caja de la pieza se
 // recalcula sin mover en el plano lo que no se tocó (lib/curves.withGeometry).
+// Doble clic sobre un lado agrega un vértice; Suprimir quita el elegido
+// (los maneja LayoutCanvas).
 import { Group, Rect, Circle, Line, RegularPolygon } from 'react-konva'
 import type Konva from 'konva'
 import type { LayoutElement, Segment } from '@/types/layout'
@@ -14,11 +16,14 @@ interface Props {
   scale: number
   onPushHistory: () => void
   onUpdate: (updates: Partial<LayoutElement>) => void
+  // Vértice elegido (Suprimir lo quita) — lo guarda el canvas.
+  selectedVertex: number | null
+  onSelectVertex: (i: number | null) => void
 }
 
 const ACCENT = '#38bdf8'
 
-export default function VertexEditor({ element: el, scale, onPushHistory, onUpdate }: Props) {
+export default function VertexEditor({ element: el, scale, onPushHistory, onUpdate, selectedVertex, onSelectVertex }: Props) {
   const PPM = PIXELS_PER_METER
   const pts = el.points ?? []
   const n = pts.length / 2
@@ -113,10 +118,12 @@ export default function VertexEditor({ element: el, scale, onPushHistory, onUpda
           offsetY={size / 2}
           width={size}
           height={size}
-          fill="#f8fafc"
-          stroke={ACCENT}
+          fill={selectedVertex === i ? ACCENT : '#f8fafc'}
+          stroke={selectedVertex === i ? '#f8fafc' : ACCENT}
           strokeWidth={1.5 / scale}
-          onDragStart={e => { stop(e); onPushHistory() }}
+          onMouseDown={e => { stop(e); onSelectVertex(i) }}
+          onTouchStart={e => { stop(e); onSelectVertex(i) }}
+          onDragStart={e => { stop(e); onSelectVertex(i); onPushHistory() }}
           onDragMove={e => { const p = local(e); onUpdate(moveVertex(pts, segs, closed, i, p.x, p.y)) }}
           onDragEnd={e => { stop(e); const p = local(e); const m = moveVertex(pts, segs, closed, i, p.x, p.y); commit(m.points, m.segments) }}
         />

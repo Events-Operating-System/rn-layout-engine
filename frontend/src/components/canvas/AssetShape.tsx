@@ -21,10 +21,12 @@ export interface AssetShapeProps {
   displayName: string
   // Decimales de las medidas de los muros (ajuste de la org).
   decimals?: number
+  // Doble clic (agregar vértice en un lado, pieza en edición).
+  onDblClick?: () => void
 }
 
 export default function AssetShape({
-  element, displayName, isSelected, interactive, decimals = 2,
+  element, displayName, isSelected, interactive, decimals = 2, onDblClick,
   onSelect, onDragStart, onDragMove, onDragEnd, onTransformEnd,
 }: AssetShapeProps) {
   const groupRef = useRef<Konva.Group>(null)
@@ -90,6 +92,8 @@ export default function AssetShape({
       onDragMove={interactive ? (e => onDragMove(e.target.x(), e.target.y())) : undefined}
       onDragEnd={interactive ? (e => onDragEnd(e.target.x(), e.target.y())) : undefined}
       onTransformEnd={handleTransformEnd}
+      onDblClick={interactive && onDblClick ? (e => { e.cancelBubble = true; onDblClick() }) : undefined}
+      onDblTap={interactive && onDblClick ? (e => { e.cancelBubble = true; onDblClick() }) : undefined}
     >
       {/* Flip lives on its own inner Group, decoupled from the outer Group's
           drag/rotate/resize (Transformer manipulates the outer Group's own

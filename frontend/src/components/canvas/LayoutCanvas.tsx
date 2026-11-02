@@ -10,7 +10,7 @@ import { useLang, getAssetName } from '@/context/LangContext'
 import { fitViewportToContent } from '@/lib/fitViewport'
 import { PIXELS_PER_METER, RESIZE_ANCHORS, GRID_TOTAL_PX, MIN_SCALE, MAX_SCALE, CANVAS_CENTER_PX, DRAW_COLOR, DRAW_STROKE } from './constants'
 import { dragSet } from '@/lib/grouping'
-import { scaleSegments, bulgeFromThreePoints, smoothSegments, normalizePath, flattenPath, type NewPath } from '@/lib/curves'
+import { scaleSegments, bulgeFromThreePoints, smoothSegments, normalizePath, flattenPath, removeVertex, insertVertex, nearestOnSide, withGeometry, type NewPath } from '@/lib/curves'
 import { computeAlignmentGuides, findElementId } from './geometry'
 import { exportLayoutPng, exportSelectionPng } from './exportLayout'
 import { buildLayoutPdf } from './pdfExport'
@@ -277,6 +277,49 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       onUpdateElements(updates)
     }, [onPushHistory, onUpdateElements])
 
+    // Vértice elegido de la pieza en edición (Suprimir lo quita).
+    const [selectedVertex, setSelectedVertex] = useState<number | null>(null)
+    const vertexTargetRef = useRef<LayoutElement | undefined>(undefined)
+    useEffect(() => { setSelectedVertex(null) }, [selectedId])
+
+    // Quitar el vértice elegido (una entrada de deshacer). Devuelve si lo hizo.
+    const removeSelectedVertex = useCallback((): boolean => {
+      const el = vertexTargetRef.current
+      if (selectedVertex === null || !el || !el.points) return false
+      const closed = el.shape === 'polygon' ? true : !!el.closed
+      const r = removeVertex(el.points, el.segments, closed, selectedVertex)
+      setSelectedVertex(null)
+      if (!r) return true // mínimo de vértices: no se quita, pero tampoco se borra la pieza
+      onPushHistory()
+      onUpdateElement(el.id, withGeometry(el, r.points, r.segments))
+      return true
+    }, [selectedVertex, onPushHistory, onUpdateElement])
+
+    // Doble clic sobre un lado de la pieza en edición: vértice nuevo ahí.
+    const insertVertexAtPointer = useCallback((el: LayoutElement) => {
+      const stage = stageRef.current
+      const pos = stage?.getRelativePointerPosition()
+      if (!pos || !el.points) return
+      const r = (-el.rotation * Math.PI) / 180
+      const wx = pos.x / PIXELS_PER_METER - el.x, wy = pos.y / PIXELS_PER_METER - el.y
+      const lx = wx * Math.cos(r) - wy * Math.sin(r), ly = wx * Math.sin(r) + wy * Math.cos(r)
+      const closed = el.shape === 'polygon' ? true : !!el.closed
+      const n = el.points.length / 2
+      let best: { i: number; d: number } | null = null
+      for (let i = 0; i < (closed ? n : n - 1); i++) {
+        const q = nearestOnSide(el.points, el.segments, closed, i, lx, ly).p
+        const d = Math.hypot(q.x - lx, q.y - ly)
+        if (!best || d < best.d) best = { i, d }
+      }
+      // Cerca del borde (o dentro del grosor del muro).
+      const tol = 14 / (viewport.scale * PIXELS_PER_METER) + (el.thickness ?? 0) / 2
+      if (!best || best.d > tol) return
+      const ins = insertVertex(el.points, el.segments, closed, best.i, lx, ly)
+      onPushHistory()
+      onUpdateElement(el.id, withGeometry(el, ins.points, ins.segments))
+      setSelectedVertex(ins.index)
+    }, [viewport.scale, onPushHistory, onUpdateElement])
+
     // ── Keyboard: Delete / Backspace ──────────────────────────────────────────
 
     useEffect(() => {
@@ -285,6 +328,8 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
         const target = e.target as HTMLElement
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
         e.preventDefault()
+        // Con un vértice elegido, Suprimir quita el vértice (no la pieza).
+        if (removeSelectedVertex()) return
         if (selectedIds.size > 1) {
           onDeleteElements([...selectedIds])
         } else if (selectedId) {
@@ -295,7 +340,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       }
       window.addEventListener('keydown', handleKeyDown)
       return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [selectedId, selectedIds, selectedDrawingId, onDeleteElement, onDeleteElements, onDeleteDrawing])
+    }, [selectedId, selectedIds, selectedDrawingId, onDeleteElement, onDeleteElements, onDeleteDrawing, removeSelectedVertex])
 
     // ── Global pointer/touch up — commits pan OR drawing ─────────────────────
 
@@ -906,6 +951,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       if (!(el.shape === 'polygon' || el.shape === 'wall' || el.shape === 'path') || (el.points?.length ?? 0) < 4) return undefined
       return el
     })()
+    vertexTargetRef.current = vertexTarget
 
     const elementInteractive = activeTool === 'pointer'
     const drawingsInteractive = activeTool === 'pointer' && !drawingsLocked
@@ -1017,6 +1063,7 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 decimals={dimensionDecimals}
                 isSelected={selectedIds.has(el.id)}
                 interactive={elementInteractive && !inertIds?.has(el.id)}
+                onDblClick={vertexTarget?.id === el.id ? () => insertVertexAtPointer(el) : undefined}
                 onSelect={(shiftKey) => (shiftKey ? onToggleSelect(el.id) : onSelect(el.id))}
                 onDragStart={() => {
                   isDraggingElement.current = true
@@ -1220,6 +1267,8 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
                 scale={viewport.scale}
                 onPushHistory={onPushHistory}
                 onUpdate={u => onUpdateElement(vertexTarget.id, u)}
+                selectedVertex={selectedVertex}
+                onSelectVertex={setSelectedVertex}
               />
             )}
           </Layer>

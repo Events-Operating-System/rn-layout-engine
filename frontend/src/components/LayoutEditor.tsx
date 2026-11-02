@@ -20,7 +20,7 @@ import { layoutService, type LayoutData, type LayoutVersion } from '@/lib/layout
 import { draftService, type LayoutDraft } from '@/lib/draftService'
 import { normalizeLayoutMeta } from '@/lib/layoutMeta'
 import { buildTemplate, type TemplatePayload } from '@/lib/templates'
-import { applyLayers, normalizeLayers, countByLayer, layerOf } from '@/lib/layers'
+import { applyLayers, normalizeLayers, countByLayer, layerOf, applyLayerColors } from '@/lib/layers'
 import LayersPanel from '@/components/LayersPanel'
 import ExportDialog from '@/components/ExportDialog'
 import { writeSnapshot3D } from '@/lib/snapshot3d'
@@ -207,6 +207,17 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
     selectDrawing(null)
     updateMeta({ layers: next })
   }, [selectElement, selectDrawing, updateMeta])
+
+  // "Aplicar colores por capa": solo lo que sigue con el color de fábrica de
+  // su categoría; una entrada de deshacer; nunca corre solo al abrir.
+  const handleApplyLayerColors = useCallback(() => {
+    const u = applyLayerColors(elements)
+    const n = Object.keys(u).length
+    if (!n) { setTemplateMsg(t.applyLayerColorsNone); return }
+    pushHistory()
+    updateElements(u)
+    setTemplateMsg(t.applyLayerColorsDone.replace('{n}', String(n)))
+  }, [elements, pushHistory, updateElements, t])
 
   // Cambiar de capa: la selección y el conjunto entero de cada pieza. Una
   // entrada de deshacer.
@@ -762,6 +773,7 @@ export default function LayoutEditor({ layoutIdToLoad, eventId, orgId = '', onLa
               counts={layerCounts}
               canLock={!readOnly}
               clientViewHidden={layoutSettings.clientViewHidden}
+              onApplyColors={readOnly ? undefined : handleApplyLayerColors}
               onChange={setLayers}
               onClose={() => setLayersOpen(false)}
             />

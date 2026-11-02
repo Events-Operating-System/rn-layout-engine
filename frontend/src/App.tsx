@@ -15,6 +15,7 @@ import { useLayoutPermissions } from '@/hooks/useLayoutPermissions'
 import { isPermissionError, type LayoutPermissions } from '@/lib/layoutPermissions'
 import { layoutService } from '@/lib/layoutService'
 import { withTimeout } from '@/lib/withTimeout'
+import { LAYERS, LAYER_COLORS } from '@/lib/layers'
 
 function LoginScreen() {
   const { t } = useLang()
@@ -101,14 +102,11 @@ interface AppShellProps {
 function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutForked, permissions }: AppShellProps) {
   const { t } = useLang()
 
-  const items = [
-    { label: t.catStage,       color: '#6366f1' },
-    { label: t.catStructure,   color: '#0891b2' },
-    { label: t.catSeating,     color: '#f59e0b' },
-    { label: t.catBarrier,     color: '#ef4444' },
-    { label: t.catUtility,     color: '#22c55e' },
-    { label: t.catCirculation, color: '#a855f7' },
-  ]
+  // Leyenda: las 5 capas con su color (la categoría queda solo en la librería).
+  const items = LAYERS.map(l => ({
+    label: { structure: t.layerStructure, furniture: t.layerFurniture, decor: t.layerDecor, technical: t.layerTechnical, notes: t.layerNotes }[l],
+    color: LAYER_COLORS[l],
+  }))
 
   return (
     <div className="h-full flex flex-col bg-slate-950 text-slate-200 overflow-hidden">
@@ -147,7 +145,7 @@ function AppShell({ onGoToDashboard, layoutIdToLoad, eventId, orgId, onLayoutFor
 
       <footer className="h-10 flex-none bg-slate-900 border-t border-slate-700/60 flex items-center px-4 gap-6 overflow-hidden">
         <div className="flex items-center gap-4">
-          <span className="text-[9px] font-semibold text-slate-600 uppercase tracking-widest flex-none">Legend</span>
+          <span className="text-[9px] font-semibold text-slate-600 uppercase tracking-widest flex-none">{t.layersTitle}</span>
           {items.map(({ label, color }) => (
             <div key={color} className="flex items-center gap-1.5 flex-none">
               <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: color }} />

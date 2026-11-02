@@ -9,6 +9,7 @@ import { CATEGORY_COLORS } from '@/types/layout'
 import { heightType, type Height3DType } from './heights3d'
 import { elementAreaMeters } from './drawingMath'
 import { CHAIR_NAME } from './seating'
+import { layerColorFor } from './layers'
 
 // ── Normalizar textos ("Blanco", " blanco ", "BLANCO" → lo mismo) ─────────────
 export function normKey(s: string | undefined | null): string {
@@ -48,9 +49,11 @@ export function colorNameOf(hex: string): string {
 }
 
 const DEFAULT_CHAIR_COLOR = '#d97706'
+// Color de fábrica: el de la categoría, el de la capa (piezas nuevas) o el de
+// la silla. No cuenta como variante en la lista.
 const isDefaultColor = (e: LayoutElement) => {
   const c = e.color.toLowerCase()
-  return c === CATEGORY_COLORS[e.category]?.toLowerCase() || c === DEFAULT_CHAIR_COLOR
+  return c === CATEGORY_COLORS[e.category]?.toLowerCase() || c === layerColorFor(e).toLowerCase() || c === DEFAULT_CHAIR_COLOR
 }
 
 // Nombre del color de una pieza para la lista: el escrito o el sugerido por

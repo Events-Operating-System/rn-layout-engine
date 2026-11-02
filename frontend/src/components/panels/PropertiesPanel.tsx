@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { LayoutElement, DrawingPrimitive, LayerId } from '@/types/layout'
 import { LAYERS, layerOf } from '@/lib/layers'
-import { useLang, getCategoryLabel, getAssetName } from '@/context/LangContext'
+import { useLang, getAssetName } from '@/context/LangContext'
 import { PIXELS_PER_METER } from '@/components/canvas/LayoutCanvas'
 import { lengthMeters, angleDegrees, pointFromLengthAngle, elementAreaMeters, elementLengthMeters } from '@/lib/drawingMath'
 import { sidesOf, sideInfo, withSegments, arcFromBulge, sagittaFromBulge, bulgeFromSagitta } from '@/lib/curves'
@@ -551,11 +551,6 @@ function ElementProperties({
             value={getAssetName(lang, element.name)}
             onChange={v => onUpdate(element.id, { name: v })}
           />
-        </Field>
-        <Field label={t.fCategory}>
-          <span className="text-xs text-slate-300">
-            {getCategoryLabel(t, element.category)}
-          </span>
         </Field>
       </Section>
 

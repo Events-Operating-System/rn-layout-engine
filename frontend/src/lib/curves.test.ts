@@ -148,3 +148,45 @@ describe('editar con el mouse', () => {
     expect(arcFromBulge({ x: 0, y: 0 }, { x: 10, y: 0 }, (arc[0] as { bulge: number }).bulge)!.r).toBeCloseTo(5, 6)
   })
 })
+
+describe('agregar y quitar vértices', () => {
+  it('agregar en un lado recto y quitarlo vuelve al polígono', async () => {
+    const { insertVertex, removeVertex } = await import('./curves')
+    const pts = [0, 0, 4, 0, 4, 4, 0, 4]
+    const ins = insertVertex(pts, undefined, true, 0, 1, 0.3)
+    expect(ins.index).toBe(1)
+    expect(ins.points).toEqual([0, 0, 1, 0, 4, 0, 4, 4, 0, 4])
+    expect(removeVertex(ins.points, ins.segments, true, 1)!.points).toEqual(pts)
+  })
+  it('partir un arco no cambia la forma ni el largo', async () => {
+    const { insertVertex, pathLength, pathArea } = await import('./curves')
+    const pts = [0, 0, 10, 0], segs = [{ kind: 'arc' as const, bulge: 1 }]
+    const ins = insertVertex(pts, segs, false, 0, 2, -4)
+    expect(pathLength(ins.points, ins.segments, false)).toBeCloseTo(5 * Math.PI, 6)
+    // cerrado: misma área
+    const closedSegs = [{ kind: 'arc' as const, bulge: -1 }, { kind: 'line' as const }]
+    const c = insertVertex(pts, closedSegs, true, 0, 5, 5)
+    expect(pathArea(c.points, c.segments)).toBeCloseTo(pathArea(pts, closedSegs), 6)
+  })
+  it('partir una curva libre no cambia el trazo', async () => {
+    const { insertVertex, smoothSegments, pathLength } = await import('./curves')
+    const pts = [0, 0, 5, 3, 10, 0], segs = smoothSegments(pts, false)
+    const ins = insertVertex(pts, segs, false, 0, 2.5, 2)
+    expect(ins.points.length).toBe(8)
+    expect(pathLength(ins.points, ins.segments, false)).toBeCloseTo(pathLength(pts, segs, false), 2)
+  })
+  it('quitar respeta el mínimo y las puntas de lo abierto', async () => {
+    const { removeVertex } = await import('./curves')
+    expect(removeVertex([0, 0, 4, 0, 4, 4], undefined, true, 0)).toBeNull()
+    expect(removeVertex([0, 0, 5, 0], undefined, false, 1)).toBeNull()
+    const r = removeVertex([0, 0, 5, 0, 10, 0], [{ kind: 'line' }, { kind: 'arc', bulge: 0.5 }], false, 2)!
+    expect(r.points).toEqual([0, 0, 5, 0])
+    expect(r.segments).toEqual([{ kind: 'line' }])
+  })
+  it('quitar el vértice de dos arcos deja un arco que pasa por ahí', async () => {
+    const { insertVertex, removeVertex } = await import('./curves')
+    const ins = insertVertex([0, 0, 10, 0], [{ kind: 'arc', bulge: 1 }], false, 0, 5, 5)
+    const r = removeVertex(ins.points, ins.segments, false, 1)!
+    expect(Math.abs((r.segments![0] as { bulge: number }).bulge)).toBeCloseTo(1, 4)
+  })
+})

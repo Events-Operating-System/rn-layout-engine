@@ -335,3 +335,96 @@ export function sidesOf(points: number[], segments: Segment[] | undefined, close
   const count = closed ? n : n - 1
   return Array.from({ length: Math.max(0, count) }, (_, i) => segments?.[i] ?? { kind: 'line' as const })
 }
+
+// ── Agregar y quitar vértices ───────────────────────────────────────────────
+const lerp = (a: P, b: P, t: number): P => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
+
+// Punto del lado i más cercano a (x, y): parámetro t (0–1) y el punto.
+export function nearestOnSide(points: number[], segments: Segment[] | undefined, closed: boolean, i: number, x: number, y: number): { t: number; p: P } {
+  const n = points.length / 2
+  const a = pt(points, i), b = pt(points, closed ? (i + 1) % n : i + 1)
+  const seg = segments?.[i]
+  if (seg?.kind === 'arc') {
+    const arc = arcFromBulge(a, b, seg.bulge)
+    if (arc) {
+      let ang = Math.atan2(y - arc.cy, x - arc.cx) - arc.start
+      // llevar el ángulo al sentido del barrido
+      const full = 2 * Math.PI
+      ang = arc.sweep > 0 ? ((ang % full) + full) % full : -((((-ang) % full) + full) % full)
+      const t = Math.min(1, Math.max(0, ang / arc.sweep))
+      const aa = arc.start + arc.sweep * t
+      return { t, p: { x: arc.cx + arc.r * Math.cos(aa), y: arc.cy + arc.r * Math.sin(aa) } }
+    }
+  }
+  if (seg?.kind === 'bezier') {
+    const c1 = { x: seg.c1[0], y: seg.c1[1] }, c2 = { x: seg.c2[0], y: seg.c2[1] }
+    let best = { t: 0.5, d: Infinity, p: a }
+    for (let k = 0; k <= 60; k++) {
+      const t = k / 60, q = bezierPoint(a, c1, c2, b, t), d = (q.x - x) ** 2 + (q.y - y) ** 2
+      if (d < best.d) best = { t, d, p: q }
+    }
+    return { t: best.t, p: best.p }
+  }
+  const dx = b.x - a.x, dy = b.y - a.y, L2 = dx * dx + dy * dy || 1
+  const t = Math.min(1, Math.max(0, ((x - a.x) * dx + (y - a.y) * dy) / L2))
+  return { t, p: lerp(a, b, t) }
+}
+
+// Partir el lado i en el punto más cercano a (x, y): un vértice nuevo que
+// no cambia la forma (el arco sigue su círculo, la curva libre su trazo).
+export function insertVertex(points: number[], segments: Segment[] | undefined, closed: boolean, i: number, x: number, y: number): { points: number[]; segments?: Segment[]; index: number } {
+  const n = points.length / 2
+  const a = pt(points, i), b = pt(points, closed ? (i + 1) % n : i + 1)
+  const { t, p } = nearestOnSide(points, segments, closed, i, x, y)
+  const pts = [...points.slice(0, (i + 1) * 2), p.x, p.y, ...points.slice((i + 1) * 2)]
+  if (!segments) return { points: pts, index: i + 1 }
+  const seg = segments[i] ?? { kind: 'line' as const }
+  let parts: [Segment, Segment] = [{ kind: 'line' }, { kind: 'line' }]
+  if (seg.kind === 'arc') {
+    const theta = 4 * Math.atan(Math.abs(seg.bulge))
+    const sign = Math.sign(seg.bulge) || 1
+    parts = [{ kind: 'arc', bulge: sign * Math.tan((theta * t) / 4) }, { kind: 'arc', bulge: sign * Math.tan((theta * (1 - t)) / 4) }]
+  } else if (seg.kind === 'bezier') {
+    // de Casteljau
+    const c1 = { x: seg.c1[0], y: seg.c1[1] }, c2 = { x: seg.c2[0], y: seg.c2[1] }
+    const p01 = lerp(a, c1, t), p12 = lerp(c1, c2, t), p23 = lerp(c2, b, t)
+    const p012 = lerp(p01, p12, t), p123 = lerp(p12, p23, t)
+    parts = [{ kind: 'bezier', c1: [p01.x, p01.y], c2: [p012.x, p012.y] }, { kind: 'bezier', c1: [p123.x, p123.y], c2: [p23.x, p23.y] }]
+  }
+  const segs = [...segments.slice(0, i), ...parts, ...segments.slice(i + 1)]
+  return { points: pts, segments: segs, index: i + 1 }
+}
+
+// Mínimo de vértices: 3 en lo cerrado, 2 en lo abierto.
+export const minVertices = (closed: boolean) => (closed ? 3 : 2)
+
+// Quitar el vértice i. Los dos lados que tocaba se unen en uno: recto si
+// los dos eran rectos; arco que sigue pasando por donde estaba el vértice si
+// alguno era arco; curva libre con las manijas de afuera si alguno era curva.
+export function removeVertex(points: number[], segments: Segment[] | undefined, closed: boolean, i: number): { points: number[]; segments?: Segment[] } | null {
+  const n = points.length / 2
+  if (n <= minVertices(closed)) return null
+  const pts = [...points.slice(0, i * 2), ...points.slice((i + 1) * 2)]
+  if (!segments) return { points: pts }
+  const segs = segments.slice()
+  if (!closed && (i === 0 || i === n - 1)) {
+    // Punta de un trazo abierto: se va con su lado.
+    segs.splice(i === 0 ? 0 : n - 2, 1)
+    return { points: pts, segments: segs }
+  }
+  const prevIdx = (i - 1 + n) % n
+  const prev = segs[prevIdx] ?? { kind: 'line' as const }, next = segs[i] ?? { kind: 'line' as const }
+  const A = pt(points, prevIdx), M = pt(points, i), B = pt(points, (i + 1) % n)
+  let merged: Segment = { kind: 'line' }
+  if (prev.kind === 'bezier' || next.kind === 'bezier') {
+    const c1: [number, number] = prev.kind === 'bezier' ? prev.c1 : [A.x + (M.x - A.x) / 3, A.y + (M.y - A.y) / 3]
+    const c2: [number, number] = next.kind === 'bezier' ? next.c2 : [B.x + (M.x - B.x) / 3, B.y + (M.y - B.y) / 3]
+    merged = { kind: 'bezier', c1, c2 }
+  } else if (prev.kind === 'arc' || next.kind === 'arc') {
+    merged = { kind: 'arc', bulge: bulgeFromThreePoints(A, B, M) }
+  }
+  // El lado que llega a i (prevIdx) pasa a ir de A a B; se saca el lado i.
+  segs[prevIdx] = merged
+  segs.splice(i, 1)
+  return { points: pts, segments: segs }
+}
