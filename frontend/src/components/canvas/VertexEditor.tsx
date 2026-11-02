@@ -30,6 +30,10 @@ export default function VertexEditor({ element: el, scale, onPushHistory, onUpda
   const closed = el.shape === 'polygon' ? true : !!el.closed
   const segs = el.segments
   const sides = closed ? n : n - 1
+  // Clave que cambia al recalcular la geometría (al soltar, agregar o quitar
+  // un vértice): react-konva no vuelve a ubicar un nodo que se arrastró si
+  // sus props no cambian, así que los controles se vuelven a montar.
+  const gen = `${n}:${el.x}:${el.y}:${el.width}:${el.height}`
   const size = 9 / scale
   const stop = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent | DragEvent>) => { e.cancelBubble = true }
   const local = (e: Konva.KonvaEventObject<DragEvent>) => ({ x: e.target.x() / PPM, y: e.target.y() / PPM })
@@ -65,7 +69,7 @@ export default function VertexEditor({ element: el, scale, onPushHistory, onUpda
         if (s.kind !== 'bezier' || i >= sides) return []
         return (['c1', 'c2'] as const).map(which => (
           <Circle
-            key={`h${i}${which}`}
+            key={`h${i}${which}-${gen}`}
             {...common}
             x={s[which][0] * PPM}
             y={s[which][1] * PPM}
@@ -91,7 +95,7 @@ export default function VertexEditor({ element: el, scale, onPushHistory, onUpda
         const my = (ay + by) / 2 + ((bx - ax) / c) * sg
         return (
           <RegularPolygon
-            key={`a${i}`}
+            key={`a${i}-${gen}`}
             {...common}
             sides={4}
             x={mx * PPM}
@@ -110,7 +114,7 @@ export default function VertexEditor({ element: el, scale, onPushHistory, onUpda
       {/* Vértices */}
       {Array.from({ length: n }, (_, i) => (
         <Rect
-          key={`v${i}`}
+          key={`v${i}-${gen}`}
           {...common}
           x={pts[i * 2] * PPM}
           y={pts[i * 2 + 1] * PPM}
