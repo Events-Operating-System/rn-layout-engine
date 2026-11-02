@@ -926,3 +926,25 @@ Responden la lista de la §7. Donde la §7 tenía una recomendación y Javier no
 
 **Decidido sin preguntar (menor, revisar):** el origen por defecto es "propio"; los manteles solo cuentan si se eligió color o tela; tarima y pista se agrupan por tipo (no por nombre) para dar el total en m²; la comparación es contra versiones guardadas (por defecto la anterior a la actual).
 
+### 8.5 Ajustes a la lista de materiales (2026-11-01, después de la revisión de Javier en un plano real)
+
+1. **Comparación sin cambios:** "Sin cambios respecto a vN" en pantalla, PDF y Excel (antes la columna quedaba vacía).
+2. **Avisos de lo que falta:** "Manteles sin definir: N" (las mesas sin mantel cuentan en una línea "Mantel · Sin definir · Ø …"), "Sillas sin tipo/color: N", y en cada silla "Sin tipo/color", "Sin tipo · Azul" o "Tiffany · sin color" en lugar de vacío o "—". En pantalla, PDF y Excel. Los avisos se calculan sobre lo que se exporta (el PDF de un proveedor no arrastra avisos del resto).
+3. **Subtotal por tipo** al final de cada grupo: "Sillas: 34", "Mesas: 6", "Manteles: 5 + 1 sin definir", "Tarima / escenario: 240 m²", "Barra / buffet: 9 m".
+4. **Título** del PDF y del Excel: "Lista de materiales — <Nombre> · vN" (y "· <Proveedor>" en el archivo de cada proveedor).
+5. **Filtro al exportar** (PDF ▾ / Excel ▾): Todo · Solo propio · Solo terceros · Un archivo por proveedor (con su nombre en el título y en el archivo: "<Nombre> - vN - materiales - <Proveedor>.pdf").
+6. **Tipo "Sofá / lounge"** (sofá, lounge, puff, sillón), con su altura 3D como ajuste de la org (`h3d_lounge` 0,8 m; migración `20261101150000`, desde la versión viva de `org_settings_schema()` con candado; ROLLBACK como las anteriores) y campo en Administración. Las piezas "Zona Lounge" de 1 × 0,8 y 2 × 0,8 m ahora salen como "Sofá / lounge". Lo que queda en **"Otra pieza"** se marca en ámbar en la lista con **"Elegir tipo…"**, que fija el tipo de todas las piezas de esa línea (una entrada de deshacer).
+7. **Tercero con proveedor del catálogo:** la nota sugiere los proveedores de la org (`inventarios.providers`, **solo lectura**, la RLS ya deja leer a los miembros). Si lo escrito coincide con uno (sin importar mayúsculas), se guarda vinculado (`providerId`, marca ✓); si no, queda como texto libre. Reuniones no tiene un catálogo propio: el único es el de Inventarios. No se modificó nada de Inventarios.
+
+**Pruebas:** 5 tests nuevos (sillas sin tipo/color, lounge y piezas por línea, subtotales con sin definir, filtros por origen y proveedor, sin cambios). Total en Layout: 137; Administración: 119.
+- **En la app real** (sesión de Javier en JBD, solo mirando): en el plano "Prueba nueva version Layouts" v9 comparado con v8 aparecieron "Sin cambios respecto a v8", "Manteles sin definir: 1", "Sillas sin tipo/color: 26", los subtotales y "Sofá / lounge" (4 + 2). En un plano nuevo **sin guardar**: el catálogo de JBD trajo 3 proveedores; escribir uno en minúsculas lo dejó vinculado con su nombre exacto.
+- **PDF por proveedor y Excel** se revisaron en una página local que monta el panel real con los datos de ese plano (leídos de la base, sin guardar): PDF completo con avisos y subtotales; un archivo por proveedor ("… - materiales - Alquileres Lima.pdf", "… - Mesas SAC.pdf", y su .xlsx) solo con sus líneas.
+
+![Lista con avisos y subtotales](img/materiales-subtotales.jpg)
+
+![PDF de la lista de materiales](img/materiales-pdf.jpg)
+
+![PDF de un proveedor](img/materiales-pdf-proveedor.jpg)
+
+**Pregunta 8 — ¿el bloque 7 incluyó curvas libres?** Sí. Además de arcos y medias lunas, el bloque 7 trae **curvas libres**: la herramienta **Curva (B)** dibuja una curva suave que pasa por los puntos marcados (Bézier armadas desde los puntos), abierta o cerrada; y en Propiedades cualquier lado de un polígono, muro o curva se puede convertir en **"Curva libre"**. Lo que **no** tiene todavía: mover vértices ni manijas con el mouse (se edita por lados en Propiedades y con el recuadro).
+
