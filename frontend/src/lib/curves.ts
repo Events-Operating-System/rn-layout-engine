@@ -275,10 +275,20 @@ export function withSegments(
   el: { x: number; y: number; rotation: number; points?: number[]; closed?: boolean; shape?: string },
   segments: Segment[],
 ): { x: number; y: number; width: number; height: number; points: number[]; segments?: Segment[] } {
-  const pts = el.points ?? []
+  return withGeometry(el, el.points ?? [], segments)
+}
+
+// Vértices y lados nuevos (editados con el mouse o en Propiedades): la caja
+// se recalcula y la esquina se corre en el sentido de la rotación, así nada
+// de lo que no se tocó se mueve en el plano.
+export function withGeometry(
+  el: { x: number; y: number; rotation: number; closed?: boolean; shape?: string },
+  points: number[],
+  segments: Segment[] | undefined,
+): { x: number; y: number; width: number; height: number; points: number[]; segments?: Segment[] } {
   const closed = el.shape === 'polygon' ? true : !!el.closed
-  const clean = segments.every(s => s.kind === 'line') ? undefined : segments
-  const n = normalizePath(pts, clean, closed)
+  const clean = !segments || segments.every(s => s.kind === 'line') ? undefined : segments
+  const n = normalizePath(points, clean, closed)
   const r = (el.rotation * Math.PI) / 180
   const round = (v: number) => Math.round(v * 1000) / 1000
   return {
@@ -287,6 +297,36 @@ export function withSegments(
     y: round(el.y + n.x * Math.sin(r) + n.y * Math.cos(r)),
     ...(clean ? {} : { segments: undefined }),
   }
+}
+
+// Mover el vértice i a (x, y) (metros, coordenadas de la pieza). Las manijas
+// de las curvas libres pegadas a ese vértice se mueven con él.
+export function moveVertex(points: number[], segments: Segment[] | undefined, closed: boolean, i: number, x: number, y: number): { points: number[]; segments?: Segment[] } {
+  const n = points.length / 2
+  const dx = x - points[i * 2], dy = y - points[i * 2 + 1]
+  const pts = points.slice()
+  pts[i * 2] = x; pts[i * 2 + 1] = y
+  if (!segments) return { points: pts }
+  const segs = segments.map(s => ({ ...s })) as Segment[]
+  const next = segs[i]                                  // lado que sale del vértice
+  const prevIdx = i > 0 ? i - 1 : closed ? n - 1 : -1   // lado que llega al vértice
+  if (next?.kind === 'bezier') next.c1 = [next.c1[0] + dx, next.c1[1] + dy]
+  const prev = prevIdx >= 0 ? segs[prevIdx] : undefined
+  if (prev?.kind === 'bezier') prev.c2 = [prev.c2[0] + dx, prev.c2[1] + dy]
+  return { points: pts, segments: segs }
+}
+
+// Mover una manija de curva libre (c1 o c2 del lado i).
+export function moveHandle(segments: Segment[], i: number, which: 'c1' | 'c2', x: number, y: number): Segment[] {
+  return segments.map((s, k) => (k === i && s.kind === 'bezier' ? { ...s, [which]: [x, y] as [number, number] } : s))
+}
+
+// Arrastrar el punto medio de un arco: el arco pasa a pasar por ahí.
+export function moveArcApex(points: number[], segments: Segment[], closed: boolean, i: number, x: number, y: number): Segment[] {
+  const n = points.length / 2
+  const j = closed ? (i + 1) % n : i + 1
+  const bulge = bulgeFromThreePoints({ x: points[i * 2], y: points[i * 2 + 1] }, { x: points[j * 2], y: points[j * 2 + 1] }, { x, y })
+  return segments.map((s, k) => (k === i ? { kind: 'arc' as const, bulge } : s))
 }
 
 // Lados de la pieza con su tipo (sin `segments` = todos rectos).

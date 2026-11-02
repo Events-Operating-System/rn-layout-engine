@@ -16,6 +16,7 @@ import { exportLayoutPng, exportSelectionPng } from './exportLayout'
 import { buildLayoutPdf } from './pdfExport'
 import { bakeBackground } from './bakeBackground'
 import { cropPixels } from '@/lib/venueBackground'
+import VertexEditor from './VertexEditor'
 import { contentBounds, drawingsInside, type PaperChoice } from '@/lib/pdfLayout'
 import GridLines from './GridLines'
 import { DrawingShape, DrawingPreview } from './DrawingShape'
@@ -896,6 +897,16 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
       return flattenPath(flat, smoothSegments(flat, false), false)
     }, [activeTool, polygonPoints, polygonPreviewEnd])
 
+    // Una sola pieza con vértices elegida (polígono, muro o curva), sin
+    // bloquear ni espejar: se editan sus vértices con el mouse.
+    const vertexTarget = (() => {
+      if (activeTool !== 'pointer' || !selectedId) return undefined
+      const el = elements.find(e => e.id === selectedId)
+      if (!el || el.locked || inertIds?.has(el.id) || el.flipX || el.flipY) return undefined
+      if (!(el.shape === 'polygon' || el.shape === 'wall' || el.shape === 'path') || (el.points?.length ?? 0) < 4) return undefined
+      return el
+    })()
+
     const elementInteractive = activeTool === 'pointer'
     const drawingsInteractive = activeTool === 'pointer' && !drawingsLocked
 
@@ -1202,6 +1213,15 @@ const LayoutCanvas = forwardRef<LayoutCanvasHandle, LayoutCanvasProps>(
               boundBoxFunc={(_old, newBox) => newBox}
               onTransformEnd={handleGroupTransformEnd}
             />
+            {/* Editar vértices, manijas y arcos de la pieza elegida. */}
+            {vertexTarget && (
+              <VertexEditor
+                element={vertexTarget}
+                scale={viewport.scale}
+                onPushHistory={onPushHistory}
+                onUpdate={u => onUpdateElement(vertexTarget.id, u)}
+              />
+            )}
           </Layer>
         </Stage>
         )}

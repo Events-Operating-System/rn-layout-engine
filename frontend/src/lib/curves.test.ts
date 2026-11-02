@@ -109,3 +109,42 @@ describe('editar lados', () => {
     expect(wy).toBeCloseTo(10, 6)
   })
 })
+
+describe('editar con el mouse', () => {
+  it('mover un vértice hacia afuera no mueve los demás en el plano', async () => {
+    const { moveVertex, withGeometry } = await import('./curves')
+    const el = { x: 10, y: 10, rotation: 30, shape: 'polygon' }
+    const pts = [0, 0, 4, 0, 4, 4, 0, 4]
+    const moved = moveVertex(pts, undefined, true, 0, -2, -1)
+    const g = withGeometry(el, moved.points, moved.segments)
+    const world = (gx: number, gy: number, lx: number, ly: number) => {
+      const r = Math.PI / 6
+      return [gx + lx * Math.cos(r) - ly * Math.sin(r), gy + lx * Math.sin(r) + ly * Math.cos(r)]
+    }
+    // el vértice 2 (4,4) sigue en el mismo lugar del plano
+    const before = world(10, 10, 4, 4)
+    const after = world(g.x, g.y, g.points[4], g.points[5])
+    // al milímetro (la geometría se guarda redondeada a mm)
+    expect(after[0]).toBeCloseTo(before[0], 3)
+    expect(after[1]).toBeCloseTo(before[1], 3)
+    expect(g.width).toBeCloseTo(6, 3)
+    expect(Math.min(...g.points.filter((_, i) => i % 2 === 0))).toBeCloseTo(0, 3)
+  })
+  it('las manijas pegadas al vértice se mueven con él', async () => {
+    const { moveVertex, smoothSegments } = await import('./curves')
+    const pts = [0, 0, 5, 3, 10, 0]
+    const segs = smoothSegments(pts, false)
+    const m = moveVertex(pts, segs, false, 1, 6, 4)
+    const s0 = m.segments![0] as { c2: [number, number] }, s1 = m.segments![1] as { c1: [number, number] }
+    const o0 = segs[0] as { c2: [number, number] }, o1 = segs[1] as { c1: [number, number] }
+    expect(s0.c2[0] - o0.c2[0]).toBeCloseTo(1, 9)
+    expect(s1.c1[1] - o1.c1[1]).toBeCloseTo(1, 9)
+  })
+  it('mover una manija y el punto medio de un arco', async () => {
+    const { moveHandle, moveArcApex, smoothSegments, arcFromBulge } = await import('./curves')
+    const segs = moveHandle(smoothSegments([0, 0, 10, 0], false), 0, 'c1', 2, -5)
+    expect((segs[0] as { c1: number[] }).c1).toEqual([2, -5])
+    const arc = moveArcApex([0, 0, 10, 0], [{ kind: 'line' }], false, 0, 5, -5)
+    expect(arcFromBulge({ x: 0, y: 0 }, { x: 10, y: 0 }, (arc[0] as { bulge: number }).bulge)!.r).toBeCloseTo(5, 6)
+  })
+})
